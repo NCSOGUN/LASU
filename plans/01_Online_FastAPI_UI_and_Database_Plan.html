@@ -1,0 +1,1718 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><title>HealthAccess — Plan 1: Online application, FastAPI, shared data and AI contracts</title><style>:root{--ink:#173e34;--muted:#5b7168;--brand:#16664f;--paper:#fff;--wash:#f4f7f2;--line:#d7e3db;--soft:#e7f2e9;--code:#142d25;font:15px/1.7 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--ink);background:var(--wash);color-scheme:light}
+*{box-sizing:border-box}body{margin:0}a{color:var(--brand);text-underline-offset:3px}button,select{font:inherit}button{cursor:pointer}button:focus-visible,a:focus-visible,summary:focus-visible{outline:3px solid #ce8b2d;outline-offset:4px}[hidden]{display:none!important}h1,h2,h3{line-height:1.25;letter-spacing:-.025em;font-weight:650}h1{font-size:clamp(28px,3.3vw,42px);margin:14px 0 22px;max-width:920px}h2{font-size:26px;margin:64px 0 22px;padding-top:20px;border-top:1px solid var(--line);scroll-margin-top:25px}h3{font-size:19px;margin:32px 0 14px;scroll-margin-top:25px}p{margin:14px 0}ul,ol{padding-left:25px}li{padding-left:3px;margin:7px 0}strong{font-weight:650}code{font:0.86em/1.6 ui-monospace,SFMono-Regular,Consolas,monospace;background:#ecf2ec;padding:2px 5px;border-radius:4px;overflow-wrap:anywhere}pre{background:var(--code);color:#e4f1e6;padding:21px 23px;border-radius:12px;overflow:auto;font-size:13px;line-height:1.7;margin:22px 0;tab-size:2}pre code{background:transparent;padding:0;border-radius:0;color:inherit;font-size:inherit;white-space:pre;overflow-wrap:normal}blockquote{margin:24px 0;padding:8px 20px;border-left:4px solid var(--brand);background:var(--soft)}hr{border:0;border-top:1px solid var(--line);margin:35px 0}.layout{display:grid;grid-template-columns:270px minmax(0,1fr);max-width:1700px;margin:auto;min-height:100vh}.side{position:sticky;top:0;height:100vh;overflow:auto;padding:28px 22px;background:#f8faf6;border-right:1px solid var(--line)}.brand{display:flex;gap:10px;align-items:center;color:var(--ink);font-size:22px;font-weight:650;letter-spacing:-.8px;text-decoration:none;margin-bottom:27px}.brand-mark{width:31px;height:31px;border-radius:9px;background:var(--brand);color:white;display:grid;place-items:center;font-size:22px}.nav-label{font-size:10px;text-transform:uppercase;letter-spacing:1.8px;font-weight:650;color:var(--muted);margin:22px 0 10px}.switch{display:grid;gap:7px}.switch a{padding:9px 11px;text-decoration:none;font-size:13px;border-radius:7px;color:var(--muted)}.switch a.active{background:#dfede2;color:var(--ink);font-weight:650}.switch a:hover{background:var(--soft)}.toc ul{list-style:none;padding:0;margin:0}.toc li{padding:0;margin:5px 0}.toc a{display:block;text-decoration:none;color:var(--muted);font-size:12px;line-height:1.5;padding:6px 2px}.toc a:hover{color:var(--brand)}.toc .active-section{color:var(--brand);font-weight:650}.side-note{font-size:11px;color:var(--muted);margin-top:28px}.page{min-width:0;padding:35px 48px 80px}.topline{display:flex;align-items:center;justify-content:space-between;gap:20px;padding-bottom:22px;border-bottom:1px solid var(--line)}.eyebrow{text-transform:uppercase;letter-spacing:1.9px;font-size:10px;font-weight:650;color:var(--muted)}.toolbar{display:flex;gap:10px;flex-wrap:wrap}.button{border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--ink);padding:8px 13px;font-size:12px;line-height:1.5;min-height:35px;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:6px}.button:hover{background:var(--soft)}.button.primary{background:var(--brand);color:white;border-color:var(--brand)}.lead{font-size:15px;color:var(--muted);max-width:800px;margin:12px 0 24px}.hero{padding-top:30px}.hero-tag{font-size:11px;color:var(--brand);display:inline-block;background:var(--soft);border-radius:6px;padding:5px 9px}.document>p:first-child,.document>p:nth-child(2){font-size:12px;color:var(--muted)}.table-wrap{overflow:auto;max-width:100%;margin:23px 0 30px;border:1px solid var(--line);border-radius:11px;background:white}table{border-collapse:collapse;width:100%;min-width:540px;font-size:12.5px;line-height:1.6}th{text-align:left;background:#e9f1e8;color:var(--ink);font-size:11px;letter-spacing:.02em;padding:13px 15px;vertical-align:top}td{padding:13px 15px;border-top:1px solid #e5ece5;vertical-align:top;overflow-wrap:anywhere}tr:nth-child(even) td{background:#fafcf8}td code{font-size:11px;white-space:normal}th:first-child{width:auto}td:first-child{font-weight:500}figure{margin:28px 0}.diagram{background:white;border:1px solid var(--line);border-radius:14px;overflow:hidden;break-inside:avoid}.diagram-head{padding:15px 18px;border-bottom:1px solid #e8eee8;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.diagram-head strong{font-size:13px}.diagram-actions{display:flex;gap:7px}.diagram-scroll{overflow:auto;padding:22px 20px;background:white}.diagram-svg{display:block;min-width:0}.diagram-svg svg{display:block;width:100%;max-width:100%;height:auto;min-width:580px}.diagram-caption{font-size:11px;color:var(--muted);margin:0;padding:0 18px 16px}.diagram-source{padding:0 18px 14px;font-size:11px;color:var(--muted)}.diagram-source summary{cursor:pointer}.diagram-source pre{font-size:11px;margin:10px 0 0;padding:16px}.source-code{margin-bottom:20px}.source-code .code-top{display:flex;justify-content:space-between;align-items:center;font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;padding:0 2px}.source-code pre{margin-top:8px}.source-code .button{text-transform:none;letter-spacing:0;padding:5px 9px;min-height:27px;font-size:11px}.doc-footer{border-top:1px solid var(--line);margin-top:55px;padding-top:20px;color:var(--muted);font-size:12px}.mobile-nav{display:none}.diagram-dialog{border:1px solid var(--line);border-radius:14px;padding:0;width:96vw;max-width:1600px;height:92vh;max-height:92vh;color:var(--ink);background:white}.diagram-dialog::backdrop{background:#10291ecc}.modal-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px;border-bottom:1px solid var(--line)}.modal-toolbar h2{font-size:16px;border:0;padding:0;margin:0;letter-spacing:0}.modal-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.modal-body{overflow:auto;height:calc(100% - 72px);padding:28px;background:#f7faf5}.modal-body img{display:block;height:auto;margin:auto;max-width:none}.zoom-value{font-size:11px;min-width:40px;text-align:center}.status-note{font-size:11px;color:var(--muted);min-height:18px;margin-top:4px}.print-note{display:none}
+@media(min-width:1500px){.page{padding-left:65px;padding-right:65px}}
+@media(max-width:1100px){.layout{grid-template-columns:230px minmax(0,1fr)}.side{padding:25px 17px}.page{padding:28px 28px 60px}.brand{font-size:20px}h2{font-size:23px}.diagram-scroll{padding:15px}}
+@media(max-width:800px){.layout{display:block}.side{display:none}.page{padding:20px 18px 50px}.mobile-nav{display:block;margin:15px 0 5px;padding:12px 14px;border:1px solid var(--line);border-radius:9px;background:white}.mobile-nav summary{font-size:13px;font-weight:600;cursor:pointer}.mobile-nav .switch{margin:10px 0}.mobile-nav .toc{margin-top:12px}.topline{gap:12px}.topline .eyebrow{font-size:9px}.toolbar{gap:6px}.toolbar .button{padding:7px 10px;font-size:11px}.hero{padding-top:22px}h1{font-size:30px}h2{font-size:22px;margin-top:45px}.document{font-size:14px}.diagram-head{padding:12px}.diagram-actions .button{font-size:11px}.diagram-caption{padding-inline:12px}.diagram-scroll{padding:12px}.modal-toolbar{flex-wrap:wrap;padding:12px}.modal-body{height:calc(100% - 110px);padding:14px}.modal-toolbar h2{font-size:14px}.button{min-height:40px}.table-wrap{margin-inline:0}.lead{font-size:14px}.diagram-source{padding-inline:12px}}
+@media print{@page{size:A4;margin:15mm}.side,.topline,.mobile-nav,.diagram-actions,.diagram-source,.code-top,.doc-footer,.toolbar{display:none!important}.layout{display:block}.page{padding:0;max-width:none}.hero{padding:0}.hero-tag{padding:0;background:none}.lead{font-size:10pt}body{background:white;font-size:10pt}.document{font-size:10pt}.diagram{border-color:#bbb}.diagram-scroll{overflow:visible;padding:10px}.diagram-svg,.diagram-svg svg{min-width:0!important}.diagram-svg svg{max-height:230mm}.table-wrap{overflow:visible;border-radius:0}table{min-width:0;font-size:8pt}td,th{padding:7px 8px}pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:8pt;background:#f4f4f4;color:#222;border:1px solid #ddd}pre code{white-space:pre-wrap;color:#222}h1{font-size:24pt}h2{font-size:17pt;margin:30px 0 15px;break-after:avoid}h3{font-size:13pt;break-after:avoid}.diagram-head{padding:8px 12px}a{color:inherit}.print-note{display:block;font-size:8pt;color:#555}}
+</style></head><body>
+<div class="layout"><aside class="side"><a class="brand" href="#top"><span class="brand-mark" aria-hidden="true">+</span>HealthAccess</a><div class="nav-label">Implementation plans</div><div class="switch"><a class="active" href="01_Online_FastAPI_UI_and_Database_Plan.html">01 · Online / FastAPI</a><a class="" href="02_Offline_NodeJS_SMS_USSD_Plan.html">02 · Offline / Node.js</a><a href="HealthAccess_Interactive_Prototype.html">Interactive UI prototype</a></div><div class="nav-label">In this plan</div><div class="toc">
+<ul>
+<li><a href="#1-the-architecture-to-implement">1. The architecture to implement</a></li>
+<li><a href="#2-first-implement-three-complete-user-journeys">2. First implement three complete user journeys</a></li>
+<li><a href="#3-roles-and-authorization-matrix">3. Roles and authorization matrix</a></li>
+<li><a href="#4-react-screens-and-routes">4. React screens and routes</a></li>
+<li><a href="#5-generative-ui-structured-data-approved-components">5. Generative UI: structured data, approved components</a></li>
+<li><a href="#6-http-api-conventions">6. HTTP API conventions</a></li>
+<li><a href="#7-web-endpoints">7. Web endpoints</a></li>
+<li><a href="#8-shared-ai-service-contract">8. Shared AI service contract</a></li>
+<li><a href="#9-postgresql-data-structure">9. PostgreSQL data structure</a></li>
+<li><a href="#10-hospital-matching-algorithm">10. Hospital matching algorithm</a></li>
+<li><a href="#11-backend-layout-and-deployment">11. Backend layout and deployment</a></li>
+<li><a href="#12-implementation-order-and-acceptance-criteria">12. Implementation order and acceptance criteria</a></li>
+<li><a href="#13-how-to-use-the-accompanying-html">13. How to use the accompanying HTML</a></li>
+</ul>
+</div>
+<p class="side-note">Embedded vector diagrams.<br>No internet connection required.<br>Use Enlarge to inspect a diagram.</p></aside>
+<main class="page" id="top"><div class="topline"><span class="eyebrow">HealthAccess / Engineering handoff</span><div class="toolbar"><button class="button" type="button" id="print-plan">Print / Save PDF</button><a class="button" href="#top">Top ↑</a></div></div>
+<details class="mobile-nav"><summary>Plans &amp; contents</summary><div class="switch"><a class="active" href="01_Online_FastAPI_UI_and_Database_Plan.html">01 · Online / FastAPI</a><a class="" href="02_Offline_NodeJS_SMS_USSD_Plan.html">02 · Offline / Node.js</a><a href="HealthAccess_Interactive_Prototype.html">Interactive UI prototype</a></div><div class="toc">
+<ul>
+<li><a href="#1-the-architecture-to-implement">1. The architecture to implement</a></li>
+<li><a href="#2-first-implement-three-complete-user-journeys">2. First implement three complete user journeys</a></li>
+<li><a href="#3-roles-and-authorization-matrix">3. Roles and authorization matrix</a></li>
+<li><a href="#4-react-screens-and-routes">4. React screens and routes</a></li>
+<li><a href="#5-generative-ui-structured-data-approved-components">5. Generative UI: structured data, approved components</a></li>
+<li><a href="#6-http-api-conventions">6. HTTP API conventions</a></li>
+<li><a href="#7-web-endpoints">7. Web endpoints</a></li>
+<li><a href="#8-shared-ai-service-contract">8. Shared AI service contract</a></li>
+<li><a href="#9-postgresql-data-structure">9. PostgreSQL data structure</a></li>
+<li><a href="#10-hospital-matching-algorithm">10. Hospital matching algorithm</a></li>
+<li><a href="#11-backend-layout-and-deployment">11. Backend layout and deployment</a></li>
+<li><a href="#12-implementation-order-and-acceptance-criteria">12. Implementation order and acceptance criteria</a></li>
+<li><a href="#13-how-to-use-the-accompanying-html">13. How to use the accompanying HTML</a></li>
+</ul>
+</div>
+</details>
+<header class="hero"><span class="hero-tag">Plan 01 · Online application</span><h1>Plan 1: Online application, FastAPI, shared data and AI contracts</h1><p class="lead">React screens, FastAPI contracts, shared authorization, generative UI and PostgreSQL — with the architecture and data relationships drawn out.</p><p class="print-note">HealthAccess implementation plan · diagrams embedded as vector artwork.</p></header>
+<article class="document"><p>Version: 1.0 · 16 November 2026</p>
+<p>Source: the supplied <code>HealthAccess_Project_Brief.md</code>, with the user's subsequent architecture diagram and corrections taking precedence. This is an implementation specification, not a claim that production services have been built. Supporting libraries remain the development team's choice.</p>
+<h2 id="1-the-architecture-to-implement">1. The architecture to implement</h2>
+<p><strong>FastAPI serves online access. Node.js serves offline access through Africa's Talking. Neither backend calls the other to complete patient requests. Both use PostgreSQL and a separately addressable AI service.</strong></p>
+<figure class="diagram" id="shared-architecture"><div class="diagram-head"><strong>Two independent backends, one shared data model</strong><div class="diagram-actions"><button class="button" type="button" data-expand-diagram>Enlarge</button><button class="button" type="button" data-download-diagram>Save SVG</button></div></div><div class="diagram-scroll"><div class="diagram-svg"><svg role="img" aria-labelledby="shared-architecture-title" style="width:100%;min-width:751px;max-width:972px;margin:auto"
+ viewBox="0.00 0.00 884.00 175.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><title id="shared-architecture-title">Two independent backends, one shared data model</title><desc>Web traffic goes to FastAPI; telecom traffic goes to Node.js. Both use the shared AI service and PostgreSQL. There is no Node.js-to-FastAPI dependency.</desc>
+<g id="shared-architecture-graph0" class="graph" transform="scale(1 1) rotate(0) translate(18 157)">
+<title>G</title>
+<polygon fill="white" stroke="transparent" points="-18,18 -18,-157 866,-157 866,18 -18,18"/>
+
+<g id="shared-architecture-node1" class="node">
+<title>browser</title>
+<path fill="#f6f0dc" stroke="#d6c796" stroke-width="1.2" d="M284.5,-130C284.5,-130 172.5,-130 172.5,-130 166.5,-130 160.5,-124 160.5,-118 160.5,-118 160.5,-102 160.5,-102 160.5,-96 166.5,-90 172.5,-90 172.5,-90 284.5,-90 284.5,-90 290.5,-90 296.5,-96 296.5,-102 296.5,-102 296.5,-118 296.5,-118 296.5,-124 290.5,-130 284.5,-130"/>
+<text text-anchor="middle" x="228.5" y="-106.2" font-family="Arial" font-size="16.00" fill="#173e34">React web app</text>
+</g>
+
+<g id="shared-architecture-node4" class="node">
+<title>web</title>
+<path fill="#dcefe1" stroke="#6e9d7d" stroke-width="1.2" d="M467,-139C467,-139 349,-139 349,-139 343,-139 337,-133 337,-127 337,-127 337,-93 337,-93 337,-87 343,-81 349,-81 349,-81 467,-81 467,-81 473,-81 479,-87 479,-93 479,-93 479,-127 479,-127 479,-133 473,-139 467,-139"/>
+<text text-anchor="middle" x="408" y="-115.2" font-family="Arial" font-size="16.00" fill="#173e34">FastAPI</text>
+<text text-anchor="middle" x="408" y="-97.2" font-family="Arial" font-size="16.00" fill="#173e34">Online backend</text>
+</g>
+
+<g id="shared-architecture-edge1" class="edge">
+<title>browser&#45;&gt;web</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M296.61,-110C307.09,-110 318,-110 328.71,-110"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="328.84,-112.8 336.84,-110 328.84,-107.2 328.84,-112.8"/>
+</g>
+
+<g id="shared-architecture-node2" class="node">
+<title>phone</title>
+<path fill="#f6f0dc" stroke="#d6c796" stroke-width="1.2" d="M108,-58C108,-58 12,-58 12,-58 6,-58 0,-52 0,-46 0,-46 0,-12 0,-12 0,-6 6,0 12,0 12,0 108,0 108,0 114,0 120,-6 120,-12 120,-12 120,-46 120,-46 120,-52 114,-58 108,-58"/>
+<text text-anchor="middle" x="60" y="-34.2" font-family="Arial" font-size="16.00" fill="#173e34">SMS / USSD</text>
+<text text-anchor="middle" x="60" y="-16.2" font-family="Arial" font-size="16.00" fill="#173e34">Later: voice</text>
+</g>
+
+<g id="shared-architecture-node3" class="node">
+<title>at</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M285,-49C285,-49 172,-49 172,-49 166,-49 160,-43 160,-37 160,-37 160,-21 160,-21 160,-15 166,-9 172,-9 172,-9 285,-9 285,-9 291,-9 297,-15 297,-21 297,-21 297,-37 297,-37 297,-43 291,-49 285,-49"/>
+<text text-anchor="middle" x="228.5" y="-25.2" font-family="Arial" font-size="16.00" fill="#173e34">Africa&#39;s Talking</text>
+</g>
+
+<g id="shared-architecture-edge2" class="edge">
+<title>phone&#45;&gt;at</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M120.17,-29C130.37,-29 141.11,-29 151.68,-29"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="151.72,-31.8 159.72,-29 151.72,-26.2 151.72,-31.8"/>
+</g>
+
+<g id="shared-architecture-node5" class="node">
+<title>telecom</title>
+<path fill="#dcefe1" stroke="#6e9d7d" stroke-width="1.2" d="M467,-58C467,-58 349,-58 349,-58 343,-58 337,-52 337,-46 337,-46 337,-12 337,-12 337,-6 343,0 349,0 349,0 467,0 467,0 473,0 479,-6 479,-12 479,-12 479,-46 479,-46 479,-52 473,-58 467,-58"/>
+<text text-anchor="middle" x="408" y="-34.2" font-family="Arial" font-size="16.00" fill="#173e34">Node.js</text>
+<text text-anchor="middle" x="408" y="-16.2" font-family="Arial" font-size="16.00" fill="#173e34">Offline backend</text>
+</g>
+
+<g id="shared-architecture-edge3" class="edge">
+<title>at&#45;&gt;telecom</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M297.11,-29C307.49,-29 318.29,-29 328.88,-29"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="328.92,-31.8 336.92,-29 328.92,-26.2 328.92,-31.8"/>
+</g>
+
+<g id="shared-architecture-node6" class="node">
+<title>ai</title>
+<path fill="#e8eef7" stroke="#a3b6d2" stroke-width="1.2" d="M671,-127C671,-127 540,-127 540,-127 534,-127 528,-121 528,-115 528,-115 528,-99 528,-99 528,-93 534,-87 540,-87 540,-87 671,-87 671,-87 677,-87 683,-93 683,-99 683,-99 683,-115 683,-115 683,-121 677,-127 671,-127"/>
+<text text-anchor="middle" x="605.5" y="-103.2" font-family="Arial" font-size="16.00" fill="#173e34">Shared AI service</text>
+</g>
+
+<g id="shared-architecture-edge4" class="edge">
+<title>web&#45;&gt;ai</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M487.25,-108.8C497.86,-108.64 508.79,-108.47 519.52,-108.3"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="486.98,-106 479.03,-108.93 487.07,-111.6 486.98,-106"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="519.72,-111.1 527.67,-108.18 519.63,-105.5 519.72,-111.1"/>
+</g>
+
+<g id="shared-architecture-node8" class="node">
+<title>db</title>
+<path fill="#fff2de" stroke="#cdb58c" stroke-width="1.2" d="M692,-56.5C692,-59.26 653.23,-61.5 605.5,-61.5 557.77,-61.5 519,-59.26 519,-56.5 519,-56.5 519,-11.5 519,-11.5 519,-8.74 557.77,-6.5 605.5,-6.5 653.23,-6.5 692,-8.74 692,-11.5 692,-11.5 692,-56.5 692,-56.5"/>
+<path fill="none" stroke="#cdb58c" stroke-width="1.2" d="M692,-56.5C692,-53.74 653.23,-51.5 605.5,-51.5 557.77,-51.5 519,-53.74 519,-56.5"/>
+<text text-anchor="middle" x="605.5" y="-30.2" font-family="Arial" font-size="16.00" fill="#173e34">Shared PostgreSQL</text>
+</g>
+
+<g id="shared-architecture-edge7" class="edge">
+<title>web&#45;&gt;db</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M479.03,-82.78C495.27,-76.46 512.64,-69.71 529.1,-63.31"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="530.16,-65.9 536.6,-60.4 528.13,-60.69 530.16,-65.9"/>
+</g>
+
+<g id="shared-architecture-edge5" class="edge">
+<title>telecom&#45;&gt;ai</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M487.18,-60.27C505.1,-67.44 519,-73 519,-73 519,-73 531.09,-77.81 546.17,-83.8"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="487.76,-57.49 479.29,-57.11 485.68,-62.69 487.76,-57.49"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="545.31,-86.47 553.78,-86.83 547.38,-81.27 545.31,-86.47"/>
+</g>
+
+<g id="shared-architecture-edge8" class="edge">
+<title>telecom&#45;&gt;db</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M479.03,-30.79C489.33,-31.05 500.08,-31.33 510.77,-31.6"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="510.85,-34.41 518.92,-31.81 510.99,-28.81 510.85,-34.41"/>
+</g>
+
+<g id="shared-architecture-node7" class="node">
+<title>or</title>
+<path fill="#e8eef7" stroke="#a3b6d2" stroke-width="1.2" d="M836,-127C836,-127 744,-127 744,-127 738,-127 732,-121 732,-115 732,-115 732,-99 732,-99 732,-93 738,-87 744,-87 744,-87 836,-87 836,-87 842,-87 848,-93 848,-99 848,-99 848,-115 848,-115 848,-121 842,-127 836,-127"/>
+<text text-anchor="middle" x="790" y="-103.2" font-family="Arial" font-size="16.00" fill="#173e34">OpenRouter</text>
+</g>
+
+<g id="shared-architecture-edge6" class="edge">
+<title>ai&#45;&gt;or</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M691.16,-107C702.01,-107 712.98,-107 723.46,-107"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="691.1,-104.2 683.1,-107 691.1,-109.8 691.1,-104.2"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="723.74,-109.8 731.74,-107 723.74,-104.2 723.74,-109.8"/>
+</g>
+</g>
+</svg>
+</div></div><figcaption class="diagram-caption">Web traffic goes to FastAPI; telecom traffic goes to Node.js. Both use the shared AI service and PostgreSQL. There is no Node.js-to-FastAPI dependency.</figcaption><details class="diagram-source"><summary>Original diagram / flow text</summary><pre><code>flowchart LR
+    Browser[React web application] --&gt; Web[Python / FastAPI]
+    Phone[SMS / USSD / later voice] --&gt; AT[Africa&#x27;s Talking]
+    AT --&gt; Telecom[Node.js / JavaScript or TypeScript]
+    Web &lt;--&gt; AI[Shared internal AI service]
+    Telecom &lt;--&gt; AI
+    AI &lt;--&gt; OR[OpenRouter]
+    Web --&gt; DB[(Shared PostgreSQL)]
+    Telecom --&gt; DB</code></pre></details></figure>
+
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Component</th>
+<th>Owns</th>
+<th>Must not own</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>React</td>
+<td>Screens, conversation display, approved generative UI components, form validation and user confirmation</td>
+<td>Authorization decisions, model/provider credentials, direct database access</td>
+</tr>
+<tr>
+<td>FastAPI</td>
+<td>Web authentication, patient profile changes, web chat, online record access, web recommendations and administration</td>
+<td>Telecom callback handling</td>
+</tr>
+<tr>
+<td>Node.js</td>
+<td>Africa's Talking callbacks, SMS assistant, USSD state machine, telecom jobs and later voice adapter</td>
+<td>Web screen APIs; dependence on FastAPI for protected record access or AI</td>
+</tr>
+<tr>
+<td>Shared AI service</td>
+<td>Intent interpretation, reviewed-content retrieval, general health answers, structured suggestions</td>
+<td>Granting access, executing writes, inventing facilities or sending arbitrary UI code</td>
+</tr>
+<tr>
+<td>PostgreSQL</td>
+<td>Central records, facilities, sessions, grants, permissions, audit trail and durable queues</td>
+<td>Separate competing schemas maintained by each backend</td>
+</tr>
+</tbody>
+</table></div>
+<p>The AI service is a separate internal deployment or independently addressable service. Its implementation language can be Python or Node.js. It is <strong>not an endpoint hosted inside the web FastAPI deployment that Node.js must depend on</strong>.</p>
+<p>Referral means recommending and directing someone to a suitable nearby facility. No transfer approval, bed reservation, booking or hospital-to-hospital workflow is implied. Selecting a hospital does not send it a medical record.</p>
+<h3 id="scope-for-the-first-release">Scope for the first release</h3>
+<ul>
+<li>Patient portal, practitioner lookup and directory administration.</li>
+<li>Conversational online assistance and structured UI responses, added by the latest user request.</li>
+<li>Structured patient-controlled health fields, emergency summaries and temporary read grants.</li>
+<li>Suitable nearby hospital recommendations, with a list view that works without a map provider.</li>
+<li>SMS and USSD via the independent Node.js service; see Plan 2.</li>
+<li>Real-time voice stays a later release, subject to telecom audio capability checks.</li>
+</ul>
+<p>Full clinical document ingestion, prescribing, appointment booking and hospital EHR integration are separate projects. Do not silently imply these features in the first UI.</p>
+<h2 id="2-first-implement-three-complete-user-journeys">2. First implement three complete user journeys</h2>
+<h3 id="a-ask-for-care">A. Ask for care</h3>
+<figure class="diagram" id="web-care"><div class="diagram-head"><strong>Online care request → useful hospital cards</strong><div class="diagram-actions"><button class="button" type="button" data-expand-diagram>Enlarge</button><button class="button" type="button" data-download-diagram>Save SVG</button></div></div><div class="diagram-scroll"><div class="diagram-svg"><svg role="img" aria-labelledby="web-care-title" style="width:100%;min-width:433px;max-width:560px;margin:auto"
+ viewBox="0.00 0.00 509.00 740.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><title id="web-care-title">Online care request → useful hospital cards</title><desc>The AI interprets the request. Backend logic matches real directory entries and supplies the facts shown in cards.</desc>
+<g id="web-care-graph0" class="graph" transform="scale(1 1) rotate(0) translate(18 722)">
+<title>G</title>
+<polygon fill="white" stroke="transparent" points="-18,18 -18,-722 491,-722 491,18 -18,18"/>
+
+<g id="web-care-node1" class="node">
+<title>a</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M371,-704C371,-704 182,-704 182,-704 176,-704 170,-698 170,-692 170,-692 170,-676 170,-676 170,-670 176,-664 182,-664 182,-664 371,-664 371,-664 377,-664 383,-670 383,-676 383,-676 383,-692 383,-692 383,-698 377,-704 371,-704"/>
+<text text-anchor="middle" x="276.5" y="-680.2" font-family="Arial" font-size="16.00" fill="#173e34">User describes care need</text>
+</g>
+
+<g id="web-care-node2" class="node">
+<title>b</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M364,-623C364,-623 189,-623 189,-623 183,-623 177,-617 177,-611 177,-611 177,-577 177,-577 177,-571 183,-565 189,-565 189,-565 364,-565 364,-565 370,-565 376,-571 376,-577 376,-577 376,-611 376,-611 376,-617 370,-623 364,-623"/>
+<text text-anchor="middle" x="276.5" y="-599.2" font-family="Arial" font-size="16.00" fill="#173e34">FastAPI verifies</text>
+<text text-anchor="middle" x="276.5" y="-581.2" font-family="Arial" font-size="16.00" fill="#173e34">conversation ownership</text>
+</g>
+
+<g id="web-care-edge1" class="edge">
+<title>a&#45;&gt;b</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M276.5,-663.91C276.5,-654.31 276.5,-642.35 276.5,-631.1"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="279.3,-631.08 276.5,-623.08 273.7,-631.08 279.3,-631.08"/>
+</g>
+
+<g id="web-care-node3" class="node">
+<title>c</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M378,-524C378,-524 175,-524 175,-524 169,-524 163,-518 163,-512 163,-512 163,-478 163,-478 163,-472 169,-466 175,-466 175,-466 378,-466 378,-466 384,-466 390,-472 390,-478 390,-478 390,-512 390,-512 390,-518 384,-524 378,-524"/>
+<text text-anchor="middle" x="276.5" y="-500.2" font-family="Arial" font-size="16.00" fill="#173e34">Shared AI service interprets</text>
+<text text-anchor="middle" x="276.5" y="-482.2" font-family="Arial" font-size="16.00" fill="#173e34">service and area</text>
+</g>
+
+<g id="web-care-edge2" class="edge">
+<title>b&#45;&gt;c</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M276.5,-564.94C276.5,-554.78 276.5,-543.14 276.5,-532.37"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="279.3,-532.33 276.5,-524.33 273.7,-532.33 279.3,-532.33"/>
+</g>
+
+<g id="web-care-node4" class="node">
+<title>d</title>
+<path fill="#fff2de" stroke="#a9c5b4" stroke-width="1.2" d="M167.3,-420.7C167.3,-420.7 38.7,-371.3 38.7,-371.3 33.1,-369.15 33.1,-364.85 38.7,-362.7 38.7,-362.7 167.3,-313.3 167.3,-313.3 172.9,-311.15 184.1,-311.15 189.7,-313.3 189.7,-313.3 318.3,-362.7 318.3,-362.7 323.9,-364.85 323.9,-369.15 318.3,-371.3 318.3,-371.3 189.7,-420.7 189.7,-420.7 184.1,-422.85 172.9,-422.85 167.3,-420.7"/>
+<text text-anchor="middle" x="178.5" y="-372.2" font-family="Arial" font-size="16.00" fill="#173e34">Service and area</text>
+<text text-anchor="middle" x="178.5" y="-354.2" font-family="Arial" font-size="16.00" fill="#173e34">clear?</text>
+</g>
+
+<g id="web-care-edge3" class="edge">
+<title>c&#45;&gt;d</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M254.51,-465.72C243.65,-451.76 230.21,-434.49 217.67,-418.36"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="219.86,-416.61 212.73,-412.01 215.44,-420.05 219.86,-416.61"/>
+</g>
+
+<g id="web-care-node5" class="node">
+<title>e</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M461,-256C461,-256 290,-256 290,-256 284,-256 278,-250 278,-244 278,-244 278,-210 278,-210 278,-204 284,-198 290,-198 290,-198 461,-198 461,-198 467,-198 473,-204 473,-210 473,-210 473,-244 473,-244 473,-250 467,-256 461,-256"/>
+<text text-anchor="middle" x="375.5" y="-232.2" font-family="Arial" font-size="16.00" fill="#173e34">Ask one clarification</text>
+<text text-anchor="middle" x="375.5" y="-214.2" font-family="Arial" font-size="16.00" fill="#173e34">with selectable choices</text>
+</g>
+
+<g id="web-care-edge4" class="edge">
+<title>d&#45;&gt;e</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M231.29,-329.02C261.57,-307.81 299.26,-281.4 328.52,-260.91"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="330.43,-262.99 335.38,-256.1 327.22,-258.4 330.43,-262.99"/>
+<text text-anchor="middle" x="313.5" y="-279.4" font-family="Arial" font-size="12.00" fill="#486552">No</text>
+</g>
+
+<g id="web-care-node6" class="node">
+<title>f</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M243,-256C243,-256 12,-256 12,-256 6,-256 0,-250 0,-244 0,-244 0,-210 0,-210 0,-204 6,-198 12,-198 12,-198 243,-198 243,-198 249,-198 255,-204 255,-210 255,-210 255,-244 255,-244 255,-250 249,-256 243,-256"/>
+<text text-anchor="middle" x="127.5" y="-232.2" font-family="Arial" font-size="16.00" fill="#173e34">Read relevant own&#45;profile fields</text>
+<text text-anchor="middle" x="127.5" y="-214.2" font-family="Arial" font-size="16.00" fill="#173e34">only with explicit permission</text>
+</g>
+
+<g id="web-care-edge6" class="edge">
+<title>d&#45;&gt;f</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M159.94,-315.79C153.58,-298.57 146.59,-279.66 140.74,-263.82"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="143.36,-262.84 137.96,-256.3 138.11,-264.78 143.36,-262.84"/>
+<text text-anchor="middle" x="159.5" y="-279.4" font-family="Arial" font-size="12.00" fill="#486552">Yes</text>
+</g>
+
+<g id="web-care-edge5" class="edge">
+<title>e&#45;&gt;c</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M370.63,-256.23C361.23,-310.7 341.5,-425 341.5,-425 341.5,-425 324.9,-442.62 308.48,-460.06"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="306.39,-458.19 302.94,-465.94 310.46,-462.03 306.39,-458.19"/>
+<text text-anchor="middle" x="397.5" y="-363.9" font-family="Arial" font-size="12.00" fill="#486552">User answers</text>
+</g>
+
+<g id="web-care-node7" class="node">
+<title>g</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M220,-157C220,-157 35,-157 35,-157 29,-157 23,-151 23,-145 23,-145 23,-111 23,-111 23,-105 29,-99 35,-99 35,-99 220,-99 220,-99 226,-99 232,-105 232,-111 232,-111 232,-145 232,-145 232,-151 226,-157 220,-157"/>
+<text text-anchor="middle" x="127.5" y="-133.2" font-family="Arial" font-size="16.00" fill="#173e34">Filter directory by service</text>
+<text text-anchor="middle" x="127.5" y="-115.2" font-family="Arial" font-size="16.00" fill="#173e34">then rank by proximity</text>
+</g>
+
+<g id="web-care-edge7" class="edge">
+<title>f&#45;&gt;g</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M127.5,-197.94C127.5,-187.78 127.5,-176.14 127.5,-165.37"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="130.3,-165.33 127.5,-157.33 124.7,-165.33 130.3,-165.33"/>
+</g>
+
+<g id="web-care-node8" class="node">
+<title>h</title>
+<path fill="#dcefe1" stroke="#a9c5b4" stroke-width="1.2" d="M239.5,-58C239.5,-58 15.5,-58 15.5,-58 9.5,-58 3.5,-52 3.5,-46 3.5,-46 3.5,-12 3.5,-12 3.5,-6 9.5,0 15.5,0 15.5,0 239.5,0 239.5,0 245.5,0 251.5,-6 251.5,-12 251.5,-12 251.5,-46 251.5,-46 251.5,-52 245.5,-58 239.5,-58"/>
+<text text-anchor="middle" x="127.5" y="-34.2" font-family="Arial" font-size="16.00" fill="#173e34">Render approved facility cards</text>
+<text text-anchor="middle" x="127.5" y="-16.2" font-family="Arial" font-size="16.00" fill="#173e34">using directory facts</text>
+</g>
+
+<g id="web-care-edge8" class="edge">
+<title>g&#45;&gt;h</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M127.5,-98.94C127.5,-88.78 127.5,-77.14 127.5,-66.37"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="130.3,-66.33 127.5,-58.33 124.7,-66.33 130.3,-66.33"/>
+</g>
+</g>
+</svg>
+</div></div><figcaption class="diagram-caption">The AI interprets the request. Backend logic matches real directory entries and supplies the facts shown in cards.</figcaption></figure>
+
+<ol>
+<li>User opens the assistant, with or without signing in.</li>
+<li>User describes their request, e.g. “Find child care near Ikeja.”</li>
+<li>FastAPI verifies the conversation belongs to this account or anonymous session.</li>
+<li>AI returns a validated intent and candidate service/location, not a hospital recommendation invented by the model.</li>
+<li>If service or area is unclear, show a short question with choices.</li>
+<li>If the signed-in patient explicitly allows profile use, FastAPI reads only the permitted fields. The default is off.</li>
+<li>FastAPI queries the facility directory: filter by relevant service, then rank suitable results by proximity.</li>
+<li>React renders facility cards with name, address, service match, approximate distance and contact when present.</li>
+<li>Selecting a card reveals details and usable contact/direction actions, only where directory data supports them.</li>
+</ol>
+<h3 id="b-manage-emergency-information">B. Manage emergency information</h3>
+<figure class="diagram" id="web-summary"><div class="diagram-head"><strong>Patient-controlled emergency summary</strong><div class="diagram-actions"><button class="button" type="button" data-expand-diagram>Enlarge</button><button class="button" type="button" data-download-diagram>Save SVG</button></div></div><div class="diagram-scroll"><div class="diagram-svg"><svg role="img" aria-labelledby="web-summary-title" style="width:100%;min-width:280px;max-width:315px;margin:auto"
+ viewBox="0.00 0.00 286.00 574.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><title id="web-summary-title">Patient-controlled emergency summary</title><desc>A patient code reveals the selected emergency projection. Unselected fields remain private.</desc>
+<g id="web-summary-graph0" class="graph" transform="scale(1 1) rotate(0) translate(18 556)">
+<title>G</title>
+<polygon fill="white" stroke="transparent" points="-18,18 -18,-556 268,-556 268,18 -18,18"/>
+
+<g id="web-summary-node1" class="node">
+<title>a</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M234.5,-538C234.5,-538 15.5,-538 15.5,-538 9.5,-538 3.5,-532 3.5,-526 3.5,-526 3.5,-510 3.5,-510 3.5,-504 9.5,-498 15.5,-498 15.5,-498 234.5,-498 234.5,-498 240.5,-498 246.5,-504 246.5,-510 246.5,-510 246.5,-526 246.5,-526 246.5,-532 240.5,-538 234.5,-538"/>
+<text text-anchor="middle" x="125" y="-514.2" font-family="Arial" font-size="16.00" fill="#173e34">Patient edits own health fields</text>
+</g>
+
+<g id="web-summary-node2" class="node">
+<title>b</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M235.5,-458C235.5,-458 14.5,-458 14.5,-458 8.5,-458 2.5,-452 2.5,-446 2.5,-446 2.5,-430 2.5,-430 2.5,-424 8.5,-418 14.5,-418 14.5,-418 235.5,-418 235.5,-418 241.5,-418 247.5,-424 247.5,-430 247.5,-430 247.5,-446 247.5,-446 247.5,-452 241.5,-458 235.5,-458"/>
+<text text-anchor="middle" x="125" y="-434.2" font-family="Arial" font-size="16.00" fill="#173e34">Select exact emergency fields</text>
+</g>
+
+<g id="web-summary-edge1" class="edge">
+<title>a&#45;&gt;b</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M125,-497.72C125,-488.18 125,-476.5 125,-466.08"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="127.8,-466.06 125,-458.06 122.2,-466.06 127.8,-466.06"/>
+</g>
+
+<g id="web-summary-node3" class="node">
+<title>c</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M200.5,-378C200.5,-378 49.5,-378 49.5,-378 43.5,-378 37.5,-372 37.5,-366 37.5,-366 37.5,-350 37.5,-350 37.5,-344 43.5,-338 49.5,-338 49.5,-338 200.5,-338 200.5,-338 206.5,-338 212.5,-344 212.5,-350 212.5,-350 212.5,-366 212.5,-366 212.5,-372 206.5,-378 200.5,-378"/>
+<text text-anchor="middle" x="125" y="-354.2" font-family="Arial" font-size="16.00" fill="#173e34">Preview and confirm</text>
+</g>
+
+<g id="web-summary-edge2" class="edge">
+<title>b&#45;&gt;c</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M125,-417.72C125,-408.18 125,-396.5 125,-386.08"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="127.8,-386.06 125,-378.06 122.2,-386.06 127.8,-386.06"/>
+</g>
+
+<g id="web-summary-node4" class="node">
+<title>d</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M223,-298C223,-298 27,-298 27,-298 21,-298 15,-292 15,-286 15,-286 15,-270 15,-270 15,-264 21,-258 27,-258 27,-258 223,-258 223,-258 229,-258 235,-264 235,-270 235,-270 235,-286 235,-286 235,-292 229,-298 223,-298"/>
+<text text-anchor="middle" x="125" y="-274.2" font-family="Arial" font-size="16.00" fill="#173e34">Save selections atomically</text>
+</g>
+
+<g id="web-summary-edge3" class="edge">
+<title>c&#45;&gt;d</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M125,-337.72C125,-328.18 125,-316.5 125,-306.08"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="127.8,-306.06 125,-298.06 122.2,-306.06 127.8,-306.06"/>
+</g>
+
+<g id="web-summary-node5" class="node">
+<title>e</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M238,-218C238,-218 12,-218 12,-218 6,-218 0,-212 0,-206 0,-206 0,-190 0,-190 0,-184 6,-178 12,-178 12,-178 238,-178 238,-178 244,-178 250,-184 250,-190 250,-190 250,-206 250,-206 250,-212 244,-218 238,-218"/>
+<text text-anchor="middle" x="125" y="-194.2" font-family="Arial" font-size="16.00" fill="#173e34">Recipient submits patient code</text>
+</g>
+
+<g id="web-summary-edge4" class="edge">
+<title>d&#45;&gt;e</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M125,-257.72C125,-248.18 125,-236.5 125,-226.08"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="127.8,-226.06 125,-218.06 122.2,-226.06 127.8,-226.06"/>
+</g>
+
+<g id="web-summary-node6" class="node">
+<title>f</title>
+<path fill="#dcefe1" stroke="#a9c5b4" stroke-width="1.2" d="M204,-138C204,-138 46,-138 46,-138 40,-138 34,-132 34,-126 34,-126 34,-92 34,-92 34,-86 40,-80 46,-80 46,-80 204,-80 204,-80 210,-80 216,-86 216,-92 216,-92 216,-126 216,-126 216,-132 210,-138 204,-138"/>
+<text text-anchor="middle" x="125" y="-114.2" font-family="Arial" font-size="16.00" fill="#173e34">Shared policy returns</text>
+<text text-anchor="middle" x="125" y="-96.2" font-family="Arial" font-size="16.00" fill="#173e34">only selected fields</text>
+</g>
+
+<g id="web-summary-edge5" class="edge">
+<title>e&#45;&gt;f</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M125,-177.69C125,-168.44 125,-157.04 125,-146.25"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="127.8,-146.17 125,-138.17 122.2,-146.17 127.8,-146.17"/>
+</g>
+
+<g id="web-summary-node7" class="node">
+<title>g</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M187,-40C187,-40 63,-40 63,-40 57,-40 51,-34 51,-28 51,-28 51,-12 51,-12 51,-6 57,0 63,0 63,0 187,0 187,0 193,0 199,-6 199,-12 199,-12 199,-28 199,-28 199,-34 193,-40 187,-40"/>
+<text text-anchor="middle" x="125" y="-16.2" font-family="Arial" font-size="16.00" fill="#173e34">Audit the access</text>
+</g>
+
+<g id="web-summary-edge6" class="edge">
+<title>f&#45;&gt;g</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M125,-79.99C125,-69.83 125,-58.36 125,-48.26"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="127.8,-48.15 125,-40.15 122.2,-48.15 127.8,-48.15"/>
+</g>
+</g>
+</svg>
+</div></div><figcaption class="diagram-caption">A patient code reveals the selected emergency projection. Unselected fields remain private.</figcaption></figure>
+
+<ol>
+<li>Patient signs in and edits their health profile.</li>
+<li>Patient selects exactly which emergency fields may be shared.</li>
+<li>Show a preview of the resulting public-by-code summary before saving.</li>
+<li>Anyone with the patient's permanent patient code can request that selected summary.</li>
+<li>The server returns only selected fields and records an access event.</li>
+</ol>
+<h3 id="c-grant-additional-read-access">C. Grant additional read access</h3>
+<figure class="diagram" id="web-grant"><div class="diagram-head"><strong>Temporary access: scope, expiry and revocation</strong><div class="diagram-actions"><button class="button" type="button" data-expand-diagram>Enlarge</button><button class="button" type="button" data-download-diagram>Save SVG</button></div></div><div class="diagram-scroll"><div class="diagram-svg"><svg role="img" aria-labelledby="web-grant-title" style="width:100%;min-width:531px;max-width:687px;margin:auto"
+ viewBox="0.00 0.00 624.50 659.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><title id="web-grant-title">Temporary access: scope, expiry and revocation</title><desc>Web access additionally requires an approved practitioner. USSD uses the explicitly permitted two-code bearer flow. Revocation stops future reads.</desc>
+<g id="web-grant-graph0" class="graph" transform="scale(1 1) rotate(0) translate(18 641)">
+<title>G</title>
+<polygon fill="white" stroke="transparent" points="-18,18 -18,-641 606.5,-641 606.5,18 -18,18"/>
+
+<g id="web-grant-node1" class="node">
+<title>a</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M295.5,-623C295.5,-623 128.5,-623 128.5,-623 122.5,-623 116.5,-617 116.5,-611 116.5,-611 116.5,-577 116.5,-577 116.5,-571 122.5,-565 128.5,-565 128.5,-565 295.5,-565 295.5,-565 301.5,-565 307.5,-571 307.5,-577 307.5,-577 307.5,-611 307.5,-611 307.5,-617 301.5,-623 295.5,-623"/>
+<text text-anchor="middle" x="212" y="-599.2" font-family="Arial" font-size="16.00" fill="#173e34">Patient chooses fields,</text>
+<text text-anchor="middle" x="212" y="-581.2" font-family="Arial" font-size="16.00" fill="#173e34">channels and expiry</text>
+</g>
+
+<g id="web-grant-node2" class="node">
+<title>b</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M286,-524C286,-524 138,-524 138,-524 132,-524 126,-518 126,-512 126,-512 126,-478 126,-478 126,-472 132,-466 138,-466 138,-466 286,-466 286,-466 292,-466 298,-472 298,-478 298,-478 298,-512 298,-512 298,-518 292,-524 286,-524"/>
+<text text-anchor="middle" x="212" y="-500.2" font-family="Arial" font-size="16.00" fill="#173e34">Patient confirms</text>
+<text text-anchor="middle" x="212" y="-482.2" font-family="Arial" font-size="16.00" fill="#173e34">Create access code</text>
+</g>
+
+<g id="web-grant-edge1" class="edge">
+<title>a&#45;&gt;b</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M212,-564.94C212,-554.78 212,-543.14 212,-532.37"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="214.8,-532.33 212,-524.33 209.2,-532.33 214.8,-532.33"/>
+</g>
+
+<g id="web-grant-node3" class="node">
+<title>c</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M331.5,-425C331.5,-425 92.5,-425 92.5,-425 86.5,-425 80.5,-419 80.5,-413 80.5,-413 80.5,-379 80.5,-379 80.5,-373 86.5,-367 92.5,-367 92.5,-367 331.5,-367 331.5,-367 337.5,-367 343.5,-373 343.5,-379 343.5,-379 343.5,-413 343.5,-413 343.5,-419 337.5,-425 331.5,-425"/>
+<text text-anchor="middle" x="212" y="-401.2" font-family="Arial" font-size="16.00" fill="#173e34">Backend creates read&#45;only grant</text>
+<text text-anchor="middle" x="212" y="-383.2" font-family="Arial" font-size="16.00" fill="#173e34">and returns temporary code</text>
+</g>
+
+<g id="web-grant-edge2" class="edge">
+<title>b&#45;&gt;c</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M212,-465.94C212,-455.78 212,-444.14 212,-433.37"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="214.8,-433.33 212,-425.33 209.2,-433.33 214.8,-433.33"/>
+</g>
+
+<g id="web-grant-node4" class="node">
+<title>d</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M327,-326C327,-326 97,-326 97,-326 91,-326 85,-320 85,-314 85,-314 85,-280 85,-280 85,-274 91,-268 97,-268 97,-268 327,-268 327,-268 333,-268 339,-274 339,-280 339,-280 339,-314 339,-314 339,-320 333,-326 327,-326"/>
+<text text-anchor="middle" x="212" y="-302.2" font-family="Arial" font-size="16.00" fill="#173e34">Recipient supplies patient code</text>
+<text text-anchor="middle" x="212" y="-284.2" font-family="Arial" font-size="16.00" fill="#173e34">and temporary code</text>
+</g>
+
+<g id="web-grant-edge3" class="edge">
+<title>c&#45;&gt;d</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M212,-366.94C212,-356.78 212,-345.14 212,-334.37"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="214.8,-334.33 212,-326.33 209.2,-334.33 214.8,-334.33"/>
+</g>
+
+<g id="web-grant-node5" class="node">
+<title>e</title>
+<path fill="#fff2de" stroke="#a9c5b4" stroke-width="1.2" d="M200.43,-223.83C200.43,-223.83 11.57,-172.17 11.57,-172.17 5.79,-170.58 5.79,-167.42 11.57,-165.83 11.57,-165.83 200.43,-114.17 200.43,-114.17 206.21,-112.58 217.79,-112.58 223.57,-114.17 223.57,-114.17 412.43,-165.83 412.43,-165.83 418.21,-167.42 418.21,-170.58 412.43,-172.17 412.43,-172.17 223.57,-223.83 223.57,-223.83 217.79,-225.42 206.21,-225.42 200.43,-223.83"/>
+<text text-anchor="middle" x="212" y="-174.2" font-family="Arial" font-size="16.00" fill="#173e34">Authorized actor/channel;</text>
+<text text-anchor="middle" x="212" y="-156.2" font-family="Arial" font-size="16.00" fill="#173e34">valid live grant?</text>
+</g>
+
+<g id="web-grant-edge4" class="edge">
+<title>d&#45;&gt;e</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M212,-267.72C212,-258.03 212,-246.74 212,-235.36"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="214.8,-235.07 212,-227.07 209.2,-235.07 214.8,-235.07"/>
+</g>
+
+<g id="web-grant-node6" class="node">
+<title>f</title>
+<path fill="#dcefe1" stroke="#a9c5b4" stroke-width="1.2" d="M306.5,-58C306.5,-58 117.5,-58 117.5,-58 111.5,-58 105.5,-52 105.5,-46 105.5,-46 105.5,-12 105.5,-12 105.5,-6 111.5,0 117.5,0 117.5,0 306.5,0 306.5,0 312.5,0 318.5,-6 318.5,-12 318.5,-12 318.5,-46 318.5,-46 318.5,-52 312.5,-58 306.5,-58"/>
+<text text-anchor="middle" x="212" y="-34.2" font-family="Arial" font-size="16.00" fill="#173e34">Return only granted fields</text>
+<text text-anchor="middle" x="212" y="-16.2" font-family="Arial" font-size="16.00" fill="#173e34">Recheck on every read</text>
+</g>
+
+<g id="web-grant-edge5" class="edge">
+<title>e&#45;&gt;f</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M212,-110.67C212,-95.71 212,-79.99 212,-66.45"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="214.8,-66.32 212,-58.32 209.2,-66.32 214.8,-66.32"/>
+<text text-anchor="middle" x="222" y="-81.4" font-family="Arial" font-size="12.00" fill="#486552">Yes</text>
+</g>
+
+<g id="web-grant-node7" class="node">
+<title>g</title>
+<path fill="#f8e7df" stroke="#d6b3a3" stroke-width="1.2" d="M547.5,-49C547.5,-49 398.5,-49 398.5,-49 392.5,-49 386.5,-43 386.5,-37 386.5,-37 386.5,-21 386.5,-21 386.5,-15 392.5,-9 398.5,-9 398.5,-9 547.5,-9 547.5,-9 553.5,-9 559.5,-15 559.5,-21 559.5,-21 559.5,-37 559.5,-37 559.5,-43 553.5,-49 547.5,-49"/>
+<text text-anchor="middle" x="473" y="-25.2" font-family="Arial" font-size="16.00" fill="#173e34">Deny further access</text>
+</g>
+
+<g id="web-grant-edge6" class="edge">
+<title>e&#45;&gt;g</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M283.32,-130.29C330.21,-105.5 390.03,-73.87 429.83,-52.83"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="431.25,-55.24 437.02,-49.03 428.64,-50.29 431.25,-55.24"/>
+<text text-anchor="middle" x="390" y="-81.4" font-family="Arial" font-size="12.00" fill="#486552">No</text>
+</g>
+
+<g id="web-grant-node8" class="node">
+<title>h</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M576.5,-198C576.5,-198 459.5,-198 459.5,-198 453.5,-198 447.5,-192 447.5,-186 447.5,-186 447.5,-152 447.5,-152 447.5,-146 453.5,-140 459.5,-140 459.5,-140 576.5,-140 576.5,-140 582.5,-140 588.5,-146 588.5,-152 588.5,-152 588.5,-186 588.5,-186 588.5,-192 582.5,-198 576.5,-198"/>
+<text text-anchor="middle" x="518" y="-174.2" font-family="Arial" font-size="16.00" fill="#173e34">Patient revokes</text>
+<text text-anchor="middle" x="518" y="-156.2" font-family="Arial" font-size="16.00" fill="#173e34">or grant expires</text>
+</g>
+
+<g id="web-grant-edge7" class="edge">
+<title>h&#45;&gt;g</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M508.78,-139.74C500.88,-115.51 489.58,-80.84 481.8,-56.99"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="484.45,-56.08 479.31,-49.34 479.13,-57.82 484.45,-56.08"/>
+</g>
+</g>
+</svg>
+</div></div><figcaption class="diagram-caption">Web access additionally requires an approved practitioner. USSD uses the explicitly permitted two-code bearer flow. Revocation stops future reads.</figcaption></figure>
+
+<ol>
+<li>Patient chooses additional fields, permitted channels and expiry.</li>
+<li>UI makes clear that a recipient also needs the patient code.</li>
+<li>Patient explicitly presses <strong>Create access code</strong>.</li>
+<li>Backend creates a temporary grant and returns the code on issuance.</li>
+<li>A signed-in, approved practitioner uses both codes in the web portal. A USSD user can use both codes through the scoped bearer-access flow described in Plan 2.</li>
+<li>Every subsequent read rechecks the grant, channel, actor/session binding and expiry.</li>
+<li>Revocation blocks subsequent reads. It cannot remove information already viewed, copied or delivered by SMS.</li>
+</ol>
+<h2 id="3-roles-and-authorization-matrix">3. Roles and authorization matrix</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Actor</th>
+<th>Emergency lookup with patient code</th>
+<th>Additional record fields</th>
+<th>Edit patient fields</th>
+<th>Manage facilities</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Guest</td>
+<td>Only the patient-selected emergency fields</td>
+<td>No web access</td>
+<td>No</td>
+<td>No</td>
+</tr>
+<tr>
+<td>Patient</td>
+<td>Same public lookup, plus full access to their own profile</td>
+<td>Own fields; can create/revoke grants</td>
+<td>Own fields</td>
+<td>No</td>
+</tr>
+<tr>
+<td>Approved practitioner</td>
+<td>Yes</td>
+<td>Valid patient code + temporary code, within permitted scope</td>
+<td>No, in this release</td>
+<td>No</td>
+</tr>
+<tr>
+<td>Directory administrator</td>
+<td>Same public lookup as everyone else</td>
+<td>No automatic clinical access</td>
+<td>No automatic patient access</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>USSD bearer of both codes</td>
+<td>Yes</td>
+<td>Only fields authorized for USSD, while grant is valid</td>
+<td>No</td>
+<td>No</td>
+</tr>
+</tbody>
+</table></div>
+<p>Roles are server-assigned. Registration must not accept <code>role=admin</code> or self-approve a practitioner. A patient code is an identifier with limited bearer access, not a login credential. Possessing a phone number is not proof of ownership of a patient record.</p>
+<h3 id="shared-permission-enforcement-across-two-languages">Shared permission enforcement across two languages</h3>
+<p>Keep the critical record-access policy in versioned PostgreSQL routines, called independently by FastAPI and Node.js:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Routine contract</th>
+<th>Responsibility</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>read_emergency_summary(code_digest, actor_context)</code></td>
+<td>Resolve active code, select permitted fields, append audit event</td>
+</tr>
+<tr>
+<td><code>open_granted_record(patient_code_digest, grant_code_digest, actor_context)</code></td>
+<td>Check matching patient, expiry, revocation, channel and actor eligibility; establish a short-lived read session</td>
+</tr>
+<tr>
+<td><code>read_granted_record(read_session_id, actor_context)</code></td>
+<td>Recheck current grant and return the permitted projection on every read</td>
+</tr>
+<tr>
+<td><code>save_emergency_fields(patient_id, actor_id, keys, expected_version)</code></td>
+<td>Verify ownership and update selections atomically</td>
+</tr>
+<tr>
+<td><code>create_read_grant(patient_id, actor_id, field_keys, channels, expiry, code_digest)</code></td>
+<td>Verify ownership, validate scope and create grant plus its field rows atomically</td>
+</tr>
+<tr>
+<td><code>revoke_read_grant(grant_id, actor_id)</code></td>
+<td>Verify ownership; revoke grant and dependent read sessions atomically</td>
+</tr>
+<tr>
+<td><code>find_suitable_facilities(service_code, location, radius, limit)</code></td>
+<td>Shared deterministic service filtering and geographic ranking</td>
+</tr>
+</tbody>
+</table></div>
+<p>These are logical function signatures to implement, not existing database functions. Hash incoming codes in the backend using a shared protected digest key. Separate web and telecom wrappers must derive their channel from their database identity, rather than trust a public <code>channel</code> parameter. The caller must authenticate the account or establish the allowed USSD bearer context before invoking the routine. Actor IDs sent by the browser are never trusted.</p>
+<p>Use restricted database roles. Neither application should have database-owner privileges. The Node role may read approved facility data and execute authorized record routines but cannot select unrestricted patient tables. If using <code>SECURITY DEFINER</code>, use a non-login owner, fixed safe <code>search_path</code>, fully qualified object names and explicit <code>EXECUTE</code> grants; revoke public execution. Audit successful reads in the same transaction. Rate limiting and audit of rejected attempts must remain effective even when a transaction rolls back.</p>
+<p>Publish JSON Schema contracts plus shared test vectors to both teams. Include expired, revoked, wrong-patient, wrong-channel, unknown-field and ownership-denial cases. One migration pipeline owns the shared schema.</p>
+<h2 id="4-react-screens-and-routes">4. React screens and routes</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Frontend route</th>
+<th>Access</th>
+<th>Screen and main actions</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>/</code></td>
+<td>Public</td>
+<td>Assistant, suggested questions, location clarification and generated care cards</td>
+</tr>
+<tr>
+<td><code>/login</code>, <code>/register</code></td>
+<td>Public</td>
+<td>Sign in or create a patient account</td>
+</tr>
+<tr>
+<td><code>/app</code></td>
+<td>Patient</td>
+<td>Continue chat, profile completeness, own patient code</td>
+</tr>
+<tr>
+<td><code>/app/profile</code></td>
+<td>Patient</td>
+<td>Edit structured health fields and preferred language</td>
+</tr>
+<tr>
+<td><code>/app/emergency-summary</code></td>
+<td>Patient</td>
+<td>Select fields, preview exact public summary, save</td>
+</tr>
+<tr>
+<td><code>/app/access</code></td>
+<td>Patient</td>
+<td>Create temporary access, see active grants, revoke</td>
+</tr>
+<tr>
+<td><code>/app/access-log</code></td>
+<td>Patient</td>
+<td>Who/channel, time, permitted field names and outcome</td>
+</tr>
+<tr>
+<td><code>/app/channel-settings</code></td>
+<td>Patient</td>
+<td>Verified phone linkage and optional SMS/USSD profile-use consent</td>
+</tr>
+<tr>
+<td><code>/lookup</code></td>
+<td>Public</td>
+<td>Enter patient code; display only emergency projection</td>
+</tr>
+<tr>
+<td><code>/practitioner/lookup</code></td>
+<td>Approved practitioner</td>
+<td>Enter patient code and temporary code</td>
+</tr>
+<tr>
+<td><code>/practitioner/records/:readSessionId</code></td>
+<td>Bound practitioner</td>
+<td>Read-only permitted fields and expiry</td>
+</tr>
+<tr>
+<td><code>/find-care</code></td>
+<td>Public</td>
+<td>Structured alternative to chat: service + area/location</td>
+</tr>
+<tr>
+<td><code>/find-care/results</code></td>
+<td>Public/session owner</td>
+<td>Suitable facilities, distance basis, no-match or clarification state</td>
+</tr>
+<tr>
+<td><code>/facilities/:facilityId</code></td>
+<td>Public</td>
+<td>Directory details and source freshness</td>
+</tr>
+<tr>
+<td><code>/admin/facilities</code></td>
+<td>Directory administrator</td>
+<td>Search/create/update/deactivate listings and service availability</td>
+</tr>
+<tr>
+<td><code>/admin/practitioners</code></td>
+<td>Authorized account administrator</td>
+<td>Review practitioner status; no automatic record access</td>
+</tr>
+</tbody>
+</table></div>
+<p>Recommended component boundaries:</p>
+<div class="source-code"><div class="code-top"><span>text</span><button type="button" class="button" data-copy-code>Copy</button></div><pre><code class="language-text">src/
+  app/                 routes, app shell, session guards
+  features/chat/       transcript, composer, conversation state
+  features/care/       request form, facility cards and details
+  features/records/    profile editor, public summary, read-only viewer
+  features/sharing/    field picker, expiry picker, grant list
+  features/admin/      facility and practitioner administration
+  generative-ui/       schema validation, component registry, action dispatcher
+  api/                 typed API adapter, errors, retry and idempotency handling
+  components/          accessible forms, buttons, dialogs and status displays
+</code></pre></div>
+<p>Every screen needs loading, empty, validation, denied and retry states. A denied location permission must fall back to area/landmark input. A failed save must retain the user's draft and must not show “saved”. Patient data and access codes must not appear in URL paths, query strings, analytics or error reporting. Use <code>Cache-Control: no-store</code> on sensitive API responses; avoid a service worker cache of medical content in the first release.</p>
+<h2 id="5-generative-ui-structured-data-approved-components">5. Generative UI: structured data, approved components</h2>
+<p>The AI helps select a useful interaction. The backend validates and builds the final component payload. React renders it through an allowlist. <strong>Never render model-produced HTML, JavaScript, arbitrary URLs or API routes.</strong></p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Component type</th>
+<th>Example trigger</th>
+<th>What it displays</th>
+<th>Allowed action</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>clarification</code></td>
+<td>“Find a hospital” with no location</td>
+<td>One question and area/service choices</td>
+<td>Submit selected answer</td>
+</tr>
+<tr>
+<td><code>facility_list</code></td>
+<td>Service and location resolved</td>
+<td>Directory-backed hospital cards</td>
+<td>Open one listed facility</td>
+</tr>
+<tr>
+<td><code>facility_detail</code></td>
+<td>User selects a result</td>
+<td>Address, services, contact, distance basis</td>
+<td>Open validated directions/contact link</td>
+</tr>
+<tr>
+<td><code>health_information</code></td>
+<td>Supported general health question</td>
+<td>Reviewed-content-based explanation and source labels</td>
+<td>Ask a follow-up or find care</td>
+</tr>
+<tr>
+<td><code>emergency_summary</code></td>
+<td>Authenticated patient asks to see own summary, or valid code lookup</td>
+<td>Only the authorized field projection</td>
+<td>Open emergency selection editor for owner</td>
+</tr>
+<tr>
+<td><code>share_fields_form</code></td>
+<td>“Share my medications”</td>
+<td>Field checkboxes, channels and expiry</td>
+<td>Confirm grant creation through normal authorization</td>
+</tr>
+<tr>
+<td><code>access_grant_receipt</code></td>
+<td>Server successfully created a grant</td>
+<td>Temporary code and expiry</td>
+<td>Copy code; revoke as owner</td>
+</tr>
+<tr>
+<td><code>urgent_guidance</code></td>
+<td>Approved urgent-symptom rule triggers</td>
+<td>Short reviewed escalation text</td>
+<td>Seek urgent care / find emergency facilities</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="example-final-web-chat-response">Example final web-chat response</h3>
+<p>All IDs below are illustrative. Facility records and distances in the runnable prototype are fictional.</p>
+<div class="source-code"><div class="code-top"><span>json</span><button type="button" class="button" data-copy-code>Copy</button></div><pre><code class="language-json">{
+  &quot;data&quot;: {
+    &quot;conversation_id&quot;: &quot;b1b6b5bf-583f-4334-871b-8357e089d574&quot;,
+    &quot;message&quot;: {
+      &quot;id&quot;: &quot;182e695f-5148-4479-84ea-c015cfb6d99b&quot;,
+      &quot;role&quot;: &quot;assistant&quot;,
+      &quot;text&quot;: &quot;Here are facilities in the directory that offer child health near your selected area.&quot;
+    },
+    &quot;ui&quot;: [
+      {
+        &quot;id&quot;: &quot;ui_01&quot;,
+        &quot;type&quot;: &quot;facility_list&quot;,
+        &quot;schema_version&quot;: &quot;1.0&quot;,
+        &quot;props&quot;: {
+          &quot;referral_id&quot;: &quot;a970a74c-bcb3-49df-9a34-980853b16629&quot;,
+          &quot;distance_basis&quot;: &quot;area_centroid_straight_line&quot;,
+          &quot;items&quot;: [
+            {
+              &quot;facility_id&quot;: &quot;8f4f0671-19a6-4e8a-8fe5-6989fbe0418c&quot;,
+              &quot;name&quot;: &quot;Demo Community Hospital&quot;,
+              &quot;matched_service&quot;: &quot;pediatrics&quot;,
+              &quot;address&quot;: &quot;12 Example Road, Ikeja — fictional&quot;,
+              &quot;distance_km&quot;: 2.4,
+              &quot;phone&quot;: null,
+              &quot;reason&quot;: &quot;Lists the requested service; closest suitable directory result&quot;
+            }
+          ]
+        },
+        &quot;actions&quot;: [{&quot;type&quot;: &quot;view_facility&quot;, &quot;label&quot;: &quot;View details&quot;}]
+      }
+    ]
+  },
+  &quot;meta&quot;: {&quot;request_id&quot;: &quot;req_example_01&quot;, &quot;api_version&quot;: &quot;v1&quot;}
+}
+</code></pre></div>
+<p>Rules:</p>
+<ol>
+<li>Validate <code>type</code>, <code>schema_version</code>, allowed properties, item count and string lengths.</li>
+<li>Hydrate facility names, contacts, coordinates and distances from the database after model interpretation.</li>
+<li>Bind actions to the conversation owner and permitted resource IDs. An action label or card never grants permission.</li>
+<li>Ignore/reject unknown component types. Fall back to safe text and a standard form.</li>
+<li>Use text rendering for user/model strings. If supporting Markdown, sanitize it and disable raw HTML.</li>
+<li>Require an explicit user confirmation for grant creation, profile updates and revocation. Never let “the AI suggested it” count as consent.</li>
+<li>Read profile context only for the signed-in owner with explicit permitted field scope. Supplying <code>patient_id</code> in a chat message cannot select someone else's record.</li>
+</ol>
+<h2 id="6-http-api-conventions">6. HTTP API conventions</h2>
+<p>Public web API base: <code>/api/v1</code>. Shared AI service base: <code>/internal/ai/v1</code> on a separate private host. The Node callback endpoints are defined in Plan 2.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Contract</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Transport</td>
+<td>HTTPS; <code>application/json</code> for web APIs; provider-specific form data for telecom callbacks</td>
+</tr>
+<tr>
+<td>IDs</td>
+<td>UUIDs for internal resources; separate random patient and temporary codes</td>
+</tr>
+<tr>
+<td>Time</td>
+<td>ISO 8601 UTC timestamps; display in the user's timezone</td>
+</tr>
+<tr>
+<td>Phone</td>
+<td>E.164 strings after validation; never infer identity merely from a match</td>
+</tr>
+<tr>
+<td>Authentication</td>
+<td>Server-managed web session in <code>HttpOnly</code>, <code>Secure</code>, appropriate <code>SameSite</code> cookie; CSRF protection for state changes</td>
+</tr>
+<tr>
+<td>Browser origin</td>
+<td>Prefer same-origin API proxy; otherwise explicit CORS allowlist</td>
+</tr>
+<tr>
+<td>Lists</td>
+<td>Cursor pagination, e.g. <code>?limit=20&amp;cursor=...</code>; maximum limit 100</td>
+</tr>
+<tr>
+<td>Mutations</td>
+<td><code>Idempotency-Key</code> on chat sends, referral requests and grant creation; bind to actor and request-body hash</td>
+</tr>
+<tr>
+<td>Concurrent edits</td>
+<td><code>version</code> or ETag on reads; <code>If-Match</code> on writes; stale version returns <code>412</code></td>
+</tr>
+<tr>
+<td>Trace</td>
+<td>Generate or validate request ID; propagate to AI/DB/jobs without logging secrets</td>
+</tr>
+</tbody>
+</table></div>
+<p>Success:</p>
+<div class="source-code"><div class="code-top"><span>json</span><button type="button" class="button" data-copy-code>Copy</button></div><pre><code class="language-json">{&quot;data&quot;:{&quot;id&quot;:&quot;resource-id&quot;},&quot;meta&quot;:{&quot;request_id&quot;:&quot;req_123&quot;,&quot;api_version&quot;:&quot;v1&quot;}}
+</code></pre></div>
+<p>Validation failure:</p>
+<div class="source-code"><div class="code-top"><span>json</span><button type="button" class="button" data-copy-code>Copy</button></div><pre><code class="language-json">{
+  &quot;error&quot;: {
+    &quot;code&quot;: &quot;VALIDATION_ERROR&quot;,
+    &quot;message&quot;: &quot;Choose a location before continuing.&quot;,
+    &quot;fields&quot;: [{&quot;path&quot;:&quot;location&quot;,&quot;message&quot;:&quot;An area or coordinates are required.&quot;}]
+  },
+  &quot;meta&quot;: {&quot;request_id&quot;:&quot;req_124&quot;,&quot;api_version&quot;:&quot;v1&quot;}
+}
+</code></pre></div>
+<p>Use <code>201</code> for creation, <code>200</code> for reads/updates, <code>204</code> for successful empty operations; <code>401</code> for missing authentication, <code>403</code> for insufficient role, generic <code>404</code> for inaccessible resources/failed code lookups, <code>409</code> for incompatible state or reused idempotency key with different body, <code>412</code> for stale edits, <code>422</code> for invalid input, <code>429</code> plus <code>Retry-After</code> for throttling, <code>503</code> for temporary dependency failure. A valid search with no matches is <code>200</code> with an empty result state, not an error.</p>
+<h2 id="7-web-endpoints">7. Web endpoints</h2>
+<h3 id="authentication-and-owner-profile">Authentication and owner profile</h3>
+<p>Proposed initial web sign-in: email and password with a properly hardened password verifier; the team may substitute an identity provider without changing the domain contracts. Staff roles are provisioned and verified separately, with stronger authentication for production. Phone verification for optional channel linkage is distinct from web sign-in.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Method and endpoint</th>
+<th>Auth</th>
+<th>Input / output</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>POST /auth/register</code></td>
+<td>Public, throttled</td>
+<td>Email, password, display name → patient account only</td>
+</tr>
+<tr>
+<td><code>POST /auth/login</code></td>
+<td>Public, throttled</td>
+<td>Credentials → session cookie and account summary</td>
+</tr>
+<tr>
+<td><code>POST /auth/logout</code></td>
+<td>Session</td>
+<td>Revoke current session</td>
+</tr>
+<tr>
+<td><code>GET /auth/session</code></td>
+<td>Session</td>
+<td>Account, roles, patient ownership and expiry</td>
+</tr>
+<tr>
+<td><code>POST /auth/password-reset-requests</code></td>
+<td>Public, throttled</td>
+<td>Uniform acknowledgement; send reset through configured verified email provider</td>
+</tr>
+<tr>
+<td><code>POST /auth/password-resets</code></td>
+<td>Valid one-time reset token</td>
+<td>New password; invalidate appropriate sessions</td>
+</tr>
+<tr>
+<td><code>GET /me/profile</code></td>
+<td>Patient</td>
+<td>Own structured field values, preferences and version</td>
+</tr>
+<tr>
+<td><code>PATCH /me/profile</code></td>
+<td>Patient</td>
+<td>Validated permitted field updates and preferences; require current version</td>
+</tr>
+<tr>
+<td><code>GET /me/patient-code</code></td>
+<td>Patient</td>
+<td>Own active code, never other patients' codes</td>
+</tr>
+<tr>
+<td><code>POST /me/patient-code/rotate</code></td>
+<td>Patient, recent sign-in</td>
+<td>Rotate permanent code and revoke dependent grants/read sessions atomically</td>
+</tr>
+<tr>
+<td><code>GET /me/emergency-summary</code></td>
+<td>Patient</td>
+<td>Selected field keys and exact public projection</td>
+</tr>
+<tr>
+<td><code>PUT /me/emergency-summary</code></td>
+<td>Patient</td>
+<td>Replace selected keys atomically; explicit empty array disables sharing</td>
+</tr>
+</tbody>
+</table></div>
+<p>Do not ship password recovery until its delivery channel and abuse protections are implemented. Demo auth may use seeded accounts; the HTML prototype does not implement authentication.</p>
+<h3 id="record-sharing-and-retrieval">Record sharing and retrieval</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Method and endpoint</th>
+<th>Auth</th>
+<th>Input / output</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>GET /me/access-grants</code></td>
+<td>Patient</td>
+<td>Grant metadata, field names, channels, expiry and status; no code plaintext</td>
+</tr>
+<tr>
+<td><code>POST /me/access-grants</code></td>
+<td>Patient, recent sign-in</td>
+<td>Field keys, channels and expiry → grant and temporary code on issuance</td>
+</tr>
+<tr>
+<td><code>DELETE /me/access-grants/{grantId}</code></td>
+<td>Owning patient</td>
+<td>Revoke access and dependent sessions; repeated revocation is safe</td>
+</tr>
+<tr>
+<td><code>GET /me/access-events</code></td>
+<td>Patient</td>
+<td>Paginated own access events; no raw codes or record values</td>
+</tr>
+<tr>
+<td><code>POST /records/emergency-lookups</code></td>
+<td>Public, throttled</td>
+<td><code>patient_code</code> → currently selected emergency fields</td>
+</tr>
+<tr>
+<td><code>POST /records/unlocks</code></td>
+<td>Approved practitioner</td>
+<td><code>patient_code</code>, <code>access_code</code> → bound short-lived read session</td>
+</tr>
+<tr>
+<td><code>GET /record-sessions/{sessionId}</code></td>
+<td>Bound approved practitioner</td>
+<td>Revalidated permitted fields; fails if grant was revoked or expired</td>
+</tr>
+<tr>
+<td><code>DELETE /record-sessions/{sessionId}</code></td>
+<td>Bound practitioner</td>
+<td>Close viewer session</td>
+</tr>
+</tbody>
+</table></div>
+<p>Example grant request:</p>
+<div class="source-code"><div class="code-top"><span>json</span><button type="button" class="button" data-copy-code>Copy</button></div><pre><code class="language-json">{
+  &quot;field_keys&quot;: [&quot;allergies&quot;, &quot;current_medications&quot;],
+  &quot;allowed_channels&quot;: [&quot;web_practitioner&quot;, &quot;ussd&quot;],
+  &quot;expires_in_seconds&quot;: 3600
+}
+</code></pre></div>
+<p>Example issuance response data:</p>
+<div class="source-code"><div class="code-top"><span>json</span><button type="button" class="button" data-copy-code>Copy</button></div><pre><code class="language-json">{
+  &quot;grant_id&quot;: &quot;9323d00c-5c41-46f7-8c91-c663072c8e8a&quot;,
+  &quot;access_code&quot;: &quot;86421397&quot;,
+  &quot;expires_at&quot;: &quot;2026-11-16T19:00:00Z&quot;,
+  &quot;field_keys&quot;: [&quot;allergies&quot;, &quot;current_medications&quot;],
+  &quot;allowed_channels&quot;: [&quot;web_practitioner&quot;, &quot;ussd&quot;],
+  &quot;read_only&quot;: true
+}
+</code></pre></div>
+<p>Proposed defaults: cryptographically random 12-digit permanent patient code; 8-digit temporary code; default grant life one hour, selectable 15 minutes to 24 hours. These are adjustable design choices, not facts from the brief. Store keyed code digests, not plain codes. The permanent code also needs protected encryption if the owner can retrieve it later. Temporary codes are returned on issuance and are not listed again. A short-lived encrypted idempotency response may replay the original issuance after a network retry; delete it promptly.</p>
+<p>Apply throttles by actor, IP, phone/session, patient-code digest and aggregate traffic. Do not rely on code length alone. Display only the final few digits in operational screens. Never place codes in a shareable URL by default.</p>
+<h3 id="care-chat-and-administration">Care, chat and administration</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Method and endpoint</th>
+<th>Auth</th>
+<th>Input / output</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>GET /services</code></td>
+<td>Public</td>
+<td>Approved service codes and labels</td>
+</tr>
+<tr>
+<td><code>GET /areas?query=...</code></td>
+<td>Public</td>
+<td>Bounded area/landmark matches; disambiguation choices</td>
+</tr>
+<tr>
+<td><code>GET /facilities/{id}</code></td>
+<td>Public</td>
+<td>Active directory listing, listed services, source freshness</td>
+</tr>
+<tr>
+<td><code>POST /referrals</code></td>
+<td>Guest session or account</td>
+<td>Service/request + location + optional own-profile consent → <code>needs_clarification</code>, <code>matched</code> or <code>no_match</code></td>
+</tr>
+<tr>
+<td><code>GET /me/referrals</code></td>
+<td>Patient</td>
+<td>Own saved recommendation history</td>
+</tr>
+<tr>
+<td><code>GET /me/referrals/{id}</code></td>
+<td>Owning patient</td>
+<td>Own request and result snapshot</td>
+</tr>
+<tr>
+<td><code>POST /conversations</code></td>
+<td>Guest session or account</td>
+<td>Create a conversation bound to that session</td>
+</tr>
+<tr>
+<td><code>GET /conversations/{id}/messages</code></td>
+<td>Conversation owner</td>
+<td>Cursor-paginated transcript and validated UI payloads</td>
+</tr>
+<tr>
+<td><code>POST /conversations/{id}/messages</code></td>
+<td>Conversation owner</td>
+<td>Text + optional authorized profile scope → answer and structured UI</td>
+</tr>
+<tr>
+<td><code>POST /conversations/{id}/actions</code></td>
+<td>Conversation owner</td>
+<td>Allowlisted component action and resource ID; reauthorize server-side</td>
+</tr>
+<tr>
+<td><code>GET /admin/facilities</code></td>
+<td>Directory admin</td>
+<td>Search all listings, including inactive</td>
+</tr>
+<tr>
+<td><code>POST /admin/facilities</code></td>
+<td>Directory admin</td>
+<td>Validated new facility and service links</td>
+</tr>
+<tr>
+<td><code>PATCH /admin/facilities/{id}</code></td>
+<td>Directory admin</td>
+<td>Update details/services or set inactive; preserve history</td>
+</tr>
+<tr>
+<td><code>GET /admin/practitioners</code></td>
+<td>Account admin</td>
+<td>Pending/approved practitioner identities</td>
+</tr>
+<tr>
+<td><code>PATCH /admin/practitioners/{id}</code></td>
+<td>Account admin</td>
+<td>Approve, suspend or reject, with audit event</td>
+</tr>
+<tr>
+<td><code>POST /me/phone-verifications</code></td>
+<td>Patient</td>
+<td>Queue a short-lived verification message to a proposed phone</td>
+</tr>
+<tr>
+<td><code>POST /me/phone-verifications/confirm</code></td>
+<td>Patient</td>
+<td>Verify challenge; link phone to own account</td>
+</tr>
+<tr>
+<td><code>GET /me/channel-consents</code></td>
+<td>Patient</td>
+<td>Current channel-specific profile-use scopes</td>
+</tr>
+<tr>
+<td><code>PUT /me/channel-consents/{channel}</code></td>
+<td>Patient</td>
+<td>Exact allowed fields, expiry and verified phone binding</td>
+</tr>
+<tr>
+<td><code>DELETE /me/channel-consents/{channel}</code></td>
+<td>Patient</td>
+<td>Revoke optional telecom personalization</td>
+</tr>
+</tbody>
+</table></div>
+<p>Private operational routes: <code>GET /health/live</code>, <code>GET /health/ready</code>; protect detailed diagnostics and metrics. Generate the web OpenAPI specification from FastAPI; keep its public scope separate from private AI endpoints and telecom callbacks.</p>
+<p>Example referral request:</p>
+<div class="source-code"><div class="code-top"><span>json</span><button type="button" class="button" data-copy-code>Copy</button></div><pre><code class="language-json">{
+  &quot;service_code&quot;: &quot;pediatrics&quot;,
+  &quot;location&quot;: {&quot;kind&quot;:&quot;area&quot;,&quot;area_id&quot;:&quot;81fc09cb-f4fc-4ecb-acb9-e265d28d94d7&quot;},
+  &quot;profile_context&quot;: {&quot;use_profile&quot;:false,&quot;field_keys&quot;:[]},
+  &quot;radius_km&quot;: 10,
+  &quot;limit&quot;: 3
+}
+</code></pre></div>
+<p>Coordinates can instead use <code>{"kind":"coordinates","latitude":6.6,"longitude":3.35}</code> after explicit location permission. A free-text request can use <code>need_text</code> rather than <code>service_code</code>; validate that the client supplies the intended alternative. Never accept an arbitrary patient ID as personalization authority. Guest results are returned to the bound session; knowledge of a referral UUID alone is not access.</p>
+<h2 id="8-shared-ai-service-contract">8. Shared AI service contract</h2>
+<p>Both backends call <code>POST /internal/ai/v1/respond</code> using independently scoped service credentials. Authentication can use mTLS or short-lived audience-bound service tokens. The service is not publicly exposed.</p>
+<p>Input:</p>
+<div class="source-code"><div class="code-top"><span>json</span><button type="button" class="button" data-copy-code>Copy</button></div><pre><code class="language-json">{
+  &quot;request_id&quot;: &quot;req_125&quot;,
+  &quot;channel&quot;: &quot;web&quot;,
+  &quot;locale&quot;: &quot;en&quot;,
+  &quot;message&quot;: &quot;Find child care near Ikeja&quot;,
+  &quot;history&quot;: [],
+  &quot;authorized_context&quot;: {&quot;age_band&quot;:null,&quot;care_preferences&quot;:[]},
+  &quot;capabilities&quot;: [&quot;clarification&quot;,&quot;health_information&quot;,&quot;facility_search&quot;]
+}
+</code></pre></div>
+<p>Output before backend hydration:</p>
+<div class="source-code"><div class="code-top"><span>json</span><button type="button" class="button" data-copy-code>Copy</button></div><pre><code class="language-json">{
+  &quot;intent&quot;: &quot;find_care&quot;,
+  &quot;service_candidates&quot;: [&quot;pediatrics&quot;],
+  &quot;location_query&quot;: &quot;Ikeja&quot;,
+  &quot;needs_clarification&quot;: false,
+  &quot;question&quot;: null,
+  &quot;answer_text&quot;: null,
+  &quot;reviewed_content_ids&quot;: [],
+  &quot;suggested_component&quot;: &quot;facility_list&quot;
+}
+</code></pre></div>
+<p>Use an allowlisted schema with bounded lengths and enumerations. Validate the response again in each backend. Structured output support depends on the selected model/provider endpoint; check compatibility and route only to supporting endpoints. A schema-valid answer still needs factual and authorization checks. See <a href="https://openrouter.ai/docs/guides/features/structured-outputs">OpenRouter structured outputs</a>.</p>
+<p>Do not send patient/access codes, authentication tokens or full records to OpenRouter. By default, use the user's message and minimal derived context; keep sensitive profile-based matching rules local where possible. Explicitly control model-provider data handling and select an appropriate endpoint before enabling real patient data. Reviewed health content must carry version, reviewer and review date. If an answer cannot be supported, return a clarification or a reviewed fallback. Do not generate a diagnosis or prescription as a system feature.</p>
+<p>Apply reviewed urgency rules before waiting for AI. The model must not be the only route to recognizing a potentially urgent message. An AI outage must leave code lookups and deterministic facility search available.</p>
+<h2 id="9-postgresql-data-structure">9. PostgreSQL data structure</h2>
+<p>Use UUID primary keys unless a composite or natural key is specified. All core mutable tables carry <code>created_at</code>, <code>updated_at</code> and, where concurrent editing matters, <code>version</code>. Use <code>timestamptz</code> for dates. Foreign keys and <code>NOT NULL</code> constraints must enforce the relationships described below. Encrypt database volumes/backups and restrict roles; additionally encrypt phone identifiers, code material and retained sensitive message text as appropriate.</p>
+<h3 id="identity-and-patient-controlled-fields">Identity and patient-controlled fields</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Table</th>
+<th>Important columns / keys</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>accounts</code></td>
+<td><code>id PK</code>, <code>email_normalized UNIQUE</code>, <code>password_hash</code>, <code>status</code>, optional identity-provider subject</td>
+</tr>
+<tr>
+<td><code>account_roles</code></td>
+<td><code>(account_id FK, role) composite PK</code>; role enum</td>
+</tr>
+<tr>
+<td><code>patient_profiles</code></td>
+<td><code>id PK</code>, <code>account_id FK UNIQUE</code>, <code>preferred_language</code>, <code>home_area_id FK NULL</code>, <code>version</code></td>
+</tr>
+<tr>
+<td><code>practitioner_profiles</code></td>
+<td><code>account_id PK/FK</code>, <code>facility_id FK NULL</code>, encrypted registration reference, <code>verification_status</code>, <code>verified_by FK NULL</code></td>
+</tr>
+<tr>
+<td><code>field_definitions</code></td>
+<td><code>field_key PK</code>, <code>label</code>, <code>value_schema JSONB</code>, <code>emergency_eligible</code>, <code>active</code></td>
+</tr>
+<tr>
+<td><code>patient_field_values</code></td>
+<td><code>(patient_id FK, field_key FK) composite PK</code>, <code>value JSONB</code>, <code>version</code>, provenance and update time</td>
+</tr>
+<tr>
+<td><code>patient_codes</code></td>
+<td><code>patient_id PK/FK</code>, <code>code_digest UNIQUE</code>, <code>code_ciphertext</code>, <code>key_version</code>, <code>rotated_at</code></td>
+</tr>
+<tr>
+<td><code>emergency_fields</code></td>
+<td><code>(patient_id, field_key) composite PK/FK</code> to that patient's field row; display order</td>
+</tr>
+<tr>
+<td><code>auth_sessions</code></td>
+<td><code>id PK</code>, <code>account_id FK</code>, token digest, expiry, last activity, revoked time</td>
+</tr>
+<tr>
+<td><code>auth_challenges</code></td>
+<td><code>id PK</code>, <code>account_id FK NULL</code>, purpose, token digest, encrypted delivery target, attempts, expiry, consumed time</td>
+</tr>
+</tbody>
+</table></div>
+<p>Start with explicit field keys such as <code>full_name</code>, <code>date_of_birth</code>, <code>allergies</code>, <code>current_medications</code>, <code>conditions</code>, <code>blood_group</code>, <code>emergency_contact_name</code>, <code>emergency_contact_phone</code>. Treat contact name and phone as separate permissions. Validate every JSON value against the field's schema before storage; do not accept arbitrary client-defined field keys. Clinical arrays may be shared as whole fields for the MVP; item-level selection would need a finer schema and UI.</p>
+<h3 id="permissions-and-audit">Permissions and audit</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Table</th>
+<th>Important columns / keys</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>access_grants</code></td>
+<td><code>id PK</code>, <code>patient_id FK</code>, <code>code_digest</code>, <code>allowed_channels</code>, <code>expires_at</code>, <code>revoked_at</code>, <code>created_by FK</code>; unique <code>(patient_id, code_digest)</code></td>
+</tr>
+<tr>
+<td><code>access_grant_fields</code></td>
+<td><code>(grant_id FK, field_key FK) composite PK</code>; creation routine verifies field belongs to the grant's patient</td>
+</tr>
+<tr>
+<td><code>record_read_sessions</code></td>
+<td><code>id PK</code>, <code>grant_id FK</code>, actor account or channel-session binding, channel, expiry, revoked time</td>
+</tr>
+<tr>
+<td><code>audit_events</code></td>
+<td><code>id PK</code>, nullable patient/actor IDs, channel, action, target, allowed field-key list, result, request ID, timestamp; no clinical values or raw codes</td>
+</tr>
+<tr>
+<td><code>profile_use_consents</code></td>
+<td><code>id PK</code>, <code>patient_id FK</code>, channel, exact allowed field keys, linked-phone ID where relevant, expiry, revoked time</td>
+</tr>
+</tbody>
+</table></div>
+<p>Emergency visibility and temporary access are separate. A temporary grant names allowed fields, not an “all fields” boolean. New profile fields are private by default. A grant reads current values for its selected fields until it expires; say this in the consent UI. A record read session cannot outlive its parent grant. Browser access and telecom sessions must be bound to their original actor/context, rather than transferable by guessed session IDs.</p>
+<h3 id="directory-recommendations-and-ai-conversation">Directory, recommendations and AI conversation</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Table</th>
+<th>Important columns / keys</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>areas</code></td>
+<td><code>id PK</code>, country, state/region, city, area name, optional centre coordinates</td>
+</tr>
+<tr>
+<td><code>area_aliases</code></td>
+<td><code>id PK</code>, <code>area_id FK</code>, normalized alias/landmark; uniqueness within appropriate region</td>
+</tr>
+<tr>
+<td><code>facilities</code></td>
+<td><code>id PK</code>, name, address, <code>area_id FK</code>, coordinates, phone nullable, active flag, source reference, last verified time</td>
+</tr>
+<tr>
+<td><code>services</code></td>
+<td><code>service_code PK</code>, label, description, active flag</td>
+</tr>
+<tr>
+<td><code>facility_services</code></td>
+<td><code>(facility_id FK, service_code FK) composite PK</code>, verification time and availability note</td>
+</tr>
+<tr>
+<td><code>referral_requests</code></td>
+<td><code>id PK</code>, nullable patient/conversation IDs, channel, service, supplied/resolved location, consent ID nullable, applied field keys, status</td>
+</tr>
+<tr>
+<td><code>referral_results</code></td>
+<td><code>(referral_id FK, facility_id FK) composite PK</code>, rank, distance nullable, distance basis, reason and directory snapshot</td>
+</tr>
+<tr>
+<td><code>conversations</code></td>
+<td><code>id PK</code>, owner account or anonymous-session binding, channel, language, status, expiry policy</td>
+</tr>
+<tr>
+<td><code>conversation_messages</code></td>
+<td><code>id PK</code>, <code>conversation_id FK</code>, role, protected content, validated UI payload, model/content versions, timestamp</td>
+</tr>
+<tr>
+<td><code>reviewed_health_content</code></td>
+<td><code>id PK</code>, topic, language, version, body, reviewer, review date, publication status</td>
+</tr>
+<tr>
+<td><code>idempotency_records</code></td>
+<td>actor scope + key unique, request digest, result/resource reference, encrypted short-lived response where needed, expiry</td>
+</tr>
+</tbody>
+</table></div>
+<p>Telecom tables are specified in Plan 2 and live in the same PostgreSQL instance. They may use a <code>telecom</code> schema for clear ownership. A table split is an ownership boundary, not a second source of patient truth.</p>
+<h3 id="relationships">Relationships</h3>
+<figure class="diagram" id="records-relationships"><div class="diagram-head"><strong>Database relationships · identity and record permissions</strong><div class="diagram-actions"><button class="button" type="button" data-expand-diagram>Enlarge</button><button class="button" type="button" data-download-diagram>Save SVG</button></div></div><div class="diagram-scroll"><div class="diagram-svg"><svg role="img" aria-labelledby="records-relationships-title" style="width:100%;min-width:847px;max-width:1096px;margin:auto"
+ viewBox="0.00 0.00 996.00 261.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><title id="records-relationships-title">Database relationships · identity and record permissions</title><desc>Cardinality: 1 = one; 0..1 = optional one; 0..* = zero or more; 1..* = one or more. Field-level keys and constraints remain in the adjacent schema tables.</desc>
+<g id="records-relationships-graph0" class="graph" transform="scale(1 1) rotate(0) translate(18 243)">
+<title>G</title>
+<polygon fill="white" stroke="transparent" points="-18,18 -18,-243 978,-243 978,18 -18,18"/>
+
+<g id="records-relationships-node1" class="node">
+<title>a</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M77,-142C77,-142 12,-142 12,-142 6,-142 0,-136 0,-130 0,-130 0,-115 0,-115 0,-109 6,-103 12,-103 12,-103 77,-103 77,-103 83,-103 89,-109 89,-115 89,-115 89,-130 89,-130 89,-136 83,-142 77,-142"/>
+<text text-anchor="middle" x="44.5" y="-119" font-family="Arial" font-size="15.00" fill="#173e34">accounts</text>
+</g>
+
+<g id="records-relationships-node2" class="node">
+<title>p</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M330,-142C330,-142 224,-142 224,-142 218,-142 212,-136 212,-130 212,-130 212,-115 212,-115 212,-109 218,-103 224,-103 224,-103 330,-103 330,-103 336,-103 342,-109 342,-115 342,-115 342,-130 342,-130 342,-136 336,-142 330,-142"/>
+<text text-anchor="middle" x="277" y="-119" font-family="Arial" font-size="15.00" fill="#173e34">patient_profiles</text>
+</g>
+
+<g id="records-relationships-edge1" class="edge">
+<title>a&#45;&gt;p</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M89.13,-122.5C121.28,-122.5 165.76,-122.5 203.26,-122.5"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="203.64,-125.3 211.64,-122.5 203.64,-119.7 203.64,-125.3"/>
+<text text-anchor="middle" x="150.5" y="-125.9" font-family="Arial" font-size="12.00" fill="#486552">owns · 1 → 0..1</text>
+</g>
+
+<g id="records-relationships-node3" class="node">
+<title>v</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M638,-225C638,-225 502,-225 502,-225 496,-225 490,-219 490,-213 490,-213 490,-198 490,-198 490,-192 496,-186 502,-186 502,-186 638,-186 638,-186 644,-186 650,-192 650,-198 650,-198 650,-213 650,-213 650,-219 644,-225 638,-225"/>
+<text text-anchor="middle" x="570" y="-202" font-family="Arial" font-size="15.00" fill="#173e34">patient_field_values</text>
+</g>
+
+<g id="records-relationships-edge2" class="edge">
+<title>p&#45;&gt;v</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M331.2,-142.13C347.87,-148.28 362,-153.5 362,-153.5 362,-153.5 426.39,-169.68 483.35,-183.98"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="482.89,-186.76 491.33,-185.99 484.26,-181.32 482.89,-186.76"/>
+<text text-anchor="middle" x="416" y="-182.9" font-family="Arial" font-size="12.00" fill="#486552">contains · 1 → 0..*</text>
+</g>
+
+<g id="records-relationships-node4" class="node">
+<title>e</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M631,-163C631,-163 509,-163 509,-163 503,-163 497,-157 497,-151 497,-151 497,-136 497,-136 497,-130 503,-124 509,-124 509,-124 631,-124 631,-124 637,-124 643,-130 643,-136 643,-136 643,-151 643,-151 643,-157 637,-163 631,-163"/>
+<text text-anchor="middle" x="570" y="-140" font-family="Arial" font-size="15.00" fill="#173e34">emergency_fields</text>
+</g>
+
+<g id="records-relationships-edge3" class="edge">
+<title>p&#45;&gt;e</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M342.22,-127.13C385.33,-130.25 442.45,-134.37 488.57,-137.7"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="488.58,-140.5 496.76,-138.29 488.98,-134.92 488.58,-140.5"/>
+<text text-anchor="middle" x="416" y="-138.9" font-family="Arial" font-size="12.00" fill="#486552">selects · 1 → 0..*</text>
+</g>
+
+<g id="records-relationships-node5" class="node">
+<title>g</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M620.5,-101C620.5,-101 519.5,-101 519.5,-101 513.5,-101 507.5,-95 507.5,-89 507.5,-89 507.5,-74 507.5,-74 507.5,-68 513.5,-62 519.5,-62 519.5,-62 620.5,-62 620.5,-62 626.5,-62 632.5,-68 632.5,-74 632.5,-74 632.5,-89 632.5,-89 632.5,-95 626.5,-101 620.5,-101"/>
+<text text-anchor="middle" x="570" y="-78" font-family="Arial" font-size="15.00" fill="#173e34">access_grants</text>
+</g>
+
+<g id="records-relationships-edge4" class="edge">
+<title>p&#45;&gt;g</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M342.09,-113.34C353.59,-111.7 362,-110.5 362,-110.5 362,-110.5 439.34,-99.67 499.47,-91.24"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="499.92,-94.01 507.45,-90.12 499.14,-88.46 499.92,-94.01"/>
+<text text-anchor="middle" x="416" y="-113.9" font-family="Arial" font-size="12.00" fill="#486552">authorizes · 1 → 0..*</text>
+</g>
+
+<g id="records-relationships-node8" class="node">
+<title>au</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M614.5,-39C614.5,-39 525.5,-39 525.5,-39 519.5,-39 513.5,-33 513.5,-27 513.5,-27 513.5,-12 513.5,-12 513.5,-6 519.5,0 525.5,0 525.5,0 614.5,0 614.5,0 620.5,0 626.5,-6 626.5,-12 626.5,-12 626.5,-27 626.5,-27 626.5,-33 620.5,-39 614.5,-39"/>
+<text text-anchor="middle" x="570" y="-16" font-family="Arial" font-size="15.00" fill="#173e34">audit_events</text>
+</g>
+
+<g id="records-relationships-edge7" class="edge">
+<title>p&#45;&gt;au</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M314.6,-102.89C337.24,-90.77 362,-77.5 362,-77.5 362,-77.5 444.38,-54.42 505.2,-37.38"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="506.31,-39.97 513.26,-35.12 504.8,-34.58 506.31,-39.97"/>
+<text text-anchor="middle" x="416" y="-80.9" font-family="Arial" font-size="12.00" fill="#486552">records · 1 → 0..*</text>
+</g>
+
+<g id="records-relationships-node6" class="node">
+<title>gf</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M940.5,-132C940.5,-132 803.5,-132 803.5,-132 797.5,-132 791.5,-126 791.5,-120 791.5,-120 791.5,-105 791.5,-105 791.5,-99 797.5,-93 803.5,-93 803.5,-93 940.5,-93 940.5,-93 946.5,-93 952.5,-99 952.5,-105 952.5,-105 952.5,-120 952.5,-120 952.5,-126 946.5,-132 940.5,-132"/>
+<text text-anchor="middle" x="872" y="-109" font-family="Arial" font-size="15.00" fill="#173e34">access_grant_fields</text>
+</g>
+
+<g id="records-relationships-edge5" class="edge">
+<title>g&#45;&gt;gf</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M632.8,-87.89C676.26,-92.38 735.05,-98.45 783.34,-103.44"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="783.06,-106.23 791.31,-104.27 783.64,-100.66 783.06,-106.23"/>
+<text text-anchor="middle" x="717" y="-103.9" font-family="Arial" font-size="12.00" fill="#486552">permits · 1 → 1..*</text>
+</g>
+
+<g id="records-relationships-node7" class="node">
+<title>r</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M948,-70C948,-70 796,-70 796,-70 790,-70 784,-64 784,-58 784,-58 784,-43 784,-43 784,-37 790,-31 796,-31 796,-31 948,-31 948,-31 954,-31 960,-37 960,-43 960,-43 960,-58 960,-58 960,-64 954,-70 948,-70"/>
+<text text-anchor="middle" x="872" y="-47" font-family="Arial" font-size="15.00" fill="#173e34">record_read_sessions</text>
+</g>
+
+<g id="records-relationships-edge6" class="edge">
+<title>g&#45;&gt;r</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M632.8,-75.11C674.06,-70.85 729.14,-65.16 775.94,-60.32"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="776.31,-63.1 783.98,-59.49 775.73,-57.53 776.31,-63.1"/>
+<text text-anchor="middle" x="717" y="-73.9" font-family="Arial" font-size="12.00" fill="#486552">unlocks · 1 → 0..*</text>
+</g>
+</g>
+</svg>
+</div></div><figcaption class="diagram-caption">Cardinality: 1 = one; 0..1 = optional one; 0..* = zero or more; 1..* = one or more. Field-level keys and constraints remain in the adjacent schema tables.</figcaption><details class="diagram-source"><summary>Original diagram / flow text</summary><pre><code>erDiagram
+  accounts ||--o| patient_profiles : owns
+  patient_profiles ||--o{ patient_field_values : contains
+  patient_profiles ||--o{ emergency_fields : selects
+  patient_profiles ||--o{ access_grants : authorizes
+  access_grants ||--|{ access_grant_fields : permits
+  access_grants ||--o{ record_read_sessions : unlocks
+  patient_profiles ||--o{ audit_events : records
+  areas ||--o{ facilities : locates
+  facilities ||--o{ facility_services : offers
+  services ||--o{ facility_services : categorizes
+  referral_requests ||--o{ referral_results : produces
+  facilities ||--o{ referral_results : appears_in
+  conversations ||--o{ conversation_messages : contains</code></pre></details></figure>
+
+<figure class="diagram" id="care-relationships"><div class="diagram-head"><strong>Database relationships · directory, recommendations and chat</strong><div class="diagram-actions"><button class="button" type="button" data-expand-diagram>Enlarge</button><button class="button" type="button" data-download-diagram>Save SVG</button></div></div><div class="diagram-scroll"><div class="diagram-svg"><svg role="img" aria-labelledby="care-relationships-title" style="width:100%;min-width:655px;max-width:848px;margin:auto"
+ viewBox="0.00 0.00 771.00 261.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><title id="care-relationships-title">Database relationships · directory, recommendations and chat</title><desc>The directory is the source of hospital facts. Referral results link back to known facilities. Conversations own their message history.</desc>
+<g id="care-relationships-graph0" class="graph" transform="scale(1 1) rotate(0) translate(18 243)">
+<title>G</title>
+<polygon fill="white" stroke="transparent" points="-18,18 -18,-243 753,-243 753,18 -18,18"/>
+
+<g id="care-relationships-node1" class="node">
+<title>a</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M81.5,-101C81.5,-101 39.5,-101 39.5,-101 33.5,-101 27.5,-95 27.5,-89 27.5,-89 27.5,-74 27.5,-74 27.5,-68 33.5,-62 39.5,-62 39.5,-62 81.5,-62 81.5,-62 87.5,-62 93.5,-68 93.5,-74 93.5,-74 93.5,-89 93.5,-89 93.5,-95 87.5,-101 81.5,-101"/>
+<text text-anchor="middle" x="60.5" y="-78" font-family="Arial" font-size="15.00" fill="#173e34">areas</text>
+</g>
+
+<g id="care-relationships-node2" class="node">
+<title>f</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M381.5,-101C381.5,-101 324.5,-101 324.5,-101 318.5,-101 312.5,-95 312.5,-89 312.5,-89 312.5,-74 312.5,-74 312.5,-68 318.5,-62 324.5,-62 324.5,-62 381.5,-62 381.5,-62 387.5,-62 393.5,-68 393.5,-74 393.5,-74 393.5,-89 393.5,-89 393.5,-95 387.5,-101 381.5,-101"/>
+<text text-anchor="middle" x="353" y="-78" font-family="Arial" font-size="15.00" fill="#173e34">facilities</text>
+</g>
+
+<g id="care-relationships-edge1" class="edge">
+<title>a&#45;&gt;f</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M93.7,-81.5C144.77,-81.5 244.65,-81.5 304.13,-81.5"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="304.25,-84.3 312.25,-81.5 304.25,-78.7 304.25,-84.3"/>
+<text text-anchor="middle" x="189.5" y="-84.9" font-family="Arial" font-size="12.00" fill="#486552">locates · 1 → 0..*</text>
+</g>
+
+<g id="care-relationships-node3" class="node">
+<title>fs</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M723,-137C723,-137 614,-137 614,-137 608,-137 602,-131 602,-125 602,-125 602,-110 602,-110 602,-104 608,-98 614,-98 614,-98 723,-98 723,-98 729,-98 735,-104 735,-110 735,-110 735,-125 735,-125 735,-131 729,-137 723,-137"/>
+<text text-anchor="middle" x="668.5" y="-114" font-family="Arial" font-size="15.00" fill="#173e34">facility_services</text>
+</g>
+
+<g id="care-relationships-edge2" class="edge">
+<title>f&#45;&gt;fs</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M393.71,-85.85C459.04,-93.02 582,-106.5 582,-106.5 582,-106.5 586.7,-107.1 593.89,-108.03"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="593.54,-110.81 601.83,-109.05 594.25,-105.25 593.54,-110.81"/>
+<text text-anchor="middle" x="525" y="-109.9" font-family="Arial" font-size="12.00" fill="#486552">offers · 1 → 0..*</text>
+</g>
+
+<g id="care-relationships-node6" class="node">
+<title>rr</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M721,-65C721,-65 616,-65 616,-65 610,-65 604,-59 604,-53 604,-53 604,-38 604,-38 604,-32 610,-26 616,-26 616,-26 721,-26 721,-26 727,-26 733,-32 733,-38 733,-38 733,-53 733,-53 733,-59 727,-65 721,-65"/>
+<text text-anchor="middle" x="668.5" y="-42" font-family="Arial" font-size="15.00" fill="#173e34">referral_results</text>
+</g>
+
+<g id="care-relationships-edge5" class="edge">
+<title>f&#45;&gt;rr</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M393.7,-76.94C444.4,-71.12 533.04,-60.94 595.72,-53.74"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="596.37,-56.49 604,-52.79 595.73,-50.92 596.37,-56.49"/>
+<text text-anchor="middle" x="525" y="-71.9" font-family="Arial" font-size="12.00" fill="#486552">appears in · 1 → 0..*</text>
+</g>
+
+<g id="care-relationships-node4" class="node">
+<title>s</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M382.5,-163C382.5,-163 323.5,-163 323.5,-163 317.5,-163 311.5,-157 311.5,-151 311.5,-151 311.5,-136 311.5,-136 311.5,-130 317.5,-124 323.5,-124 323.5,-124 382.5,-124 382.5,-124 388.5,-124 394.5,-130 394.5,-136 394.5,-136 394.5,-151 394.5,-151 394.5,-157 388.5,-163 382.5,-163"/>
+<text text-anchor="middle" x="353" y="-140" font-family="Arial" font-size="15.00" fill="#173e34">services</text>
+</g>
+
+<g id="care-relationships-edge3" class="edge">
+<title>s&#45;&gt;fs</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M394.66,-140.13C444.93,-135.96 531.42,-128.79 593.55,-123.63"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="594.03,-126.4 601.77,-122.95 593.57,-120.82 594.03,-126.4"/>
+<text text-anchor="middle" x="525" y="-136.9" font-family="Arial" font-size="12.00" fill="#486552">categorizes · 1 → 0..*</text>
+</g>
+
+<g id="care-relationships-node5" class="node">
+<title>r</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M412.5,-39C412.5,-39 293.5,-39 293.5,-39 287.5,-39 281.5,-33 281.5,-27 281.5,-27 281.5,-12 281.5,-12 281.5,-6 287.5,0 293.5,0 293.5,0 412.5,0 412.5,0 418.5,0 424.5,-6 424.5,-12 424.5,-12 424.5,-27 424.5,-27 424.5,-33 418.5,-39 412.5,-39"/>
+<text text-anchor="middle" x="353" y="-16" font-family="Arial" font-size="15.00" fill="#173e34">referral_requests</text>
+</g>
+
+<g id="care-relationships-edge4" class="edge">
+<title>r&#45;&gt;rr</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M424.58,-19.81C491.54,-20.1 582,-20.5 582,-20.5 582,-20.5 587.4,-22.08 595.48,-24.44"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="595.11,-27.25 603.58,-26.81 596.68,-21.88 595.11,-27.25"/>
+<text text-anchor="middle" x="525" y="-23.9" font-family="Arial" font-size="12.00" fill="#486552">produces · 1 → 0..*</text>
+</g>
+
+<g id="care-relationships-node7" class="node">
+<title>c</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M109,-225C109,-225 12,-225 12,-225 6,-225 0,-219 0,-213 0,-213 0,-198 0,-198 0,-192 6,-186 12,-186 12,-186 109,-186 109,-186 115,-186 121,-192 121,-198 121,-198 121,-213 121,-213 121,-219 115,-225 109,-225"/>
+<text text-anchor="middle" x="60.5" y="-202" font-family="Arial" font-size="15.00" fill="#173e34">conversations</text>
+</g>
+
+<g id="care-relationships-node8" class="node">
+<title>m</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M436,-225C436,-225 270,-225 270,-225 264,-225 258,-219 258,-213 258,-213 258,-198 258,-198 258,-192 264,-186 270,-186 270,-186 436,-186 436,-186 442,-186 448,-192 448,-198 448,-198 448,-213 448,-213 448,-219 442,-225 436,-225"/>
+<text text-anchor="middle" x="353" y="-202" font-family="Arial" font-size="15.00" fill="#173e34">conversation_messages</text>
+</g>
+
+<g id="care-relationships-edge6" class="edge">
+<title>c&#45;&gt;m</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M121.34,-205.5C158.32,-205.5 206.76,-205.5 249.69,-205.5"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="249.92,-208.3 257.92,-205.5 249.92,-202.7 249.92,-208.3"/>
+<text text-anchor="middle" x="189.5" y="-208.9" font-family="Arial" font-size="12.00" fill="#486552">contains · 1 → 0..*</text>
+</g>
+</g>
+</svg>
+</div></div><figcaption class="diagram-caption">The directory is the source of hospital facts. Referral results link back to known facilities. Conversations own their message history.</figcaption></figure>
+
+<h3 id="indexes-transactions-and-migrations">Indexes, transactions and migrations</h3>
+<ul>
+<li>Unique indexes on code digests, normalized account email, provider message IDs and channel session IDs.</li>
+<li>Index grants by patient and expiry, events by <code>(patient_id, created_at)</code>, messages by <code>(conversation_id, created_at)</code> and facility services by <code>(service_code, facility_id)</code>.</li>
+<li>Use a geographic index for facility coordinates if adopting PostgreSQL's PostGIS extension. For a small prototype, validated coordinates plus a deterministic distance calculation also work; do not mix coordinate systems.</li>
+<li>Create grant plus field rows in one transaction. Update public selections plus audit event in one transaction. Rotate patient code plus revoke dependent grants/sessions in one transaction.</li>
+<li>Enforce positive expiry intervals, valid latitude/longitude, distinct valid channel enums and unique result ranks within each recommendation.</li>
+<li>One migration directory and one deploy-time migration runner. Use expand/backfill/contract migrations so both backends remain compatible while deployed independently.</li>
+<li>Seed fictional patients, services, known areas, hospitals and reviewed demonstration text. Do not present seeds as a live provider directory.</li>
+</ul>
+<h2 id="10-hospital-matching-algorithm">10. Hospital matching algorithm</h2>
+<ol>
+<li>Resolve the requested service to an approved catalog code. Ask if ambiguous.</li>
+<li>Resolve location to coordinates or a known area. Ask the user to choose between ambiguous matches.</li>
+<li>Apply relevant, explicitly permitted profile constraints using reviewed rules; never diagnose a specialty solely from an unreviewed model inference.</li>
+<li>Filter to active facilities that list the needed service.</li>
+<li>Rank those facilities by straight-line distance when coordinates are available. Service fit takes precedence over closeness.</li>
+<li>Return up to three options, including source freshness and contact only if supplied.</li>
+<li>If using an area's centre, label distance approximate. Do not call it driving distance, travel time or exact GPS proximity.</li>
+<li>If no match exists, offer a wider radius or another area. If coordinates are missing, show an area-based result without a made-up distance.</li>
+</ol>
+<p>The backend's list is authoritative. AI may explain the matched-service reason but may not add a facility absent from the returned IDs. Directory hours or services do not establish real-time bed or clinician availability.</p>
+<h2 id="11-backend-layout-and-deployment">11. Backend layout and deployment</h2>
+<div class="source-code"><div class="code-top"><span>text</span><button type="button" class="button" data-copy-code>Copy</button></div><pre><code class="language-text">online-api/
+  app/
+    routes/       auth, profile, sharing, records, chat, care, admin
+    schemas/      request, response and generative-UI contracts
+    services/     sessions, care orchestration, AI adapter, policy callers
+    repositories/ parameterized SQL and approved database function calls
+    middleware/   trace IDs, CSRF, rate limits and error mapping
+    workers/      optional online jobs, cleanup and retention jobs
+  tests/          policy contracts, API ownership and failure cases
+shared-contracts/
+  schemas/        versioned JSON Schemas consumed by both teams
+  fixtures/       shared policy and care-matching test vectors
+database/
+  migrations/    one authoritative migration stream
+  routines/      shared permission and facility-search functions
+  seeds/         fictional demo fixtures
+</code></pre></div>
+<p>Deploy the React build, FastAPI, Node.js, AI service and PostgreSQL as independently configured units. Keep PostgreSQL and the AI service on private networking. Restrict secrets to the service that needs them: OpenRouter key in AI service; Africa's Talking key in Node; separate DB credentials per service. Shared code-digest/encryption keys require protected versioned key management. Configure reviewed content, pilot regions, enabled channels, expiry/rate limits and provider budgets through server-side settings.</p>
+<p>Use a durable outbox for notifications and phone-verification delivery. FastAPI may enqueue a request in PostgreSQL; Node's delivery worker consumes it. This is an asynchronous integration for telecom delivery, not a dependency on FastAPI during an offline lookup. Web core records/search must operate independently of the telecom deployment; phone verification and SMS delivery naturally need the telecom worker.</p>
+<p>Set time budgets and bounded retries at each service boundary. Treat timeouts as uncertain outcomes for mutations. Use idempotency and reconciliation rather than blindly repeat a grant creation or message send. Monitor latency, database failures, denied lookups, queue age, delivery failures, AI errors and spend without storing health content in operational logs. Test backup restoration, not only backup creation.</p>
+<h2 id="12-implementation-order-and-acceptance-criteria">12. Implementation order and acceptance criteria</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Milestone</th>
+<th>Deliverable</th>
+<th>Complete when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1 — Shared foundation</td>
+<td>Schema, migrations, role model, shared policy routines, fictional seeds, API contracts</td>
+<td>Both backends can execute the same policy fixtures with equivalent results</td>
+</tr>
+<tr>
+<td>2 — Patient portal</td>
+<td>Sign-in, own fields, emergency selections, grant creation/revocation and audit</td>
+<td>No user can read/change another profile; only selected fields appear in a public lookup</td>
+</tr>
+<tr>
+<td>3 — Care search</td>
+<td>Directory administration, service/area lookup and deterministic matching</td>
+<td>A closer facility without the requested service is excluded; ambiguous/no-match flows work</td>
+</tr>
+<tr>
+<td>4 — Online chat</td>
+<td>AI adapter, intent handling, approved UI renderer and action dispatch</td>
+<td>Clarification, hospital cards, summary and consent form work; malicious/unknown UI payloads are rejected</td>
+</tr>
+<tr>
+<td>5 — Integration</td>
+<td>Cross-channel record visibility and shared grants with independent deployments</td>
+<td>Offline lookup works with FastAPI stopped; online record/search works with Node stopped</td>
+</tr>
+<tr>
+<td>6 — Pilot readiness</td>
+<td>Rate limiting, retention, operational dashboards, restore exercise and handoff</td>
+<td>Revocation/expiry, duplicate actions, dependency outages and data-leak checks pass</td>
+</tr>
+</tbody>
+</table></div>
+<p>Critical tests: ownership and role denials; public projection excludes every unselected field; expired/revoked/wrong-patient grants; stale read sessions; concurrent profile edits; idempotent grant/chat requests; malformed AI JSON; unknown UI components/actions; XSS strings displayed as text; no facility hallucination; denied geolocation; approximate distances; empty directory; AI downtime; no codes or clinical values in logs.</p>
+<h2 id="13-how-to-use-the-accompanying-html">13. How to use the accompanying HTML</h2>
+<p>Open <a href="HealthAccess_Interactive_Prototype.html">HealthAccess_Interactive_Prototype.html</a> directly in a modern browser. No server, installation, API key or network connection is needed. It is a standalone interaction prototype using local JavaScript, not the production React implementation.</p>
+<p>Try the suggested chat prompts, provide an area when asked, open a hospital card, change emergency-field selections, create/revoke a temporary code, and use the SMS/USSD demo. Data is fictional and stays in page memory; reload resets it. The generated UI is a deterministic simulation of the production structured-response contract. It is not connected to OpenRouter, Africa's Talking or a real patient database.</p>
+<p>The frontend team should reproduce the demonstrated states as React components and replace the local adapter with the documented FastAPI endpoints. The Node team should use <a href="02_Offline_NodeJS_SMS_USSD_Plan.html">Plan 2</a> for the channel state machines and callback contracts.</p></article><footer class="doc-footer">HealthAccess · Full implementation plan, converted from the Markdown handoff. Diagram source text is retained below each converted flow.</footer></main></div>
+<dialog class="diagram-dialog" id="diagram-dialog" aria-labelledby="diagram-title"><div class="modal-toolbar"><h2 id="diagram-title">Diagram</h2><div class="modal-actions"><button type="button" class="button" id="zoom-out" aria-label="Zoom out">−</button><span class="zoom-value" id="diagram-zoom">100%</span><button type="button" class="button" id="zoom-in" aria-label="Zoom in">+</button><button type="button" class="button" id="zoom-reset">Fit</button><button type="button" class="button primary" id="diagram-close">Close</button></div></div><div class="modal-body" id="diagram-stage"><img id="diagram-image" alt="Expanded diagram"></div></dialog>
+<script>(() => {
+  const dialog=document.getElementById('diagram-dialog');
+  const image=document.getElementById('diagram-image');
+  const title=document.getElementById('diagram-title');
+  const stage=document.getElementById('diagram-stage');
+  const zoomLabel=document.getElementById('diagram-zoom');
+  let baseWidth=800,zoom=1;
+  const encodeSvg=svg=>'data:image/svg+xml;base64,'+btoa(unescape(encodeURIComponent(svg)));
+  function updateZoom(){image.style.width=Math.round(baseWidth*zoom)+'px';zoomLabel.textContent=Math.round(zoom*100)+'%';}
+  document.querySelectorAll('[data-expand-diagram]').forEach(button=>button.addEventListener('click',()=>{
+    const figure=button.closest('figure');const svg=figure.querySelector('svg');
+    title.textContent=figure.querySelector('.diagram-head strong').textContent;
+    const box=svg.viewBox.baseVal;
+    baseWidth=Math.min(Math.max(box.width,600),Math.max(window.innerWidth-100,600));zoom=1;
+    image.alt=title.textContent;image.src=encodeSvg(new XMLSerializer().serializeToString(svg));updateZoom();
+    dialog.showModal();stage.scrollTop=0;stage.scrollLeft=0;
+  }));
+  document.getElementById('zoom-in').addEventListener('click',()=>{zoom=Math.min(3,zoom+.25);updateZoom();});
+  document.getElementById('zoom-out').addEventListener('click',()=>{zoom=Math.max(.5,zoom-.25);updateZoom();});
+  document.getElementById('zoom-reset').addEventListener('click',()=>{zoom=1;updateZoom();});
+  document.getElementById('diagram-close').addEventListener('click',()=>dialog.close());
+  dialog.addEventListener('click',event=>{if(event.target===dialog)dialog.close();});
+  document.querySelectorAll('[data-download-diagram]').forEach(button=>button.addEventListener('click',()=>{
+    const svg=button.closest('figure').querySelector('svg');const link=document.createElement('a');
+    link.href=encodeSvg(new XMLSerializer().serializeToString(svg));link.download=button.closest('figure').id+'.svg';link.click();
+  }));
+  document.querySelectorAll('[data-copy-code]').forEach(button=>button.addEventListener('click',async()=>{
+    const text=button.closest('.source-code').querySelector('code').textContent;
+    try{if(!navigator.clipboard)throw new Error('Clipboard unavailable');await navigator.clipboard.writeText(text);button.textContent='Copied';}
+    catch{const range=document.createRange();range.selectNodeContents(button.closest('.source-code').querySelector('code'));const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);button.textContent='Text selected';}
+    setTimeout(()=>button.textContent='Copy',2200);
+  }));
+  document.getElementById('print-plan').addEventListener('click',()=>window.print());
+  if('IntersectionObserver' in window){const observer=new IntersectionObserver(entries=>{for(const entry of entries){if(!entry.isIntersecting)continue;document.querySelectorAll('.toc a').forEach(a=>a.classList.toggle('active-section',a.hash==='#'+entry.target.id));}},{rootMargin:'-10% 0px -70% 0px'});document.querySelectorAll('.document h2').forEach(h=>observer.observe(h));}
+})();
+</script></body></html>

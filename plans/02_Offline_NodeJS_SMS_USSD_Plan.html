@@ -1,0 +1,1585 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><title>HealthAccess — Plan 2: Independent Node.js SMS and USSD implementation</title><style>:root{--ink:#173e34;--muted:#5b7168;--brand:#16664f;--paper:#fff;--wash:#f4f7f2;--line:#d7e3db;--soft:#e7f2e9;--code:#142d25;font:15px/1.7 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--ink);background:var(--wash);color-scheme:light}
+*{box-sizing:border-box}body{margin:0}a{color:var(--brand);text-underline-offset:3px}button,select{font:inherit}button{cursor:pointer}button:focus-visible,a:focus-visible,summary:focus-visible{outline:3px solid #ce8b2d;outline-offset:4px}[hidden]{display:none!important}h1,h2,h3{line-height:1.25;letter-spacing:-.025em;font-weight:650}h1{font-size:clamp(28px,3.3vw,42px);margin:14px 0 22px;max-width:920px}h2{font-size:26px;margin:64px 0 22px;padding-top:20px;border-top:1px solid var(--line);scroll-margin-top:25px}h3{font-size:19px;margin:32px 0 14px;scroll-margin-top:25px}p{margin:14px 0}ul,ol{padding-left:25px}li{padding-left:3px;margin:7px 0}strong{font-weight:650}code{font:0.86em/1.6 ui-monospace,SFMono-Regular,Consolas,monospace;background:#ecf2ec;padding:2px 5px;border-radius:4px;overflow-wrap:anywhere}pre{background:var(--code);color:#e4f1e6;padding:21px 23px;border-radius:12px;overflow:auto;font-size:13px;line-height:1.7;margin:22px 0;tab-size:2}pre code{background:transparent;padding:0;border-radius:0;color:inherit;font-size:inherit;white-space:pre;overflow-wrap:normal}blockquote{margin:24px 0;padding:8px 20px;border-left:4px solid var(--brand);background:var(--soft)}hr{border:0;border-top:1px solid var(--line);margin:35px 0}.layout{display:grid;grid-template-columns:270px minmax(0,1fr);max-width:1700px;margin:auto;min-height:100vh}.side{position:sticky;top:0;height:100vh;overflow:auto;padding:28px 22px;background:#f8faf6;border-right:1px solid var(--line)}.brand{display:flex;gap:10px;align-items:center;color:var(--ink);font-size:22px;font-weight:650;letter-spacing:-.8px;text-decoration:none;margin-bottom:27px}.brand-mark{width:31px;height:31px;border-radius:9px;background:var(--brand);color:white;display:grid;place-items:center;font-size:22px}.nav-label{font-size:10px;text-transform:uppercase;letter-spacing:1.8px;font-weight:650;color:var(--muted);margin:22px 0 10px}.switch{display:grid;gap:7px}.switch a{padding:9px 11px;text-decoration:none;font-size:13px;border-radius:7px;color:var(--muted)}.switch a.active{background:#dfede2;color:var(--ink);font-weight:650}.switch a:hover{background:var(--soft)}.toc ul{list-style:none;padding:0;margin:0}.toc li{padding:0;margin:5px 0}.toc a{display:block;text-decoration:none;color:var(--muted);font-size:12px;line-height:1.5;padding:6px 2px}.toc a:hover{color:var(--brand)}.toc .active-section{color:var(--brand);font-weight:650}.side-note{font-size:11px;color:var(--muted);margin-top:28px}.page{min-width:0;padding:35px 48px 80px}.topline{display:flex;align-items:center;justify-content:space-between;gap:20px;padding-bottom:22px;border-bottom:1px solid var(--line)}.eyebrow{text-transform:uppercase;letter-spacing:1.9px;font-size:10px;font-weight:650;color:var(--muted)}.toolbar{display:flex;gap:10px;flex-wrap:wrap}.button{border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--ink);padding:8px 13px;font-size:12px;line-height:1.5;min-height:35px;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:6px}.button:hover{background:var(--soft)}.button.primary{background:var(--brand);color:white;border-color:var(--brand)}.lead{font-size:15px;color:var(--muted);max-width:800px;margin:12px 0 24px}.hero{padding-top:30px}.hero-tag{font-size:11px;color:var(--brand);display:inline-block;background:var(--soft);border-radius:6px;padding:5px 9px}.document>p:first-child,.document>p:nth-child(2){font-size:12px;color:var(--muted)}.table-wrap{overflow:auto;max-width:100%;margin:23px 0 30px;border:1px solid var(--line);border-radius:11px;background:white}table{border-collapse:collapse;width:100%;min-width:540px;font-size:12.5px;line-height:1.6}th{text-align:left;background:#e9f1e8;color:var(--ink);font-size:11px;letter-spacing:.02em;padding:13px 15px;vertical-align:top}td{padding:13px 15px;border-top:1px solid #e5ece5;vertical-align:top;overflow-wrap:anywhere}tr:nth-child(even) td{background:#fafcf8}td code{font-size:11px;white-space:normal}th:first-child{width:auto}td:first-child{font-weight:500}figure{margin:28px 0}.diagram{background:white;border:1px solid var(--line);border-radius:14px;overflow:hidden;break-inside:avoid}.diagram-head{padding:15px 18px;border-bottom:1px solid #e8eee8;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.diagram-head strong{font-size:13px}.diagram-actions{display:flex;gap:7px}.diagram-scroll{overflow:auto;padding:22px 20px;background:white}.diagram-svg{display:block;min-width:0}.diagram-svg svg{display:block;width:100%;max-width:100%;height:auto;min-width:580px}.diagram-caption{font-size:11px;color:var(--muted);margin:0;padding:0 18px 16px}.diagram-source{padding:0 18px 14px;font-size:11px;color:var(--muted)}.diagram-source summary{cursor:pointer}.diagram-source pre{font-size:11px;margin:10px 0 0;padding:16px}.source-code{margin-bottom:20px}.source-code .code-top{display:flex;justify-content:space-between;align-items:center;font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;padding:0 2px}.source-code pre{margin-top:8px}.source-code .button{text-transform:none;letter-spacing:0;padding:5px 9px;min-height:27px;font-size:11px}.doc-footer{border-top:1px solid var(--line);margin-top:55px;padding-top:20px;color:var(--muted);font-size:12px}.mobile-nav{display:none}.diagram-dialog{border:1px solid var(--line);border-radius:14px;padding:0;width:96vw;max-width:1600px;height:92vh;max-height:92vh;color:var(--ink);background:white}.diagram-dialog::backdrop{background:#10291ecc}.modal-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px;border-bottom:1px solid var(--line)}.modal-toolbar h2{font-size:16px;border:0;padding:0;margin:0;letter-spacing:0}.modal-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.modal-body{overflow:auto;height:calc(100% - 72px);padding:28px;background:#f7faf5}.modal-body img{display:block;height:auto;margin:auto;max-width:none}.zoom-value{font-size:11px;min-width:40px;text-align:center}.status-note{font-size:11px;color:var(--muted);min-height:18px;margin-top:4px}.print-note{display:none}
+@media(min-width:1500px){.page{padding-left:65px;padding-right:65px}}
+@media(max-width:1100px){.layout{grid-template-columns:230px minmax(0,1fr)}.side{padding:25px 17px}.page{padding:28px 28px 60px}.brand{font-size:20px}h2{font-size:23px}.diagram-scroll{padding:15px}}
+@media(max-width:800px){.layout{display:block}.side{display:none}.page{padding:20px 18px 50px}.mobile-nav{display:block;margin:15px 0 5px;padding:12px 14px;border:1px solid var(--line);border-radius:9px;background:white}.mobile-nav summary{font-size:13px;font-weight:600;cursor:pointer}.mobile-nav .switch{margin:10px 0}.mobile-nav .toc{margin-top:12px}.topline{gap:12px}.topline .eyebrow{font-size:9px}.toolbar{gap:6px}.toolbar .button{padding:7px 10px;font-size:11px}.hero{padding-top:22px}h1{font-size:30px}h2{font-size:22px;margin-top:45px}.document{font-size:14px}.diagram-head{padding:12px}.diagram-actions .button{font-size:11px}.diagram-caption{padding-inline:12px}.diagram-scroll{padding:12px}.modal-toolbar{flex-wrap:wrap;padding:12px}.modal-body{height:calc(100% - 110px);padding:14px}.modal-toolbar h2{font-size:14px}.button{min-height:40px}.table-wrap{margin-inline:0}.lead{font-size:14px}.diagram-source{padding-inline:12px}}
+@media print{@page{size:A4;margin:15mm}.side,.topline,.mobile-nav,.diagram-actions,.diagram-source,.code-top,.doc-footer,.toolbar{display:none!important}.layout{display:block}.page{padding:0;max-width:none}.hero{padding:0}.hero-tag{padding:0;background:none}.lead{font-size:10pt}body{background:white;font-size:10pt}.document{font-size:10pt}.diagram{border-color:#bbb}.diagram-scroll{overflow:visible;padding:10px}.diagram-svg,.diagram-svg svg{min-width:0!important}.diagram-svg svg{max-height:230mm}.table-wrap{overflow:visible;border-radius:0}table{min-width:0;font-size:8pt}td,th{padding:7px 8px}pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:8pt;background:#f4f4f4;color:#222;border:1px solid #ddd}pre code{white-space:pre-wrap;color:#222}h1{font-size:24pt}h2{font-size:17pt;margin:30px 0 15px;break-after:avoid}h3{font-size:13pt;break-after:avoid}.diagram-head{padding:8px 12px}a{color:inherit}.print-note{display:block;font-size:8pt;color:#555}}
+</style></head><body>
+<div class="layout"><aside class="side"><a class="brand" href="#top"><span class="brand-mark" aria-hidden="true">+</span>HealthAccess</a><div class="nav-label">Implementation plans</div><div class="switch"><a class="" href="01_Online_FastAPI_UI_and_Database_Plan.html">01 · Online / FastAPI</a><a class="active" href="02_Offline_NodeJS_SMS_USSD_Plan.html">02 · Offline / Node.js</a><a href="HealthAccess_Interactive_Prototype.html">Interactive UI prototype</a></div><div class="nav-label">In this plan</div><div class="toc">
+<ul>
+<li><a href="#1-architecture-and-meaning-of-offline">1. Architecture and meaning of offline</a></li>
+<li><a href="#2-channel-feature-matrix">2. Channel feature matrix</a></li>
+<li><a href="#3-set-up-africas-talking">3. Set up Africa's Talking</a></li>
+<li><a href="#4-nodejs-modules">4. Node.js modules</a></li>
+<li><a href="#5-callback-endpoint-contracts">5. Callback endpoint contracts</a></li>
+<li><a href="#6-sms-workflow-hospital-recommendation">6. SMS workflow — hospital recommendation</a></li>
+<li><a href="#7-sms-workflow-emergency-summary">7. SMS workflow — emergency summary</a></li>
+<li><a href="#8-sms-workflow-general-health-question">8. SMS workflow — general health question</a></li>
+<li><a href="#9-ussd-complete-menu-flow">9. USSD: complete menu flow</a></li>
+<li><a href="#10-ussd-state-machine-implementation">10. USSD state-machine implementation</a></li>
+<li><a href="#11-telecom-tables-in-shared-postgresql">11. Telecom tables in shared PostgreSQL</a></li>
+<li><a href="#12-reliable-sms-sending">12. Reliable SMS sending</a></li>
+<li><a href="#13-failure-behavior">13. Failure behavior</a></li>
+<li><a href="#14-later-voice-workflow">14. Later voice workflow</a></li>
+<li><a href="#15-implementation-order-and-demonstration">15. Implementation order and demonstration</a></li>
+</ul>
+</div>
+<p class="side-note">Embedded vector diagrams.<br>No internet connection required.<br>Use Enlarge to inspect a diagram.</p></aside>
+<main class="page" id="top"><div class="topline"><span class="eyebrow">HealthAccess / Engineering handoff</span><div class="toolbar"><button class="button" type="button" id="print-plan">Print / Save PDF</button><a class="button" href="#top">Top ↑</a></div></div>
+<details class="mobile-nav"><summary>Plans &amp; contents</summary><div class="switch"><a class="" href="01_Online_FastAPI_UI_and_Database_Plan.html">01 · Online / FastAPI</a><a class="active" href="02_Offline_NodeJS_SMS_USSD_Plan.html">02 · Offline / Node.js</a><a href="HealthAccess_Interactive_Prototype.html">Interactive UI prototype</a></div><div class="toc">
+<ul>
+<li><a href="#1-architecture-and-meaning-of-offline">1. Architecture and meaning of offline</a></li>
+<li><a href="#2-channel-feature-matrix">2. Channel feature matrix</a></li>
+<li><a href="#3-set-up-africas-talking">3. Set up Africa's Talking</a></li>
+<li><a href="#4-nodejs-modules">4. Node.js modules</a></li>
+<li><a href="#5-callback-endpoint-contracts">5. Callback endpoint contracts</a></li>
+<li><a href="#6-sms-workflow-hospital-recommendation">6. SMS workflow — hospital recommendation</a></li>
+<li><a href="#7-sms-workflow-emergency-summary">7. SMS workflow — emergency summary</a></li>
+<li><a href="#8-sms-workflow-general-health-question">8. SMS workflow — general health question</a></li>
+<li><a href="#9-ussd-complete-menu-flow">9. USSD: complete menu flow</a></li>
+<li><a href="#10-ussd-state-machine-implementation">10. USSD state-machine implementation</a></li>
+<li><a href="#11-telecom-tables-in-shared-postgresql">11. Telecom tables in shared PostgreSQL</a></li>
+<li><a href="#12-reliable-sms-sending">12. Reliable SMS sending</a></li>
+<li><a href="#13-failure-behavior">13. Failure behavior</a></li>
+<li><a href="#14-later-voice-workflow">14. Later voice workflow</a></li>
+<li><a href="#15-implementation-order-and-demonstration">15. Implementation order and demonstration</a></li>
+</ul>
+</div>
+</details>
+<header class="hero"><span class="hero-tag">Plan 02 · Offline access</span><h1>Plan 2: Independent Node.js SMS and USSD implementation</h1><p class="lead">Independent Node.js access through Africa’s Talking — with the SMS conversation, USSD menus and failure paths drawn out.</p><p class="print-note">HealthAccess implementation plan · diagrams embedded as vector artwork.</p></header>
+<article class="document"><p>Version: 1.0 · 16 November 2026</p>
+<p>This plan follows the supplied project brief and the user's revised architecture. Read alongside <a href="01_Online_FastAPI_UI_and_Database_Plan.html">Plan 1</a> for the shared database, authorization routines, AI contract and structured fields.</p>
+<h2 id="1-architecture-and-meaning-of-offline">1. Architecture and meaning of offline</h2>
+<figure class="diagram" id="offline-architecture"><div class="diagram-head"><strong>Offline access without a FastAPI dependency</strong><div class="diagram-actions"><button class="button" type="button" data-expand-diagram>Enlarge</button><button class="button" type="button" data-download-diagram>Save SVG</button></div></div><div class="diagram-scroll"><div class="diagram-svg"><svg role="img" aria-labelledby="offline-architecture-title" style="width:100%;min-width:397px;max-width:513px;margin:auto"
+ viewBox="0.00 0.00 466.50 481.75" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><title id="offline-architecture-title">Offline access without a FastAPI dependency</title><desc>The phone needs cellular coverage, not mobile internet. Node.js independently uses shared database routines and the AI service.</desc>
+<g id="offline-architecture-graph0" class="graph" transform="scale(1 1) rotate(0) translate(18 463.75)">
+<title>G</title>
+<polygon fill="white" stroke="transparent" points="-18,18 -18,-463.75 448.5,-463.75 448.5,18 -18,18"/>
+
+<g id="offline-architecture-node1" class="node">
+<title>p</title>
+<path fill="#f6f0dc" stroke="#a9c5b4" stroke-width="1.2" d="M237,-445.75C237,-445.75 43,-445.75 43,-445.75 37,-445.75 31,-439.75 31,-433.75 31,-433.75 31,-399.75 31,-399.75 31,-393.75 37,-387.75 43,-387.75 43,-387.75 237,-387.75 237,-387.75 243,-387.75 249,-393.75 249,-399.75 249,-399.75 249,-433.75 249,-433.75 249,-439.75 243,-445.75 237,-445.75"/>
+<text text-anchor="middle" x="140" y="-421.95" font-family="Arial" font-size="16.00" fill="#173e34">Basic phone</text>
+<text text-anchor="middle" x="140" y="-403.95" font-family="Arial" font-size="16.00" fill="#173e34">Cellular coverage required</text>
+</g>
+
+<g id="offline-architecture-node2" class="node">
+<title>a</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M196.5,-334.75C196.5,-334.75 83.5,-334.75 83.5,-334.75 77.5,-334.75 71.5,-328.75 71.5,-322.75 71.5,-322.75 71.5,-306.75 71.5,-306.75 71.5,-300.75 77.5,-294.75 83.5,-294.75 83.5,-294.75 196.5,-294.75 196.5,-294.75 202.5,-294.75 208.5,-300.75 208.5,-306.75 208.5,-306.75 208.5,-322.75 208.5,-322.75 208.5,-328.75 202.5,-334.75 196.5,-334.75"/>
+<text text-anchor="middle" x="140" y="-310.95" font-family="Arial" font-size="16.00" fill="#173e34">Africa&#39;s Talking</text>
+</g>
+
+<g id="offline-architecture-edge1" class="edge">
+<title>p&#45;&gt;a</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M140,-379.46C140,-367.41 140,-354.22 140,-342.98"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="137.2,-379.63 140,-387.63 142.8,-379.63 137.2,-379.63"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="142.8,-342.81 140,-334.81 137.2,-342.81 142.8,-342.81"/>
+<text text-anchor="middle" x="175" y="-358.15" font-family="Arial" font-size="12.00" fill="#486552">SMS / USSD</text>
+</g>
+
+<g id="offline-architecture-node3" class="node">
+<title>n</title>
+<path fill="#dcefe1" stroke="#6e9d7d" stroke-width="1.2" d="M250,-241.75C250,-241.75 30,-241.75 30,-241.75 24,-241.75 18,-235.75 18,-229.75 18,-229.75 18,-213.75 18,-213.75 18,-207.75 24,-201.75 30,-201.75 30,-201.75 250,-201.75 250,-201.75 256,-201.75 262,-207.75 262,-213.75 262,-213.75 262,-229.75 262,-229.75 262,-235.75 256,-241.75 250,-241.75"/>
+<text text-anchor="middle" x="140" y="-217.95" font-family="Arial" font-size="16.00" fill="#173e34">Independent Node.js backend</text>
+</g>
+
+<g id="offline-architecture-edge2" class="edge">
+<title>a&#45;&gt;n</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M140,-286.41C140,-275.01 140,-261.78 140,-250.35"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="137.2,-286.45 140,-294.45 142.8,-286.45 137.2,-286.45"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="142.8,-250.02 140,-242.02 137.2,-250.02 142.8,-250.02"/>
+<text text-anchor="middle" x="189.5" y="-265.15" font-family="Arial" font-size="12.00" fill="#486552">Callbacks / replies</text>
+</g>
+
+<g id="offline-architecture-node4" class="node">
+<title>d</title>
+<path fill="#fff2de" stroke="#a9c5b4" stroke-width="1.2" d="M252,-153.4C252,-157.39 195.52,-160.63 126,-160.63 56.48,-160.63 0,-157.39 0,-153.4 0,-153.4 0,-88.35 0,-88.35 0,-84.36 56.48,-81.12 126,-81.12 195.52,-81.12 252,-84.36 252,-88.35 252,-88.35 252,-153.4 252,-153.4"/>
+<path fill="none" stroke="#a9c5b4" stroke-width="1.2" d="M252,-153.4C252,-149.41 195.52,-146.17 126,-146.17 56.48,-146.17 0,-149.41 0,-153.4"/>
+<text text-anchor="middle" x="126" y="-126.08" font-family="Arial" font-size="16.00" fill="#173e34">Shared PostgreSQL</text>
+<text text-anchor="middle" x="126" y="-108.08" font-family="Arial" font-size="16.00" fill="#173e34">Policy, directory, sessions, jobs</text>
+</g>
+
+<g id="offline-architecture-edge3" class="edge">
+<title>n&#45;&gt;d</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M137.3,-201.69C135.97,-192.29 134.3,-180.51 132.66,-168.91"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="135.42,-168.46 131.53,-160.94 129.88,-169.25 135.42,-168.46"/>
+</g>
+
+<g id="offline-architecture-node5" class="node">
+<title>ai</title>
+<path fill="#e8eef7" stroke="#a9c5b4" stroke-width="1.2" d="M418.5,-140.88C418.5,-140.88 287.5,-140.88 287.5,-140.88 281.5,-140.88 275.5,-134.88 275.5,-128.88 275.5,-128.88 275.5,-112.88 275.5,-112.88 275.5,-106.88 281.5,-100.88 287.5,-100.88 287.5,-100.88 418.5,-100.88 418.5,-100.88 424.5,-100.88 430.5,-106.88 430.5,-112.88 430.5,-112.88 430.5,-128.88 430.5,-128.88 430.5,-134.88 424.5,-140.88 418.5,-140.88"/>
+<text text-anchor="middle" x="353" y="-117.08" font-family="Arial" font-size="16.00" fill="#173e34">Shared AI service</text>
+</g>
+
+<g id="offline-architecture-edge4" class="edge">
+<title>n&#45;&gt;ai</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M188.34,-198.31C223.04,-182.2 269.62,-160.58 304.38,-144.44"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="187.15,-195.78 181.07,-201.69 189.5,-200.86 187.15,-195.78"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="305.98,-146.79 312.06,-140.88 303.62,-141.71 305.98,-146.79"/>
+</g>
+
+<g id="offline-architecture-node6" class="node">
+<title>o</title>
+<path fill="#e8eef7" stroke="#a9c5b4" stroke-width="1.2" d="M399,-40C399,-40 307,-40 307,-40 301,-40 295,-34 295,-28 295,-28 295,-12 295,-12 295,-6 301,0 307,0 307,0 399,0 399,0 405,0 411,-6 411,-12 411,-12 411,-28 411,-28 411,-34 405,-40 399,-40"/>
+<text text-anchor="middle" x="353" y="-16.2" font-family="Arial" font-size="16.00" fill="#173e34">OpenRouter</text>
+</g>
+
+<g id="offline-architecture-edge5" class="edge">
+<title>ai&#45;&gt;o</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M353,-92.52C353,-78.69 353,-61.97 353,-48.17"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="350.2,-92.81 353,-100.81 355.8,-92.81 350.2,-92.81"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="355.8,-48.01 353,-40.01 350.2,-48.01 355.8,-48.01"/>
+</g>
+</g>
+</svg>
+</div></div><figcaption class="diagram-caption">The phone needs cellular coverage, not mobile internet. Node.js independently uses shared database routines and the AI service.</figcaption><details class="diagram-source"><summary>Original diagram / flow text</summary><pre><code>Basic phone
+   ↕ SMS or USSD; cellular coverage required
+Africa&#x27;s Talking
+   ↕ provider callbacks and outbound SMS API
+Independent Node.js telecom backend
+   ├── Shared PostgreSQL: sessions, jobs, directory and authorized record routines
+   └── Shared AI service → OpenRouter: SMS intent and reviewed health answers</code></pre></details></figure>
+
+<p><strong>Node.js does not call FastAPI.</strong> It independently authenticates provider traffic, manages channel state and invokes shared PostgreSQL policy/search routines and the separate AI service. Stopping the online FastAPI deployment must not break an SMS or USSD record lookup.</p>
+<p>Offline means the user's phone does not need mobile internet. The phone still needs cellular coverage, while Africa's Talking, Node.js, PostgreSQL and the AI service are online infrastructure. With no cellular signal, no fresh SMS/USSD request can reach the service. Do not claim cached browser content is a live offline medical record.</p>
+<h2 id="2-channel-feature-matrix">2. Channel feature matrix</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>SMS</th>
+<th>USSD</th>
+<th>Later voice</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>General health question</td>
+<td>AI-assisted answer grounded in reviewed material</td>
+<td>Out of first-release menu; direct user to SMS</td>
+<td>Conversational</td>
+</tr>
+<tr>
+<td>Find nearby suitable care</td>
+<td>Natural language or <code>FIND</code> command</td>
+<td>Guided service and location choices</td>
+<td>Spoken request</td>
+</tr>
+<tr>
+<td>Emergency summary</td>
+<td>Patient code; minimal selected fields</td>
+<td>Patient code; selected fields, paginated</td>
+<td>Design after identity/audio review</td>
+</tr>
+<tr>
+<td>Additional selected fields</td>
+<td>Not supported in first-release SMS</td>
+<td>Patient code + temporary code allowed for USSD</td>
+<td>Future scope</td>
+</tr>
+<tr>
+<td>Edit profile/create grants</td>
+<td>Use online patient portal</td>
+<td>Use online patient portal</td>
+<td>Future scope</td>
+</tr>
+</tbody>
+</table></div>
+<p>Record reads use database routines, never AI. Hospital names and contact details come from the directory. USSD menus use deterministic logic; do not wait for a model on every menu step.</p>
+<h2 id="3-set-up-africas-talking">3. Set up Africa's Talking</h2>
+<ol>
+<li>Select the pilot country and mobile operators; confirm SMS/USSD availability and commercial provisioning for that market.</li>
+<li>Create sandbox applications and separate staging/production credentials.</li>
+<li>Provision a two-way SMS number/short code that can receive replies. An alphanumeric outbound sender ID alone is not a two-way conversation channel.</li>
+<li>Provision the USSD service code. Do not present a guessed code as dialable in a real network.</li>
+<li>Configure public HTTPS callback URLs for incoming SMS, SMS delivery reports, USSD requests and, if available, USSD session-end events.</li>
+<li>Confirm actual callback payloads, request-origin protections, provider timeout limits, menu-length limits, operator session duration and pricing on the provisioned service.</li>
+<li>Test with the sandbox first, then with real SIMs on the supported pilot networks and mobile data disabled.</li>
+</ol>
+<p>Africa's Talking distinguishes the USSD callback URL from the session event URL; configure each for its documented purpose. See <a href="https://help.africastalking.com/en/articles/9915125-how-do-i-go-live-with-ussd">USSD go-live configuration</a>.</p>
+<p>Do not assume an HMAC-signature header exists. Use the origin-verification mechanism actually supported by the provisioned service, with documented network controls as applicable. Keep a non-guessable callback path as defense in depth, not as sole proof of origin. Enforce HTTPS, input size/schema limits, replay controls and rate limits. Treat the forwarded phone number as a channel identifier, not a practitioner credential.</p>
+<h2 id="4-nodejs-modules">4. Node.js modules</h2>
+<div class="source-code"><div class="code-top"><span>text</span><button type="button" class="button" data-copy-code>Copy</button></div><pre><code class="language-text">telecom-api/
+  src/
+    callbacks/       sms-inbound, sms-status, ussd, ussd-events
+    middleware/      verified provider origin, validation, tracing, throttling
+    channels/sms/    commands, conversation routing, message rendering
+    channels/ussd/   deterministic state machine, pagination, response rendering
+    services/       DB authorization adapter, matching adapter, shared AI client
+    workers/        SMS processing, outbound delivery, retries, reconciliation
+    repositories/   approved DB routines and telecom-owned tables
+    templates/      localized prompts, errors and reviewed fallback text
+    contracts/      generated or imported shared JSON Schemas
+  tests/            callback fixtures, state transitions, policy equivalence
+</code></pre></div>
+<p>A PostgreSQL-backed job queue/outbox is enough for an initial deployment. A dedicated queue can be added later without changing the contracts. Avoid a purely in-memory queue or USSD session map if multiple instances or restarts are possible.</p>
+<h2 id="5-callback-endpoint-contracts">5. Callback endpoint contracts</h2>
+<p>Node public base example: <code>https://telecom.example.org</code>. The domain is a placeholder.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Endpoint</th>
+<th>Purpose</th>
+<th>Response</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>POST /callbacks/africastalking/sms/inbound</code></td>
+<td>Validate and durably record incoming SMS; schedule processing</td>
+<td>HTTP 200 only after durable acceptance; no AI work in callback</td>
+</tr>
+<tr>
+<td><code>POST /callbacks/africastalking/sms/delivery</code></td>
+<td>Apply idempotent delivery-status updates</td>
+<td>HTTP 200 after durable acceptance</td>
+</tr>
+<tr>
+<td><code>POST /callbacks/africastalking/ussd</code></td>
+<td>Process one current USSD input/state transition</td>
+<td>HTTP 200, <code>text/plain</code>, starts with <code>CON</code> or <code>END</code></td>
+</tr>
+<tr>
+<td><code>POST /callbacks/africastalking/ussd/events</code></td>
+<td>Session-ended metadata if enabled</td>
+<td>HTTP 200 after durable acceptance</td>
+</tr>
+<tr>
+<td><code>GET /health/live</code></td>
+<td>Process liveness</td>
+<td>Minimal response</td>
+</tr>
+<tr>
+<td><code>GET /health/ready</code></td>
+<td>Database/queue readiness</td>
+<td>Minimal response; restrict detailed diagnostics</td>
+</tr>
+</tbody>
+</table></div>
+<p>Example incoming SMS fields to map after checking provider fixtures:</p>
+<div class="source-code"><div class="code-top"><span>json</span><button type="button" class="button" data-copy-code>Copy</button></div><pre><code class="language-json">{
+  &quot;id&quot;: &quot;AT_PROVIDER_MESSAGE_ID&quot;,
+  &quot;from&quot;: &quot;+2348000000000&quot;,
+  &quot;to&quot;: &quot;PROVISIONED_SHORT_CODE&quot;,
+  &quot;text&quot;: &quot;FIND child health near Ikeja&quot;,
+  &quot;date&quot;: &quot;PROVIDER_TIMESTAMP&quot;
+}
+</code></pre></div>
+<p>Provider callbacks may be form-encoded rather than JSON. Normalize once at the callback boundary. Do not depend on the provider timestamp to order authorization changes. Never send the answer as the inbound webhook's HTTP body; replies are separate outbound SMS requests.</p>
+<p>Example USSD callback fields:</p>
+<div class="source-code"><div class="code-top"><span>json</span><button type="button" class="button" data-copy-code>Copy</button></div><pre><code class="language-json">{
+  &quot;sessionId&quot;: &quot;AT_SESSION_ID&quot;,
+  &quot;serviceCode&quot;: &quot;PROVISIONED_USSD_CODE&quot;,
+  &quot;phoneNumber&quot;: &quot;+2348000000000&quot;,
+  &quot;text&quot;: &quot;1*2*Ikeja&quot;
+}
+</code></pre></div>
+<p>Africa's Talking's USSD interface uses a continuing <code>CON</code> or terminating <code>END</code> text response. See the provider's <a href="https://africastalkingltd.gitbooks.io/mobile-communication-apis/content/python/programmer_level/ussd.html">USSD tutorial</a>. Verify the exact fields and limits against current provisioned-service fixtures before deployment.</p>
+<p>USSD <code>text</code> represents the cumulative input path in the expected integration. Parse the path, validate it against the stored session and process only the next valid transition. Never treat the full string as a fresh answer, and never log or persist the raw cumulative string: it can contain access codes. <code>networkCode</code> and other metadata are optional until confirmed by your actual provider contract.</p>
+<h2 id="6-sms-workflow-hospital-recommendation">6. SMS workflow — hospital recommendation</h2>
+<figure class="diagram" id="sms-referral"><div class="diagram-head"><strong>SMS hospital recommendation</strong><div class="diagram-actions"><button class="button" type="button" data-expand-diagram>Enlarge</button><button class="button" type="button" data-download-diagram>Save SVG</button></div></div><div class="diagram-scroll"><div class="diagram-svg"><svg role="img" aria-labelledby="sms-referral-title" style="width:100%;min-width:510px;max-width:660px;margin:auto"
+ viewBox="0.00 0.00 600.00 983.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><title id="sms-referral-title">SMS hospital recommendation</title><desc>A clarification loop fills missing information. Provider acceptance and handset delivery are separate states.</desc>
+<g id="sms-referral-graph0" class="graph" transform="scale(1 1) rotate(0) translate(18 965)">
+<title>G</title>
+<polygon fill="white" stroke="transparent" points="-18,18 -18,-965 582,-965 582,18 -18,18"/>
+
+<g id="sms-referral-node1" class="node">
+<title>a</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M513,-947C513,-947 328,-947 328,-947 322,-947 316,-941 316,-935 316,-935 316,-919 316,-919 316,-913 322,-907 328,-907 328,-907 513,-907 513,-907 519,-907 525,-913 525,-919 525,-919 525,-935 525,-935 525,-941 519,-947 513,-947"/>
+<text text-anchor="middle" x="420.5" y="-923.2" font-family="Arial" font-size="16.00" fill="#173e34">User texts a care request</text>
+</g>
+
+<g id="sms-referral-node2" class="node">
+<title>b</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M508.5,-866C508.5,-866 332.5,-866 332.5,-866 326.5,-866 320.5,-860 320.5,-854 320.5,-854 320.5,-838 320.5,-838 320.5,-832 326.5,-826 332.5,-826 332.5,-826 508.5,-826 508.5,-826 514.5,-826 520.5,-832 520.5,-838 520.5,-838 520.5,-854 520.5,-854 520.5,-860 514.5,-866 508.5,-866"/>
+<text text-anchor="middle" x="420.5" y="-842.2" font-family="Arial" font-size="16.00" fill="#173e34">Africa&#39;s Talking callback</text>
+</g>
+
+<g id="sms-referral-edge1" class="edge">
+<title>a&#45;&gt;b</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M420.5,-906.88C420.5,-897.15 420.5,-885.15 420.5,-874.45"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="423.3,-874.22 420.5,-866.22 417.7,-874.22 423.3,-874.22"/>
+</g>
+
+<g id="sms-referral-node3" class="node">
+<title>c</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M534,-785C534,-785 307,-785 307,-785 301,-785 295,-779 295,-773 295,-773 295,-739 295,-739 295,-733 301,-727 307,-727 307,-727 534,-727 534,-727 540,-727 546,-733 546,-739 546,-739 546,-773 546,-773 546,-779 540,-785 534,-785"/>
+<text text-anchor="middle" x="420.5" y="-761.2" font-family="Arial" font-size="16.00" fill="#173e34">Node validates origin</text>
+<text text-anchor="middle" x="420.5" y="-743.2" font-family="Arial" font-size="16.00" fill="#173e34">and stores durable inbox event</text>
+</g>
+
+<g id="sms-referral-edge2" class="edge">
+<title>b&#45;&gt;c</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M420.5,-825.91C420.5,-816.31 420.5,-804.35 420.5,-793.1"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="423.3,-793.08 420.5,-785.08 417.7,-793.08 423.3,-793.08"/>
+</g>
+
+<g id="sms-referral-node4" class="node">
+<title>d</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M513,-686C513,-686 328,-686 328,-686 322,-686 316,-680 316,-674 316,-674 316,-640 316,-640 316,-634 322,-628 328,-628 328,-628 513,-628 513,-628 519,-628 525,-634 525,-640 525,-640 525,-674 525,-674 525,-680 519,-686 513,-686"/>
+<text text-anchor="middle" x="420.5" y="-662.2" font-family="Arial" font-size="16.00" fill="#173e34">Worker parses command</text>
+<text text-anchor="middle" x="420.5" y="-644.2" font-family="Arial" font-size="16.00" fill="#173e34">or calls shared AI service</text>
+</g>
+
+<g id="sms-referral-edge3" class="edge">
+<title>c&#45;&gt;d</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M420.5,-726.94C420.5,-716.78 420.5,-705.14 420.5,-694.37"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="423.3,-694.33 420.5,-686.33 417.7,-694.33 423.3,-694.33"/>
+</g>
+
+<g id="sms-referral-node5" class="node">
+<title>e</title>
+<path fill="#fff2de" stroke="#a9c5b4" stroke-width="1.2" d="M316.3,-582.7C316.3,-582.7 187.7,-533.3 187.7,-533.3 182.1,-531.15 182.1,-526.85 187.7,-524.7 187.7,-524.7 316.3,-475.3 316.3,-475.3 321.9,-473.15 333.1,-473.15 338.7,-475.3 338.7,-475.3 467.3,-524.7 467.3,-524.7 472.9,-526.85 472.9,-531.15 467.3,-533.3 467.3,-533.3 338.7,-582.7 338.7,-582.7 333.1,-584.85 321.9,-584.85 316.3,-582.7"/>
+<text text-anchor="middle" x="327.5" y="-534.2" font-family="Arial" font-size="16.00" fill="#173e34">Service and area</text>
+<text text-anchor="middle" x="327.5" y="-516.2" font-family="Arial" font-size="16.00" fill="#173e34">resolved?</text>
+</g>
+
+<g id="sms-referral-edge4" class="edge">
+<title>d&#45;&gt;e</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M399.63,-627.72C389.51,-614.01 377.03,-597.1 365.31,-581.23"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="367.35,-579.28 360.35,-574.51 362.85,-582.61 367.35,-579.28"/>
+</g>
+
+<g id="sms-referral-node6" class="node">
+<title>f</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M466.5,-409C466.5,-409 306.5,-409 306.5,-409 300.5,-409 294.5,-403 294.5,-397 294.5,-397 294.5,-381 294.5,-381 294.5,-375 300.5,-369 306.5,-369 306.5,-369 466.5,-369 466.5,-369 472.5,-369 478.5,-375 478.5,-381 478.5,-381 478.5,-397 478.5,-397 478.5,-403 472.5,-409 466.5,-409"/>
+<text text-anchor="middle" x="386.5" y="-385.2" font-family="Arial" font-size="16.00" fill="#173e34">Send one clarification</text>
+</g>
+
+<g id="sms-referral-edge5" class="edge">
+<title>e&#45;&gt;f</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M348.47,-478.96C357.43,-458 367.54,-434.35 375.08,-416.7"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="377.78,-417.51 378.35,-409.05 372.63,-415.31 377.78,-417.51"/>
+<text text-anchor="middle" x="373.5" y="-441.4" font-family="Arial" font-size="12.00" fill="#486552">No</text>
+</g>
+
+<g id="sms-referral-node8" class="node">
+<title>h</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M259,-418C259,-418 12,-418 12,-418 6,-418 0,-412 0,-406 0,-406 0,-372 0,-372 0,-366 6,-360 12,-360 12,-360 259,-360 259,-360 265,-360 271,-366 271,-372 271,-372 271,-406 271,-406 271,-412 265,-418 259,-418"/>
+<text text-anchor="middle" x="135.5" y="-394.2" font-family="Arial" font-size="16.00" fill="#173e34">Check explicit profile&#45;use consent</text>
+<text text-anchor="middle" x="135.5" y="-376.2" font-family="Arial" font-size="16.00" fill="#173e34">if personalization was requested</text>
+</g>
+
+<g id="sms-referral-edge8" class="edge">
+<title>e&#45;&gt;h</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M275.79,-490.84C246.28,-469.63 209.62,-443.27 181.17,-422.83"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="182.63,-420.43 174.5,-418.03 179.36,-424.97 182.63,-420.43"/>
+<text text-anchor="middle" x="229.5" y="-441.4" font-family="Arial" font-size="12.00" fill="#486552">Yes</text>
+</g>
+
+<g id="sms-referral-node7" class="node">
+<title>g</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M552,-319C552,-319 397,-319 397,-319 391,-319 385,-313 385,-307 385,-307 385,-273 385,-273 385,-267 391,-261 397,-261 397,-261 552,-261 552,-261 558,-261 564,-267 564,-273 564,-273 564,-307 564,-307 564,-313 558,-319 552,-319"/>
+<text text-anchor="middle" x="474.5" y="-295.2" font-family="Arial" font-size="16.00" fill="#173e34">User replies within</text>
+<text text-anchor="middle" x="474.5" y="-277.2" font-family="Arial" font-size="16.00" fill="#173e34">conversation window</text>
+</g>
+
+<g id="sms-referral-edge6" class="edge">
+<title>f&#45;&gt;g</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M403.89,-368.84C415.11,-356.47 430.02,-340.02 443.26,-325.44"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="445.51,-327.12 448.81,-319.32 441.36,-323.36 445.51,-327.12"/>
+</g>
+
+<g id="sms-referral-edge7" class="edge">
+<title>g&#45;&gt;d</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M481.01,-319.06C485.44,-338.17 490.5,-360 490.5,-360 490.5,-360 490.5,-587 490.5,-587 490.5,-587 472.62,-604.62 454.94,-622.06"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="452.7,-620.32 448.97,-627.94 456.63,-624.31 452.7,-620.32"/>
+</g>
+
+<g id="sms-referral-node9" class="node">
+<title>i</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M255,-319C255,-319 16,-319 16,-319 10,-319 4,-313 4,-307 4,-307 4,-273 4,-273 4,-267 10,-261 16,-261 16,-261 255,-261 255,-261 261,-261 267,-267 267,-273 267,-273 267,-307 267,-307 267,-313 261,-319 255,-319"/>
+<text text-anchor="middle" x="135.5" y="-295.2" font-family="Arial" font-size="16.00" fill="#173e34">Database search:</text>
+<text text-anchor="middle" x="135.5" y="-277.2" font-family="Arial" font-size="16.00" fill="#173e34">service filter → proximity ranking</text>
+</g>
+
+<g id="sms-referral-edge9" class="edge">
+<title>h&#45;&gt;i</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M135.5,-359.94C135.5,-349.78 135.5,-338.14 135.5,-327.37"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="138.3,-327.33 135.5,-319.33 132.7,-327.33 138.3,-327.33"/>
+</g>
+
+<g id="sms-referral-node10" class="node">
+<title>j</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M217,-220C217,-220 54,-220 54,-220 48,-220 42,-214 42,-208 42,-208 42,-174 42,-174 42,-168 48,-162 54,-162 54,-162 217,-162 217,-162 223,-162 229,-168 229,-174 229,-174 229,-208 229,-208 229,-214 223,-220 217,-220"/>
+<text text-anchor="middle" x="135.5" y="-196.2" font-family="Arial" font-size="16.00" fill="#173e34">Render compact reply</text>
+<text text-anchor="middle" x="135.5" y="-178.2" font-family="Arial" font-size="16.00" fill="#173e34">from directory data</text>
+</g>
+
+<g id="sms-referral-edge10" class="edge">
+<title>i&#45;&gt;j</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M135.5,-260.94C135.5,-250.78 135.5,-239.14 135.5,-228.37"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="138.3,-228.33 135.5,-220.33 132.7,-228.33 138.3,-228.33"/>
+</g>
+
+<g id="sms-referral-node11" class="node">
+<title>k</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M249.5,-121C249.5,-121 21.5,-121 21.5,-121 15.5,-121 9.5,-115 9.5,-109 9.5,-109 9.5,-93 9.5,-93 9.5,-87 15.5,-81 21.5,-81 21.5,-81 249.5,-81 249.5,-81 255.5,-81 261.5,-87 261.5,-93 261.5,-93 261.5,-109 261.5,-109 261.5,-115 255.5,-121 249.5,-121"/>
+<text text-anchor="middle" x="135.5" y="-97.2" font-family="Arial" font-size="16.00" fill="#173e34">Outbox → Africa&#39;s Talking SMS</text>
+</g>
+
+<g id="sms-referral-edge11" class="edge">
+<title>j&#45;&gt;k</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M135.5,-161.67C135.5,-151.31 135.5,-139.61 135.5,-129.34"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="138.3,-129.1 135.5,-121.1 132.7,-129.1 138.3,-129.1"/>
+</g>
+
+<g id="sms-referral-node12" class="node">
+<title>l</title>
+<path fill="#dcefe1" stroke="#a9c5b4" stroke-width="1.2" d="M251,-40C251,-40 20,-40 20,-40 14,-40 8,-34 8,-28 8,-28 8,-12 8,-12 8,-6 14,0 20,0 20,0 251,0 251,0 257,0 263,-6 263,-12 263,-12 263,-28 263,-28 263,-34 257,-40 251,-40"/>
+<text text-anchor="middle" x="135.5" y="-16.2" font-family="Arial" font-size="16.00" fill="#173e34">Track delivery report separately</text>
+</g>
+
+<g id="sms-referral-edge12" class="edge">
+<title>k&#45;&gt;l</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M135.5,-80.88C135.5,-71.15 135.5,-59.15 135.5,-48.45"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="138.3,-48.22 135.5,-40.22 132.7,-48.22 138.3,-48.22"/>
+</g>
+</g>
+</svg>
+</div></div><figcaption class="diagram-caption">A clarification loop fills missing information. Provider acceptance and handset delivery are separate states.</figcaption><details class="diagram-source"><summary>Original diagram / flow text</summary><pre><code>flowchart TD
+  A[User texts care request] --&gt; B[Africa&#x27;s Talking callback]
+  B --&gt; C[Node validates origin and stores inbox event]
+  C --&gt; D[Worker classifies command or calls shared AI]
+  D --&gt; E{Service and area resolved?}
+  E -- No --&gt; F[Send one clarification question]
+  F --&gt; G[User replies within conversation window]
+  G --&gt; D
+  E -- Yes --&gt; H[Check any explicit profile-use consent]
+  H --&gt; I[Shared DB search: service filter then proximity]
+  I --&gt; J[Create compact directory-backed reply]
+  J --&gt; K[Durable outbox then Africa&#x27;s Talking SMS send]
+  K --&gt; L[Record delivery report separately]</code></pre></details></figure>
+
+<p>Example, using fictional hospital data:</p>
+<div class="source-code"><div class="code-top"><span>text</span><button type="button" class="button" data-copy-code>Copy</button></div><pre><code class="language-text">User: I need a hospital for my child.
+HealthAccess: Which area or nearby landmark are you in?
+User: Ikeja.
+HealthAccess: Demo Community Hospital — child health.
+12 Example Road, Ikeja. Approx. 2.4 km from area centre.
+Contact not listed. Reply MORE for another option.
+</code></pre></div>
+<p>The prototype's facilities and distances are illustrative. In production, populate this message only from actual directory records. If a number is available, include it; otherwise state it is not listed. The recommendation is not an appointment or real-time confirmation that a clinician is present.</p>
+<h3 id="sms-commands-and-state">SMS commands and state</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Input</th>
+<th>Handling</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>HELP</code></td>
+<td>Show brief available commands, supported language options and relevant channel notice</td>
+</tr>
+<tr>
+<td><code>FIND &lt;care&gt; near &lt;area&gt;</code></td>
+<td>Resolve service/location, then deterministic facility matching</td>
+</tr>
+<tr>
+<td>Natural-language care request</td>
+<td>Shared AI interpretation, validated into the same search flow</td>
+</tr>
+<tr>
+<td><code>ASK &lt;health question&gt;</code></td>
+<td>Reviewed-content retrieval and AI-assisted general answer</td>
+</tr>
+<tr>
+<td><code>LOOKUP &lt;patient code&gt;</code></td>
+<td>Emergency-summary routine only; no AI</td>
+</tr>
+<tr>
+<td><code>MORE</code></td>
+<td>Next stored result, only when a non-expired referral conversation exists</td>
+</tr>
+<tr>
+<td><code>CANCEL</code></td>
+<td>Cancel pending clarification and clear transient state</td>
+</tr>
+<tr>
+<td><code>STOP</code></td>
+<td>End current interaction and record opt-out where applicable; distinguish unsolicited messaging from future user-initiated requests</td>
+</tr>
+</tbody>
+</table></div>
+<p>Store <code>idle</code>, <code>awaiting_service</code>, <code>awaiting_area</code>, <code>awaiting_area_choice</code>, <code>awaiting_profile_confirmation</code>, <code>showing_results</code> and <code>closed</code> as explicit states. A configurable 15-minute clarification window is a proposed starting point. Expired conversations start a new request instead of interpreting a reply against stale health context.</p>
+<h3 id="optional-personalized-matching">Optional personalized matching</h3>
+<p>Default guest SMS/USSD requests use only the request and current location. Never load a full profile just because the sender's phone matches an account.</p>
+<p>To enable personalization:</p>
+<ol>
+<li>Patient signs into the online portal and verifies the phone link.</li>
+<li>Patient explicitly opts in for the chosen channel, exact profile fields and an expiry.</li>
+<li>Node finds an active link and consent but still asks for confirmation for this search without disclosing the fields.</li>
+<li>On confirmation, the shared DB policy returns only the permitted matching context.</li>
+<li>Node applies reviewed local matching rules and records which scope was used.</li>
+<li>Revoking consent or unlinking a phone immediately prevents subsequent profile use.</li>
+</ol>
+<p>This consent does not authorize sending profile details in an SMS or granting record access to a practitioner. Reverify phone linkage after account recovery/change and expire stale links. First build guest matching; add this optional flow after linking and revocation are working.</p>
+<h2 id="7-sms-workflow-emergency-summary">7. SMS workflow — emergency summary</h2>
+<figure class="diagram" id="sms-summary"><div class="diagram-head"><strong>SMS emergency-summary lookup</strong><div class="diagram-actions"><button class="button" type="button" data-expand-diagram>Enlarge</button><button class="button" type="button" data-download-diagram>Save SVG</button></div></div><div class="diagram-scroll"><div class="diagram-svg"><svg role="img" aria-labelledby="sms-summary-title" style="width:100%;min-width:280px;max-width:361px;margin:auto"
+ viewBox="0.00 0.00 328.00 548.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><title id="sms-summary-title">SMS emergency-summary lookup</title><desc>No AI participates in the lookup. Additional temporary-grant fields are not returned over first-release SMS.</desc>
+<g id="sms-summary-graph0" class="graph" transform="scale(1 1) rotate(0) translate(18 530)">
+<title>G</title>
+<polygon fill="white" stroke="transparent" points="-18,18 -18,-530 310,-530 310,18 -18,18"/>
+
+<g id="sms-summary-node1" class="node">
+<title>a</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M237,-512C237,-512 55,-512 55,-512 49,-512 43,-506 43,-500 43,-500 43,-484 43,-484 43,-478 49,-472 55,-472 55,-472 237,-472 237,-472 243,-472 249,-478 249,-484 249,-484 249,-500 249,-500 249,-506 243,-512 237,-512"/>
+<text text-anchor="middle" x="146" y="-488.2" font-family="Arial" font-size="16.00" fill="#173e34">LOOKUP &lt;patient code&gt;</text>
+</g>
+
+<g id="sms-summary-node2" class="node">
+<title>b</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M226,-432C226,-432 66,-432 66,-432 60,-432 54,-426 54,-420 54,-420 54,-404 54,-404 54,-398 60,-392 66,-392 66,-392 226,-392 226,-392 232,-392 238,-398 238,-404 238,-404 238,-420 238,-420 238,-426 232,-432 226,-432"/>
+<text text-anchor="middle" x="146" y="-408.2" font-family="Arial" font-size="16.00" fill="#173e34">Validate and rate limit</text>
+</g>
+
+<g id="sms-summary-edge1" class="edge">
+<title>a&#45;&gt;b</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M146,-471.72C146,-462.18 146,-450.5 146,-440.08"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="148.8,-440.06 146,-432.06 143.2,-440.06 148.8,-440.06"/>
+</g>
+
+<g id="sms-summary-node3" class="node">
+<title>c</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M247.5,-352C247.5,-352 44.5,-352 44.5,-352 38.5,-352 32.5,-346 32.5,-340 32.5,-340 32.5,-306 32.5,-306 32.5,-300 38.5,-294 44.5,-294 44.5,-294 247.5,-294 247.5,-294 253.5,-294 259.5,-300 259.5,-306 259.5,-306 259.5,-340 259.5,-340 259.5,-346 253.5,-352 247.5,-352"/>
+<text text-anchor="middle" x="146" y="-328.2" font-family="Arial" font-size="16.00" fill="#173e34">Node calls shared</text>
+<text text-anchor="middle" x="146" y="-310.2" font-family="Arial" font-size="16.00" fill="#173e34">emergency&#45;summary policy</text>
+</g>
+
+<g id="sms-summary-edge2" class="edge">
+<title>b&#45;&gt;c</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M146,-391.69C146,-382.44 146,-371.04 146,-360.25"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="148.8,-360.17 146,-352.17 143.2,-360.17 148.8,-360.17"/>
+</g>
+
+<g id="sms-summary-node4" class="node">
+<title>d</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M230.5,-254C230.5,-254 61.5,-254 61.5,-254 55.5,-254 49.5,-248 49.5,-242 49.5,-242 49.5,-208 49.5,-208 49.5,-202 55.5,-196 61.5,-196 61.5,-196 230.5,-196 230.5,-196 236.5,-196 242.5,-202 242.5,-208 242.5,-208 242.5,-242 242.5,-242 242.5,-248 236.5,-254 230.5,-254"/>
+<text text-anchor="middle" x="146" y="-230.2" font-family="Arial" font-size="16.00" fill="#173e34">Select only current</text>
+<text text-anchor="middle" x="146" y="-212.2" font-family="Arial" font-size="16.00" fill="#173e34">patient&#45;permitted fields</text>
+</g>
+
+<g id="sms-summary-edge3" class="edge">
+<title>c&#45;&gt;d</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M146,-293.97C146,-284.11 146,-272.87 146,-262.41"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="148.8,-262.23 146,-254.23 143.2,-262.23 148.8,-262.23"/>
+</g>
+
+<g id="sms-summary-node5" class="node">
+<title>e</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M267,-156C267,-156 25,-156 25,-156 19,-156 13,-150 13,-144 13,-144 13,-110 13,-110 13,-104 19,-98 25,-98 25,-98 267,-98 267,-98 273,-98 279,-104 279,-110 279,-110 279,-144 279,-144 279,-150 273,-156 267,-156"/>
+<text text-anchor="middle" x="146" y="-132.2" font-family="Arial" font-size="16.00" fill="#173e34">Create minimum useful message</text>
+<text text-anchor="middle" x="146" y="-114.2" font-family="Arial" font-size="16.00" fill="#173e34">and audit access</text>
+</g>
+
+<g id="sms-summary-edge4" class="edge">
+<title>d&#45;&gt;e</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M146,-195.97C146,-186.11 146,-174.87 146,-164.41"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="148.8,-164.23 146,-156.23 143.2,-164.23 148.8,-164.23"/>
+</g>
+
+<g id="sms-summary-node6" class="node">
+<title>f</title>
+<path fill="#dcefe1" stroke="#a9c5b4" stroke-width="1.2" d="M280,-58C280,-58 12,-58 12,-58 6,-58 0,-52 0,-46 0,-46 0,-12 0,-12 0,-6 6,0 12,0 12,0 280,0 280,0 286,0 292,-6 292,-12 292,-12 292,-46 292,-46 292,-52 286,-58 280,-58"/>
+<text text-anchor="middle" x="146" y="-34.2" font-family="Arial" font-size="16.00" fill="#173e34">Outbox → revalidate before dispatch</text>
+<text text-anchor="middle" x="146" y="-16.2" font-family="Arial" font-size="16.00" fill="#173e34">→ send SMS</text>
+</g>
+
+<g id="sms-summary-edge5" class="edge">
+<title>e&#45;&gt;f</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M146,-97.97C146,-88.11 146,-76.87 146,-66.41"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="148.8,-66.23 146,-58.23 143.2,-66.23 148.8,-66.23"/>
+</g>
+</g>
+</svg>
+</div></div><figcaption class="diagram-caption">No AI participates in the lookup. Additional temporary-grant fields are not returned over first-release SMS.</figcaption><details class="diagram-source"><summary>Original diagram / flow text</summary><pre><code>LOOKUP &lt;patient code&gt;
+  → validate and throttle
+  → Node calls shared PostgreSQL emergency-summary routine
+  → return only selected emergency fields
+  → serialize the minimum useful fields into a short message
+  → append access audit event
+  → send through the outbox</code></pre></details></figure>
+
+<p>Examples:</p>
+<div class="source-code"><div class="code-top"><span>text</span><button type="button" class="button" data-copy-code>Copy</button></div><pre><code class="language-text">Success: Emergency summary: Allergy: Penicillin. Contact name: Chika.
+          (Only patient-selected information.)
+
+Unavailable: No shared summary is available for that code. Check the code.
+</code></pre></div>
+<p>Both are demonstration strings. Unselected contact phone, medication, date of birth and other fields must not leak into the message. An empty summary is a valid patient choice. Avoid responses that reveal whether an unknown or non-sharing patient exists.</p>
+<p>For queued record replies, resolve the current authorized projection immediately before dispatch. A selection change between receipt and send must be respected where the message has not yet been handed to the provider. Delivered SMS cannot be recalled. Temporary-code unlocks are not a first-release SMS feature; redirect the user to USSD or the practitioner portal rather than forward additional details.</p>
+<h2 id="8-sms-workflow-general-health-question">8. SMS workflow — general health question</h2>
+<ol>
+<li>Callback stores the message and acknowledges quickly.</li>
+<li>Worker runs reviewed urgency rules first.</li>
+<li>For supported general information, Node calls the shared AI service directly.</li>
+<li>AI service retrieves approved material and returns an answer with content version/IDs.</li>
+<li>Node validates output, removes unsupported actions and formats a short response.</li>
+<li>If no reviewed material supports the response, send a reviewed fallback or offer to find professional care.</li>
+<li>Create an outbound job and track provider acceptance and delivery independently.</li>
+</ol>
+<p>The AI has no database credentials for unrestricted patient records and receives no patient or temporary access codes. Apply prompt/data minimization and provider settings before sending real health information. Make the AI-assisted nature of the channel clear in onboarding/help. Urgent guidance must not wait for a model call or a location clarification.</p>
+<p>Split long messages deliberately, respecting the provider's actual encoding and segment rules. Unicode can change segmentation and cost. Keep one clear follow-up per turn; do not blindly truncate clinically important text mid-sentence.</p>
+<h2 id="9-ussd-complete-menu-flow">9. USSD: complete menu flow</h2>
+<p>Dial the provisioned service code. First response:</p>
+<div class="source-code"><div class="code-top"><span>text</span><button type="button" class="button" data-copy-code>Copy</button></div><pre><code class="language-text">CON HealthAccess
+1. Find nearby care
+2. Emergency summary
+3. View shared details
+0. Exit
+</code></pre></div>
+<h3 id="option-1-find-nearby-care">Option 1 — Find nearby care</h3>
+<figure class="diagram" id="ussd-care"><div class="diagram-head"><strong>USSD option 1 · find nearby care</strong><div class="diagram-actions"><button class="button" type="button" data-expand-diagram>Enlarge</button><button class="button" type="button" data-download-diagram>Save SVG</button></div></div><div class="diagram-scroll"><div class="diagram-svg"><svg role="img" aria-labelledby="ussd-care-title" style="width:100%;min-width:346px;max-width:447px;margin:auto"
+ viewBox="0.00 0.00 406.50 995.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><title id="ussd-care-title">USSD option 1 · find nearby care</title><desc>Sending facility details by SMS does not send a medical record. No-match results offer another area or wider search.</desc>
+<g id="ussd-care-graph0" class="graph" transform="scale(1 1) rotate(0) translate(18 977)">
+<title>G</title>
+<polygon fill="white" stroke="transparent" points="-18,18 -18,-977 388.5,-977 388.5,18 -18,18"/>
+
+<g id="ussd-care-node1" class="node">
+<title>a</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M248.5,-959C248.5,-959 104.5,-959 104.5,-959 98.5,-959 92.5,-953 92.5,-947 92.5,-947 92.5,-931 92.5,-931 92.5,-925 98.5,-919 104.5,-919 104.5,-919 248.5,-919 248.5,-919 254.5,-919 260.5,-925 260.5,-931 260.5,-931 260.5,-947 260.5,-947 260.5,-953 254.5,-959 248.5,-959"/>
+<text text-anchor="middle" x="176.5" y="-935.2" font-family="Arial" font-size="16.00" fill="#173e34">1. Find nearby care</text>
+</g>
+
+<g id="ussd-care-node2" class="node">
+<title>b</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M269.5,-878C269.5,-878 83.5,-878 83.5,-878 77.5,-878 71.5,-872 71.5,-866 71.5,-866 71.5,-832 71.5,-832 71.5,-826 77.5,-820 83.5,-820 83.5,-820 269.5,-820 269.5,-820 275.5,-820 281.5,-826 281.5,-832 281.5,-832 281.5,-866 281.5,-866 281.5,-872 275.5,-878 269.5,-878"/>
+<text text-anchor="middle" x="176.5" y="-854.2" font-family="Arial" font-size="16.00" fill="#173e34">Choose service:</text>
+<text text-anchor="middle" x="176.5" y="-836.2" font-family="Arial" font-size="16.00" fill="#173e34">general / child / maternity</text>
+</g>
+
+<g id="ussd-care-edge1" class="edge">
+<title>a&#45;&gt;b</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M176.5,-918.91C176.5,-909.31 176.5,-897.35 176.5,-886.1"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="179.3,-886.08 176.5,-878.08 173.7,-886.08 179.3,-886.08"/>
+</g>
+
+<g id="ussd-care-node3" class="node">
+<title>c</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M288.5,-779C288.5,-779 64.5,-779 64.5,-779 58.5,-779 52.5,-773 52.5,-767 52.5,-767 52.5,-751 52.5,-751 52.5,-745 58.5,-739 64.5,-739 64.5,-739 288.5,-739 288.5,-739 294.5,-739 300.5,-745 300.5,-751 300.5,-751 300.5,-767 300.5,-767 300.5,-773 294.5,-779 288.5,-779"/>
+<text text-anchor="middle" x="176.5" y="-755.2" font-family="Arial" font-size="16.00" fill="#173e34">Enter current area or landmark</text>
+</g>
+
+<g id="ussd-care-edge2" class="edge">
+<title>b&#45;&gt;c</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M176.5,-819.67C176.5,-809.31 176.5,-797.61 176.5,-787.34"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="179.3,-787.1 176.5,-779.1 173.7,-787.1 179.3,-787.1"/>
+</g>
+
+<g id="ussd-care-node4" class="node">
+<title>d</title>
+<path fill="#fff2de" stroke="#a9c5b4" stroke-width="1.2" d="M165.75,-692.67C165.75,-692.67 70.25,-645.33 70.25,-645.33 64.88,-642.66 64.88,-637.34 70.25,-634.67 70.25,-634.67 165.75,-587.33 165.75,-587.33 171.12,-584.66 181.88,-584.66 187.25,-587.33 187.25,-587.33 282.75,-634.67 282.75,-634.67 288.12,-637.34 288.12,-642.66 282.75,-645.33 282.75,-645.33 187.25,-692.67 187.25,-692.67 181.88,-695.34 171.12,-695.34 165.75,-692.67"/>
+<text text-anchor="middle" x="176.5" y="-645.2" font-family="Arial" font-size="16.00" fill="#173e34">Location</text>
+<text text-anchor="middle" x="176.5" y="-627.2" font-family="Arial" font-size="16.00" fill="#173e34">ambiguous?</text>
+</g>
+
+<g id="ussd-care-edge3" class="edge">
+<title>c&#45;&gt;d</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M176.5,-738.94C176.5,-729.84 176.5,-718.35 176.5,-706.48"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="179.3,-706.22 176.5,-698.22 173.7,-706.22 179.3,-706.22"/>
+</g>
+
+<g id="ussd-care-node5" class="node">
+<title>e</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M193,-529C193,-529 12,-529 12,-529 6,-529 0,-523 0,-517 0,-517 0,-501 0,-501 0,-495 6,-489 12,-489 12,-489 193,-489 193,-489 199,-489 205,-495 205,-501 205,-501 205,-517 205,-517 205,-523 199,-529 193,-529"/>
+<text text-anchor="middle" x="102.5" y="-505.2" font-family="Arial" font-size="16.00" fill="#173e34">Choose a matching area</text>
+</g>
+
+<g id="ussd-care-edge4" class="edge">
+<title>d&#45;&gt;e</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M151.03,-594.61C139.94,-575.27 127.31,-553.25 117.71,-536.52"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="119.94,-534.78 113.53,-529.24 115.09,-537.57 119.94,-534.78"/>
+<text text-anchor="middle" x="141.5" y="-552.4" font-family="Arial" font-size="12.00" fill="#486552">Yes</text>
+</g>
+
+<g id="ussd-care-node6" class="node">
+<title>f</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M275,-448C275,-448 78,-448 78,-448 72,-448 66,-442 66,-436 66,-436 66,-402 66,-402 66,-396 72,-390 78,-390 78,-390 275,-390 275,-390 281,-390 287,-396 287,-402 287,-402 287,-436 287,-436 287,-442 281,-448 275,-448"/>
+<text text-anchor="middle" x="176.5" y="-424.2" font-family="Arial" font-size="16.00" fill="#173e34">Optional linked&#45;profile use:</text>
+<text text-anchor="middle" x="176.5" y="-406.2" font-family="Arial" font-size="16.00" fill="#173e34">confirm permitted scope</text>
+</g>
+
+<g id="ussd-care-edge5" class="edge">
+<title>d&#45;&gt;f</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M194.16,-590.43C204.88,-560.96 216.5,-529 216.5,-529 216.5,-529 216.5,-489 216.5,-489 216.5,-489 206.81,-472.28 196.97,-455.31"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="199.2,-453.58 192.77,-448.06 194.36,-456.39 199.2,-453.58"/>
+<text text-anchor="middle" x="224.5" y="-505.9" font-family="Arial" font-size="12.00" fill="#486552">No</text>
+</g>
+
+<g id="ussd-care-edge6" class="edge">
+<title>e&#45;&gt;f</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M118.56,-488.91C127.02,-478.84 137.67,-466.18 147.51,-454.47"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="149.88,-456.01 152.89,-448.08 145.59,-452.4 149.88,-456.01"/>
+</g>
+
+<g id="ussd-care-node7" class="node">
+<title>g</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M258.5,-349C258.5,-349 94.5,-349 94.5,-349 88.5,-349 82.5,-343 82.5,-337 82.5,-337 82.5,-303 82.5,-303 82.5,-297 88.5,-291 94.5,-291 94.5,-291 258.5,-291 258.5,-291 264.5,-291 270.5,-297 270.5,-303 270.5,-303 270.5,-337 270.5,-337 270.5,-343 264.5,-349 258.5,-349"/>
+<text text-anchor="middle" x="176.5" y="-325.2" font-family="Arial" font-size="16.00" fill="#173e34">Filter by service</text>
+<text text-anchor="middle" x="176.5" y="-307.2" font-family="Arial" font-size="16.00" fill="#173e34">then rank by proximity</text>
+</g>
+
+<g id="ussd-care-edge7" class="edge">
+<title>f&#45;&gt;g</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M176.5,-389.94C176.5,-379.78 176.5,-368.14 176.5,-357.37"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="179.3,-357.33 176.5,-349.33 173.7,-357.33 179.3,-357.33"/>
+</g>
+
+<g id="ussd-care-node8" class="node">
+<title>h</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M269,-250C269,-250 84,-250 84,-250 78,-250 72,-244 72,-238 72,-238 72,-204 72,-204 72,-198 78,-192 84,-192 84,-192 269,-192 269,-192 275,-192 281,-198 281,-204 281,-204 281,-238 281,-238 281,-244 275,-250 269,-250"/>
+<text text-anchor="middle" x="176.5" y="-226.2" font-family="Arial" font-size="16.00" fill="#173e34">Display hospital, address</text>
+<text text-anchor="middle" x="176.5" y="-208.2" font-family="Arial" font-size="16.00" fill="#173e34">and available contact</text>
+</g>
+
+<g id="ussd-care-edge8" class="edge">
+<title>g&#45;&gt;h</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M176.5,-290.94C176.5,-280.78 176.5,-269.14 176.5,-258.37"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="179.3,-258.33 176.5,-250.33 173.7,-258.33 179.3,-258.33"/>
+</g>
+
+<g id="ussd-care-node9" class="node">
+<title>i</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M131.5,-130C131.5,-130 33.5,-130 33.5,-130 27.5,-130 21.5,-124 21.5,-118 21.5,-118 21.5,-102 21.5,-102 21.5,-96 27.5,-90 33.5,-90 33.5,-90 131.5,-90 131.5,-90 137.5,-90 143.5,-96 143.5,-102 143.5,-102 143.5,-118 143.5,-118 143.5,-124 137.5,-130 131.5,-130"/>
+<text text-anchor="middle" x="82.5" y="-106.2" font-family="Arial" font-size="16.00" fill="#173e34">Next hospital</text>
+</g>
+
+<g id="ussd-care-edge9" class="edge">
+<title>h&#45;&gt;i</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M146.54,-191.8C135.44,-181.35 125.5,-172 125.5,-172 125.5,-172 112.64,-153.76 100.99,-137.22"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="103,-135.23 96.11,-130.3 98.43,-138.45 103,-135.23"/>
+<text text-anchor="middle" x="129" y="-162.4" font-family="Arial" font-size="12.00" fill="#486552">1</text>
+</g>
+
+<g id="ussd-care-node10" class="node">
+<title>j</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M340.5,-139C340.5,-139 178.5,-139 178.5,-139 172.5,-139 166.5,-133 166.5,-127 166.5,-127 166.5,-93 166.5,-93 166.5,-87 172.5,-81 178.5,-81 178.5,-81 340.5,-81 340.5,-81 346.5,-81 352.5,-87 352.5,-93 352.5,-93 352.5,-127 352.5,-127 352.5,-133 346.5,-139 340.5,-139"/>
+<text text-anchor="middle" x="259.5" y="-115.2" font-family="Arial" font-size="16.00" fill="#173e34">Request public facility</text>
+<text text-anchor="middle" x="259.5" y="-97.2" font-family="Arial" font-size="16.00" fill="#173e34">details by SMS</text>
+</g>
+
+<g id="ussd-care-edge11" class="edge">
+<title>h&#45;&gt;j</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M197.87,-191.93C208.54,-177.93 221.54,-160.85 232.85,-146"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="235.29,-147.42 237.91,-139.35 230.84,-144.02 235.29,-147.42"/>
+<text text-anchor="middle" x="224" y="-162.4" font-family="Arial" font-size="12.00" fill="#486552">2</text>
+</g>
+
+<g id="ussd-care-node11" class="node">
+<title>k</title>
+<path fill="#dcefe1" stroke="#a9c5b4" stroke-width="1.2" d="M347.5,-40C347.5,-40 309.5,-40 309.5,-40 303.5,-40 297.5,-34 297.5,-28 297.5,-28 297.5,-12 297.5,-12 297.5,-6 303.5,0 309.5,0 309.5,0 347.5,0 347.5,0 353.5,0 359.5,-6 359.5,-12 359.5,-12 359.5,-28 359.5,-28 359.5,-34 353.5,-40 347.5,-40"/>
+<text text-anchor="middle" x="328.5" y="-16.2" font-family="Arial" font-size="16.00" fill="#173e34">END</text>
+</g>
+
+<g id="ussd-care-edge13" class="edge">
+<title>h&#45;&gt;k</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M241.38,-191.9C295.39,-168.5 363.5,-139 363.5,-139 363.5,-139 363.5,-81 363.5,-81 363.5,-81 353.35,-63.59 343.98,-47.53"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="346.22,-45.81 339.77,-40.31 341.38,-48.64 346.22,-45.81"/>
+<text text-anchor="middle" x="367" y="-106.9" font-family="Arial" font-size="12.00" fill="#486552">0</text>
+</g>
+
+<g id="ussd-care-edge10" class="edge">
+<title>i&#45;&gt;h</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M102.95,-130.25C117.14,-143.6 133.5,-159 133.5,-159 133.5,-159 142.33,-171.53 151.99,-185.23"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="149.86,-187.07 156.76,-192 154.44,-183.85 149.86,-187.07"/>
+</g>
+
+<g id="ussd-care-edge12" class="edge">
+<title>j&#45;&gt;k</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M281.71,-80.67C290.32,-69.69 300.11,-57.2 308.5,-46.5"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="310.79,-48.12 313.52,-40.1 306.38,-44.67 310.79,-48.12"/>
+</g>
+</g>
+</svg>
+</div></div><figcaption class="diagram-caption">Sending facility details by SMS does not send a medical record. No-match results offer another area or wider search.</figcaption><details class="diagram-source"><summary>Original diagram / flow text</summary><pre><code>1. Find nearby care
+   ↓
+Choose service
+1. General care
+2. Child health
+3. Maternity care
+0. Back
+   ↓
+Enter area or landmark
+   ↓
+If ambiguous: choose one of the matched areas
+   ↓
+Optional: linked patient confirms permitted profile use
+   ↓
+Database filters facilities by service, then ranks by proximity
+   ↓
+Show first suitable hospital, address and contact if present
+1. Next hospital
+2. Send these facility details by SMS
+0. Exit</code></pre></details></figure>
+
+<p>Only send the hospital's public directory details by SMS after the user's selection. This action does not send the patient's records. If SMS send is queued, say “SMS requested”, not “delivered”. If no matching hospital exists, offer another area or a wider search. Do not substitute an unsuitable hospital solely because it is close.</p>
+<h3 id="option-2-emergency-summary">Option 2 — Emergency summary</h3>
+<figure class="diagram" id="ussd-summary"><div class="diagram-head"><strong>USSD option 2 · emergency summary</strong><div class="diagram-actions"><button class="button" type="button" data-expand-diagram>Enlarge</button><button class="button" type="button" data-download-diagram>Save SVG</button></div></div><div class="diagram-scroll"><div class="diagram-svg"><svg role="img" aria-labelledby="ussd-summary-title" style="width:100%;min-width:346px;max-width:447px;margin:auto"
+ viewBox="0.00 0.00 406.50 743.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><title id="ussd-summary-title">USSD option 2 · emergency summary</title><desc>This limited public-by-code flow needs no practitioner login. Empty sharing is a valid patient choice.</desc>
+<g id="ussd-summary-graph0" class="graph" transform="scale(1 1) rotate(0) translate(18 725)">
+<title>G</title>
+<polygon fill="white" stroke="transparent" points="-18,18 -18,-725 388.5,-725 388.5,18 -18,18"/>
+
+<g id="ussd-summary-node1" class="node">
+<title>a</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M232,-707C232,-707 56,-707 56,-707 50,-707 44,-701 44,-695 44,-695 44,-679 44,-679 44,-673 50,-667 56,-667 56,-667 232,-667 232,-667 238,-667 244,-673 244,-679 244,-679 244,-695 244,-695 244,-701 238,-707 232,-707"/>
+<text text-anchor="middle" x="144" y="-683.2" font-family="Arial" font-size="16.00" fill="#173e34">2. Emergency summary</text>
+</g>
+
+<g id="ussd-summary-node2" class="node">
+<title>b</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M212,-626C212,-626 76,-626 76,-626 70,-626 64,-620 64,-614 64,-614 64,-598 64,-598 64,-592 70,-586 76,-586 76,-586 212,-586 212,-586 218,-586 224,-592 224,-598 224,-598 224,-614 224,-614 224,-620 218,-626 212,-626"/>
+<text text-anchor="middle" x="144" y="-602.2" font-family="Arial" font-size="16.00" fill="#173e34">Enter patient code</text>
+</g>
+
+<g id="ussd-summary-edge1" class="edge">
+<title>a&#45;&gt;b</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M144,-666.88C144,-657.15 144,-645.15 144,-634.45"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="146.8,-634.22 144,-626.22 141.2,-634.22 146.8,-634.22"/>
+</g>
+
+<g id="ussd-summary-node3" class="node">
+<title>c</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M222.5,-545C222.5,-545 65.5,-545 65.5,-545 59.5,-545 53.5,-539 53.5,-533 53.5,-533 53.5,-499 53.5,-499 53.5,-493 59.5,-487 65.5,-487 65.5,-487 222.5,-487 222.5,-487 228.5,-487 234.5,-493 234.5,-499 234.5,-499 234.5,-533 234.5,-533 234.5,-539 228.5,-545 222.5,-545"/>
+<text text-anchor="middle" x="144" y="-521.2" font-family="Arial" font-size="16.00" fill="#173e34">Node invokes shared</text>
+<text text-anchor="middle" x="144" y="-503.2" font-family="Arial" font-size="16.00" fill="#173e34">record&#45;access policy</text>
+</g>
+
+<g id="ussd-summary-edge2" class="edge">
+<title>b&#45;&gt;c</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M144,-585.91C144,-576.31 144,-564.35 144,-553.1"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="146.8,-553.08 144,-545.08 141.2,-553.08 146.8,-553.08"/>
+</g>
+
+<g id="ussd-summary-node4" class="node">
+<title>d</title>
+<path fill="#fff2de" stroke="#a9c5b4" stroke-width="1.2" d="M132.87,-441.52C132.87,-441.52 11.13,-392.48 11.13,-392.48 5.57,-390.24 5.57,-385.76 11.13,-383.52 11.13,-383.52 132.87,-334.48 132.87,-334.48 138.43,-332.24 149.57,-332.24 155.13,-334.48 155.13,-334.48 276.87,-383.52 276.87,-383.52 282.43,-385.76 282.43,-390.24 276.87,-392.48 276.87,-392.48 155.13,-441.52 155.13,-441.52 149.57,-443.76 138.43,-443.76 132.87,-441.52"/>
+<text text-anchor="middle" x="144" y="-393.2" font-family="Arial" font-size="16.00" fill="#173e34">Active code and</text>
+<text text-anchor="middle" x="144" y="-375.2" font-family="Arial" font-size="16.00" fill="#173e34">selected fields?</text>
+</g>
+
+<g id="ussd-summary-edge3" class="edge">
+<title>c&#45;&gt;d</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M144,-486.72C144,-477.03 144,-465.74 144,-454.36"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="146.8,-454.07 144,-446.07 141.2,-454.07 146.8,-454.07"/>
+</g>
+
+<g id="ussd-summary-node5" class="node">
+<title>e</title>
+<path fill="#f8e7df" stroke="#a9c5b4" stroke-width="1.2" d="M218.5,-199C218.5,-199 25.5,-199 25.5,-199 19.5,-199 13.5,-193 13.5,-187 13.5,-187 13.5,-171 13.5,-171 13.5,-165 19.5,-159 25.5,-159 25.5,-159 218.5,-159 218.5,-159 224.5,-159 230.5,-165 230.5,-171 230.5,-171 230.5,-187 230.5,-187 230.5,-193 224.5,-199 218.5,-199"/>
+<text text-anchor="middle" x="122" y="-175.2" font-family="Arial" font-size="16.00" fill="#173e34">Generic unavailable result</text>
+</g>
+
+<g id="ussd-summary-edge4" class="edge">
+<title>d&#45;&gt;e</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M138.16,-332.07C133.9,-292 128.31,-239.37 124.94,-207.7"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="127.69,-207.01 124.06,-199.35 122.12,-207.6 127.69,-207.01"/>
+<text text-anchor="middle" x="144" y="-300.4" font-family="Arial" font-size="12.00" fill="#486552">No</text>
+</g>
+
+<g id="ussd-summary-node6" class="node">
+<title>f</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M327,-277C327,-277 169,-277 169,-277 163,-277 157,-271 157,-265 157,-265 157,-231 157,-231 157,-225 163,-219 169,-219 169,-219 327,-219 327,-219 333,-219 339,-225 339,-231 339,-231 339,-265 339,-265 339,-271 333,-277 327,-277"/>
+<text text-anchor="middle" x="248" y="-253.2" font-family="Arial" font-size="16.00" fill="#173e34">Display only selected</text>
+<text text-anchor="middle" x="248" y="-235.2" font-family="Arial" font-size="16.00" fill="#173e34">emergency fields</text>
+</g>
+
+<g id="ussd-summary-edge6" class="edge">
+<title>d&#45;&gt;f</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M177.19,-342.96C191.7,-323.71 208.46,-301.46 222.04,-283.45"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="224.3,-285.1 226.88,-277.02 219.83,-281.72 224.3,-285.1"/>
+<text text-anchor="middle" x="222" y="-300.4" font-family="Arial" font-size="12.00" fill="#486552">Yes</text>
+</g>
+
+<g id="ussd-summary-node8" class="node">
+<title>h</title>
+<path fill="#dcefe1" stroke="#a9c5b4" stroke-width="1.2" d="M145,-40C145,-40 107,-40 107,-40 101,-40 95,-34 95,-28 95,-28 95,-12 95,-12 95,-6 101,0 107,0 107,0 145,0 145,0 151,0 157,-6 157,-12 157,-12 157,-28 157,-28 157,-34 151,-40 145,-40"/>
+<text text-anchor="middle" x="126" y="-16.2" font-family="Arial" font-size="16.00" fill="#173e34">END</text>
+</g>
+
+<g id="ussd-summary-edge5" class="edge">
+<title>e&#45;&gt;h</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M122.49,-158.75C123.19,-131.21 124.49,-80.4 125.29,-48.78"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="128.1,-48.48 125.51,-40.41 122.5,-48.33 128.1,-48.48"/>
+</g>
+
+<g id="ussd-summary-node7" class="node">
+<title>g</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M358.5,-139C358.5,-139 159.5,-139 159.5,-139 153.5,-139 147.5,-133 147.5,-127 147.5,-127 147.5,-93 147.5,-93 147.5,-87 153.5,-81 159.5,-81 159.5,-81 358.5,-81 358.5,-81 364.5,-81 370.5,-87 370.5,-93 370.5,-93 370.5,-127 370.5,-127 370.5,-133 364.5,-139 358.5,-139"/>
+<text text-anchor="middle" x="259" y="-115.2" font-family="Arial" font-size="16.00" fill="#173e34">If paginated: check current</text>
+<text text-anchor="middle" x="259" y="-97.2" font-family="Arial" font-size="16.00" fill="#173e34">permissions on every page</text>
+</g>
+
+<g id="ussd-summary-edge7" class="edge">
+<title>f&#45;&gt;g</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M250.28,-218.82C251.96,-198.03 254.26,-169.58 256.08,-147.12"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="258.87,-147.34 256.72,-139.14 253.29,-146.89 258.87,-147.34"/>
+</g>
+
+<g id="ussd-summary-edge8" class="edge">
+<title>g&#45;&gt;h</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M216.55,-80.91C198.99,-69.29 178.84,-55.96 162.02,-44.83"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="163.25,-42.29 155.03,-40.21 160.15,-46.96 163.25,-42.29"/>
+</g>
+</g>
+</svg>
+</div></div><figcaption class="diagram-caption">This limited public-by-code flow needs no practitioner login. Empty sharing is a valid patient choice.</figcaption><details class="diagram-source"><summary>Original diagram / flow text</summary><pre><code>2. Emergency summary
+   ↓
+Enter patient code
+   ↓
+Node invokes shared record policy
+   ↓
+Valid code and selected fields? ── no → generic unavailable response
+   ↓ yes
+Show selected emergency fields
+   ↓
+Page only if necessary; check authorization on each page
+   ↓
+END</code></pre></details></figure>
+
+<p>No login is required for this limited public-by-code summary, as specified in the brief. Do not silently require a practitioner account for this flow.</p>
+<h3 id="option-3-additional-shared-details">Option 3 — Additional shared details</h3>
+<figure class="diagram" id="ussd-grant"><div class="diagram-head"><strong>USSD option 3 · additional selected details</strong><div class="diagram-actions"><button class="button" type="button" data-expand-diagram>Enlarge</button><button class="button" type="button" data-download-diagram>Save SVG</button></div></div><div class="diagram-scroll"><div class="diagram-svg"><svg role="img" aria-labelledby="ussd-grant-title" style="width:100%;min-width:456px;max-width:590px;margin:auto"
+ viewBox="0.00 0.00 536.50 842.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><title id="ussd-grant-title">USSD option 3 · additional selected details</title><desc>The recipient is a bearer of a scoped two-code grant, not a verified practitioner identity. No additional fields are automatically sent by SMS.</desc>
+<g id="ussd-grant-graph0" class="graph" transform="scale(1 1) rotate(0) translate(18 824)">
+<title>G</title>
+<polygon fill="white" stroke="transparent" points="-18,18 -18,-824 518.5,-824 518.5,18 -18,18"/>
+
+<g id="ussd-grant-node1" class="node">
+<title>a</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M325.5,-806C325.5,-806 162.5,-806 162.5,-806 156.5,-806 150.5,-800 150.5,-794 150.5,-794 150.5,-778 150.5,-778 150.5,-772 156.5,-766 162.5,-766 162.5,-766 325.5,-766 325.5,-766 331.5,-766 337.5,-772 337.5,-778 337.5,-778 337.5,-794 337.5,-794 337.5,-800 331.5,-806 325.5,-806"/>
+<text text-anchor="middle" x="244" y="-782.2" font-family="Arial" font-size="16.00" fill="#173e34">3. View shared details</text>
+</g>
+
+<g id="ussd-grant-node2" class="node">
+<title>b</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M312,-725C312,-725 176,-725 176,-725 170,-725 164,-719 164,-713 164,-713 164,-697 164,-697 164,-691 170,-685 176,-685 176,-685 312,-685 312,-685 318,-685 324,-691 324,-697 324,-697 324,-713 324,-713 324,-719 318,-725 312,-725"/>
+<text text-anchor="middle" x="244" y="-701.2" font-family="Arial" font-size="16.00" fill="#173e34">Enter patient code</text>
+</g>
+
+<g id="ussd-grant-edge1" class="edge">
+<title>a&#45;&gt;b</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M244,-765.88C244,-756.15 244,-744.15 244,-733.45"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="246.8,-733.22 244,-725.22 241.2,-733.22 246.8,-733.22"/>
+</g>
+
+<g id="ussd-grant-node3" class="node">
+<title>c</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M330.5,-644C330.5,-644 157.5,-644 157.5,-644 151.5,-644 145.5,-638 145.5,-632 145.5,-632 145.5,-598 145.5,-598 145.5,-592 151.5,-586 157.5,-586 157.5,-586 330.5,-586 330.5,-586 336.5,-586 342.5,-592 342.5,-598 342.5,-598 342.5,-632 342.5,-632 342.5,-638 336.5,-644 330.5,-644"/>
+<text text-anchor="middle" x="244" y="-620.2" font-family="Arial" font-size="16.00" fill="#173e34">Enter patient&#45;provided</text>
+<text text-anchor="middle" x="244" y="-602.2" font-family="Arial" font-size="16.00" fill="#173e34">temporary access code</text>
+</g>
+
+<g id="ussd-grant-edge2" class="edge">
+<title>b&#45;&gt;c</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M244,-684.91C244,-675.31 244,-663.35 244,-652.1"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="246.8,-652.08 244,-644.08 241.2,-652.08 246.8,-652.08"/>
+</g>
+
+<g id="ussd-grant-node4" class="node">
+<title>d</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M341,-545C341,-545 147,-545 147,-545 141,-545 135,-539 135,-533 135,-533 135,-499 135,-499 135,-493 141,-487 147,-487 147,-487 341,-487 341,-487 347,-487 353,-493 353,-499 353,-499 353,-533 353,-533 353,-539 347,-545 341,-545"/>
+<text text-anchor="middle" x="244" y="-521.2" font-family="Arial" font-size="16.00" fill="#173e34">Node invokes shared</text>
+<text text-anchor="middle" x="244" y="-503.2" font-family="Arial" font-size="16.00" fill="#173e34">grant&#45;authorization routine</text>
+</g>
+
+<g id="ussd-grant-edge3" class="edge">
+<title>c&#45;&gt;d</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M244,-585.94C244,-575.78 244,-564.14 244,-553.37"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="246.8,-553.33 244,-545.33 241.2,-553.33 246.8,-553.33"/>
+</g>
+
+<g id="ussd-grant-node5" class="node">
+<title>e</title>
+<path fill="#fff2de" stroke="#a9c5b4" stroke-width="1.2" d="M232.33,-443.22C232.33,-443.22 11.67,-390.78 11.67,-390.78 5.84,-389.39 5.84,-386.61 11.67,-385.22 11.67,-385.22 232.33,-332.78 232.33,-332.78 238.16,-331.39 249.84,-331.39 255.67,-332.78 255.67,-332.78 476.33,-385.22 476.33,-385.22 482.16,-386.61 482.16,-389.39 476.33,-390.78 476.33,-390.78 255.67,-443.22 255.67,-443.22 249.84,-444.61 238.16,-444.61 232.33,-443.22"/>
+<text text-anchor="middle" x="244" y="-393.2" font-family="Arial" font-size="16.00" fill="#173e34">Matching patient + field scope</text>
+<text text-anchor="middle" x="244" y="-375.2" font-family="Arial" font-size="16.00" fill="#173e34">+ USSD allowed + live grant?</text>
+</g>
+
+<g id="ussd-grant-edge4" class="edge">
+<title>d&#45;&gt;e</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M244,-486.72C244,-477.03 244,-465.74 244,-454.36"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="246.8,-454.07 244,-446.07 241.2,-454.07 246.8,-454.07"/>
+</g>
+
+<g id="ussd-grant-node6" class="node">
+<title>f</title>
+<path fill="#f8e7df" stroke="#a9c5b4" stroke-width="1.2" d="M319.5,-199C319.5,-199 126.5,-199 126.5,-199 120.5,-199 114.5,-193 114.5,-187 114.5,-187 114.5,-171 114.5,-171 114.5,-165 120.5,-159 126.5,-159 126.5,-159 319.5,-159 319.5,-159 325.5,-159 331.5,-165 331.5,-171 331.5,-171 331.5,-187 331.5,-187 331.5,-193 325.5,-199 319.5,-199"/>
+<text text-anchor="middle" x="223" y="-175.2" font-family="Arial" font-size="16.00" fill="#173e34">Generic unavailable result</text>
+</g>
+
+<g id="ussd-grant-edge5" class="edge">
+<title>e&#45;&gt;f</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M238.34,-331.26C234.28,-291.19 228.98,-238.91 225.79,-207.48"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="228.54,-206.87 224.95,-199.19 222.97,-207.43 228.54,-206.87"/>
+<text text-anchor="middle" x="245" y="-300.4" font-family="Arial" font-size="12.00" fill="#486552">No</text>
+</g>
+
+<g id="ussd-grant-node7" class="node">
+<title>g</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M488.5,-277C488.5,-277 269.5,-277 269.5,-277 263.5,-277 257.5,-271 257.5,-265 257.5,-265 257.5,-231 257.5,-231 257.5,-225 263.5,-219 269.5,-219 269.5,-219 488.5,-219 488.5,-219 494.5,-219 500.5,-225 500.5,-231 500.5,-231 500.5,-265 500.5,-265 500.5,-271 494.5,-277 488.5,-277"/>
+<text text-anchor="middle" x="379" y="-253.2" font-family="Arial" font-size="16.00" fill="#173e34">Bind a read session to</text>
+<text text-anchor="middle" x="379" y="-235.2" font-family="Arial" font-size="16.00" fill="#173e34">this USSD session and phone</text>
+</g>
+
+<g id="ussd-grant-edge7" class="edge">
+<title>e&#45;&gt;g</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M289.33,-340.66C307.77,-321.81 328.7,-300.42 345.7,-283.04"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="347.71,-284.99 351.3,-277.31 343.71,-281.07 347.71,-284.99"/>
+<text text-anchor="middle" x="342" y="-300.4" font-family="Arial" font-size="12.00" fill="#486552">Yes</text>
+</g>
+
+<g id="ussd-grant-node9" class="node">
+<title>i</title>
+<path fill="#dcefe1" stroke="#a9c5b4" stroke-width="1.2" d="M355.5,-40C355.5,-40 124.5,-40 124.5,-40 118.5,-40 112.5,-34 112.5,-28 112.5,-28 112.5,-12 112.5,-12 112.5,-6 118.5,0 124.5,0 124.5,0 355.5,0 355.5,0 361.5,0 367.5,-6 367.5,-12 367.5,-12 367.5,-28 367.5,-28 367.5,-34 361.5,-40 355.5,-40"/>
+<text text-anchor="middle" x="240" y="-16.2" font-family="Arial" font-size="16.00" fill="#173e34">END and clear transient access</text>
+</g>
+
+<g id="ussd-grant-edge6" class="edge">
+<title>f&#45;&gt;i</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M225.08,-158.75C228.08,-131.09 233.62,-79.96 237.04,-48.38"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="239.82,-48.66 237.9,-40.41 234.25,-48.06 239.82,-48.66"/>
+</g>
+
+<g id="ussd-grant-node8" class="node">
+<title>h</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M481.5,-139C481.5,-139 274.5,-139 274.5,-139 268.5,-139 262.5,-133 262.5,-127 262.5,-127 262.5,-93 262.5,-93 262.5,-87 268.5,-81 274.5,-81 274.5,-81 481.5,-81 481.5,-81 487.5,-81 493.5,-87 493.5,-93 493.5,-93 493.5,-127 493.5,-127 493.5,-133 487.5,-139 481.5,-139"/>
+<text text-anchor="middle" x="378" y="-115.2" font-family="Arial" font-size="16.00" fill="#173e34">Display only permitted fields</text>
+<text text-anchor="middle" x="378" y="-97.2" font-family="Arial" font-size="16.00" fill="#173e34">Recheck on every page</text>
+</g>
+
+<g id="ussd-grant-edge8" class="edge">
+<title>g&#45;&gt;h</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M378.79,-218.82C378.64,-198.12 378.43,-169.83 378.27,-147.42"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="381.07,-147.12 378.21,-139.14 375.47,-147.16 381.07,-147.12"/>
+</g>
+
+<g id="ussd-grant-edge9" class="edge">
+<title>h&#45;&gt;i</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M333.96,-80.91C315.57,-69.19 294.46,-55.73 276.91,-44.53"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="278.37,-42.15 270.12,-40.21 275.36,-46.87 278.37,-42.15"/>
+</g>
+</g>
+</svg>
+</div></div><figcaption class="diagram-caption">The recipient is a bearer of a scoped two-code grant, not a verified practitioner identity. No additional fields are automatically sent by SMS.</figcaption><details class="diagram-source"><summary>Original diagram / flow text</summary><pre><code>3. View shared details
+   ↓
+Enter patient code
+   ↓
+Enter temporary access code supplied by the patient
+   ↓
+Node calls shared PostgreSQL grant routine
+   ↓
+Check patient match + scope + USSD allowed + expiry + revocation
+   ├── invalid → generic invalid/expired/unavailable result
+   └── valid → create read session bound to this USSD session and phone
+                 ↓
+              Display only permitted fields
+                 ↓
+              Recheck permission on every page
+                 ↓
+              END and clear transient access context</code></pre></details></figure>
+
+<p>USSD uses the two-code bearer grant permitted by the brief; it does not claim to authenticate the recipient as a practitioner. The patient sees this channel choice while issuing the grant. The online practitioner route additionally requires an approved practitioner account. Both channels enforce the same field scope, expiry, revocation and read-only rules.</p>
+<p>Do not automatically send unlocked additional details to SMS. A grant valid for web access only must fail on USSD.</p>
+<h2 id="10-ussd-state-machine-implementation">10. USSD state-machine implementation</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>State</th>
+<th>Expected input</th>
+<th>Next state / action</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>MAIN</code></td>
+<td>1, 2, 3 or 0</td>
+<td>Care, emergency-code entry, granted-code entry or end</td>
+</tr>
+<tr>
+<td><code>CARE_SERVICE</code></td>
+<td>Valid service menu number</td>
+<td><code>CARE_LOCATION</code></td>
+</tr>
+<tr>
+<td><code>CARE_LOCATION</code></td>
+<td>Bounded area/landmark text</td>
+<td><code>CARE_AREA_CHOICE</code> or results</td>
+</tr>
+<tr>
+<td><code>CARE_AREA_CHOICE</code></td>
+<td>Valid offered choice</td>
+<td>Resolve area; optional consent step; results</td>
+</tr>
+<tr>
+<td><code>CARE_PROFILE_CONFIRM</code></td>
+<td>Explicit yes/no</td>
+<td>Search with or without permitted profile context</td>
+</tr>
+<tr>
+<td><code>CARE_RESULTS</code></td>
+<td>Next, send SMS or exit</td>
+<td>Another result, one idempotent delivery job or end</td>
+</tr>
+<tr>
+<td><code>EMERGENCY_CODE</code></td>
+<td>Patient code</td>
+<td>Authorized summary or generic failure</td>
+</tr>
+<tr>
+<td><code>GRANT_PATIENT_CODE</code></td>
+<td>Patient code</td>
+<td><code>GRANT_ACCESS_CODE</code></td>
+</tr>
+<tr>
+<td><code>GRANT_ACCESS_CODE</code></td>
+<td>Temporary code</td>
+<td>Authorized read session or generic failure</td>
+</tr>
+<tr>
+<td><code>RECORD_PAGE</code></td>
+<td>Next/back/exit</td>
+<td>Revalidate grant and current field scope before pagination</td>
+</tr>
+<tr>
+<td><code>END</code></td>
+<td>None</td>
+<td>No further transition for this session</td>
+</tr>
+</tbody>
+</table></div>
+<p>Implementation pattern:</p>
+<figure class="diagram" id="ussd-callback"><div class="diagram-head"><strong>One callback → one valid USSD transition</strong><div class="diagram-actions"><button class="button" type="button" data-expand-diagram>Enlarge</button><button class="button" type="button" data-download-diagram>Save SVG</button></div></div><div class="diagram-scroll"><div class="diagram-svg"><svg role="img" aria-labelledby="ussd-callback-title" style="width:100%;min-width:280px;max-width:326px;margin:auto"
+ viewBox="0.00 0.00 296.00 762.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><title id="ussd-callback-title">One callback → one valid USSD transition</title><desc>Repeated callbacks must not advance a second step or send another SMS. Protected responses must still respect live authorization.</desc>
+<g id="ussd-callback-graph0" class="graph" transform="scale(1 1) rotate(0) translate(18 744)">
+<title>G</title>
+<polygon fill="white" stroke="transparent" points="-18,18 -18,-744 278,-744 278,18 -18,18"/>
+
+<g id="ussd-callback-node1" class="node">
+<title>a</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M207,-726C207,-726 53,-726 53,-726 47,-726 41,-720 41,-714 41,-714 41,-680 41,-680 41,-674 47,-668 53,-668 53,-668 207,-668 207,-668 213,-668 219,-674 219,-680 219,-680 219,-714 219,-714 219,-720 213,-726 207,-726"/>
+<text text-anchor="middle" x="130" y="-702.2" font-family="Arial" font-size="16.00" fill="#173e34">Verify provider origin</text>
+<text text-anchor="middle" x="130" y="-684.2" font-family="Arial" font-size="16.00" fill="#173e34">and validate payload</text>
+</g>
+
+<g id="ussd-callback-node2" class="node">
+<title>b</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M243.5,-628C243.5,-628 16.5,-628 16.5,-628 10.5,-628 4.5,-622 4.5,-616 4.5,-616 4.5,-582 4.5,-582 4.5,-576 10.5,-570 16.5,-570 16.5,-570 243.5,-570 243.5,-570 249.5,-570 255.5,-576 255.5,-582 255.5,-582 255.5,-616 255.5,-616 255.5,-622 249.5,-628 243.5,-628"/>
+<text text-anchor="middle" x="130" y="-604.2" font-family="Arial" font-size="16.00" fill="#173e34">Find/create session</text>
+<text text-anchor="middle" x="130" y="-586.2" font-family="Arial" font-size="16.00" fill="#173e34">Check phone + service binding</text>
+</g>
+
+<g id="ussd-callback-edge1" class="edge">
+<title>a&#45;&gt;b</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M130,-667.97C130,-658.11 130,-646.87 130,-636.41"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="132.8,-636.23 130,-628.23 127.2,-636.23 132.8,-636.23"/>
+</g>
+
+<g id="ussd-callback-node3" class="node">
+<title>c</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M218.5,-530C218.5,-530 41.5,-530 41.5,-530 35.5,-530 29.5,-524 29.5,-518 29.5,-518 29.5,-484 29.5,-484 29.5,-478 35.5,-472 41.5,-472 41.5,-472 218.5,-472 218.5,-472 224.5,-472 230.5,-478 230.5,-484 230.5,-484 230.5,-518 230.5,-518 230.5,-524 224.5,-530 218.5,-530"/>
+<text text-anchor="middle" x="130" y="-506.2" font-family="Arial" font-size="16.00" fill="#173e34">Lock session or</text>
+<text text-anchor="middle" x="130" y="-488.2" font-family="Arial" font-size="16.00" fill="#173e34">check optimistic version</text>
+</g>
+
+<g id="ussd-callback-edge2" class="edge">
+<title>b&#45;&gt;c</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M130,-569.97C130,-560.11 130,-548.87 130,-538.41"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="132.8,-538.23 130,-530.23 127.2,-538.23 132.8,-538.23"/>
+</g>
+
+<g id="ussd-callback-node4" class="node">
+<title>d</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M218,-432C218,-432 42,-432 42,-432 36,-432 30,-426 30,-420 30,-420 30,-386 30,-386 30,-380 36,-374 42,-374 42,-374 218,-374 218,-374 224,-374 230,-380 230,-386 230,-386 230,-420 230,-420 230,-426 224,-432 218,-432"/>
+<text text-anchor="middle" x="130" y="-408.2" font-family="Arial" font-size="16.00" fill="#173e34">Reject expired session</text>
+<text text-anchor="middle" x="130" y="-390.2" font-family="Arial" font-size="16.00" fill="#173e34">or impossible input path</text>
+</g>
+
+<g id="ussd-callback-edge3" class="edge">
+<title>c&#45;&gt;d</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M130,-471.97C130,-462.11 130,-450.87 130,-440.41"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="132.8,-440.23 130,-432.23 127.2,-440.23 132.8,-440.23"/>
+</g>
+
+<g id="ussd-callback-node5" class="node">
+<title>e</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M242.5,-334C242.5,-334 17.5,-334 17.5,-334 11.5,-334 5.5,-328 5.5,-322 5.5,-322 5.5,-288 5.5,-288 5.5,-282 11.5,-276 17.5,-276 17.5,-276 242.5,-276 242.5,-276 248.5,-276 254.5,-282 254.5,-288 254.5,-288 254.5,-322 254.5,-322 254.5,-328 248.5,-334 242.5,-334"/>
+<text text-anchor="middle" x="130" y="-310.2" font-family="Arial" font-size="16.00" fill="#173e34">Derive next action from</text>
+<text text-anchor="middle" x="130" y="-292.2" font-family="Arial" font-size="16.00" fill="#173e34">cumulative input + stored state</text>
+</g>
+
+<g id="ussd-callback-edge4" class="edge">
+<title>d&#45;&gt;e</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M130,-373.97C130,-364.11 130,-352.87 130,-342.41"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="132.8,-342.23 130,-334.23 127.2,-342.23 132.8,-342.23"/>
+</g>
+
+<g id="ussd-callback-node6" class="node">
+<title>f</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M248,-236C248,-236 12,-236 12,-236 6,-236 0,-230 0,-224 0,-224 0,-190 0,-190 0,-184 6,-178 12,-178 12,-178 248,-178 248,-178 254,-178 260,-184 260,-190 260,-190 260,-224 260,-224 260,-230 254,-236 248,-236"/>
+<text text-anchor="middle" x="130" y="-212.2" font-family="Arial" font-size="16.00" fill="#173e34">Deduplicate by keyed fingerprint</text>
+<text text-anchor="middle" x="130" y="-194.2" font-family="Arial" font-size="16.00" fill="#173e34">Do not store raw code transcript</text>
+</g>
+
+<g id="ussd-callback-edge5" class="edge">
+<title>e&#45;&gt;f</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M130,-275.97C130,-266.11 130,-254.87 130,-244.41"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="132.8,-244.23 130,-236.23 127.2,-244.23 132.8,-244.23"/>
+</g>
+
+<g id="ussd-callback-node7" class="node">
+<title>g</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M215.5,-138C215.5,-138 44.5,-138 44.5,-138 38.5,-138 32.5,-132 32.5,-126 32.5,-126 32.5,-92 32.5,-92 32.5,-86 38.5,-80 44.5,-80 44.5,-80 215.5,-80 215.5,-80 221.5,-80 227.5,-86 227.5,-92 227.5,-92 227.5,-126 227.5,-126 227.5,-132 221.5,-138 215.5,-138"/>
+<text text-anchor="middle" x="130" y="-114.2" font-family="Arial" font-size="16.00" fill="#173e34">Execute one transition</text>
+<text text-anchor="middle" x="130" y="-96.2" font-family="Arial" font-size="16.00" fill="#173e34">Persist state atomically</text>
+</g>
+
+<g id="ussd-callback-edge6" class="edge">
+<title>f&#45;&gt;g</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M130,-177.97C130,-168.11 130,-156.87 130,-146.41"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="132.8,-146.23 130,-138.23 127.2,-146.23 132.8,-146.23"/>
+</g>
+
+<g id="ussd-callback-node8" class="node">
+<title>h</title>
+<path fill="#dcefe1" stroke="#a9c5b4" stroke-width="1.2" d="M239.5,-40C239.5,-40 20.5,-40 20.5,-40 14.5,-40 8.5,-34 8.5,-28 8.5,-28 8.5,-12 8.5,-12 8.5,-6 14.5,0 20.5,0 20.5,0 239.5,0 239.5,0 245.5,0 251.5,-6 251.5,-12 251.5,-12 251.5,-28 251.5,-28 251.5,-34 245.5,-40 239.5,-40"/>
+<text text-anchor="middle" x="130" y="-16.2" font-family="Arial" font-size="16.00" fill="#173e34">Return plain&#45;text CON or END</text>
+</g>
+
+<g id="ussd-callback-edge7" class="edge">
+<title>g&#45;&gt;h</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M130,-79.99C130,-69.83 130,-58.36 130,-48.26"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="132.8,-48.15 130,-40.15 127.2,-48.15 132.8,-48.15"/>
+</g>
+</g>
+</svg>
+</div></div><figcaption class="diagram-caption">Repeated callbacks must not advance a second step or send another SMS. Protected responses must still respect live authorization.</figcaption><details class="diagram-source"><summary>Original diagram / flow text</summary><pre><code>verify provider origin
+validate expected service code, payload size and phone format
+find/create session keyed by (provider, sessionId)
+verify the phone/service binding has not changed
+acquire a per-session lock or optimistic version check
+reject expired or impossible input paths
+derive the next action from cumulative input and stored state
+deduplicate using a keyed input fingerprint, not a stored raw transcript
+execute one valid transition
+persist state, version and safe reply metadata atomically
+return CON or END as text/plain</code></pre></details></figure>
+
+<p>Repeated callbacks must not create another grant session, advance another page or send another SMS. Replaying a cached protected response must not bypass current expiry/revocation checks; recompute protected projections when necessary. Don't retain a last-response cache containing medical data longer than the session, and protect it if retained.</p>
+<p>Proposed initial callback performance target: application processing p95 under one second for deterministic menus. This is a development target, not a claimed provider timeout. Set hard service/database timeouts below the provisioned operator deadline. Session idle expiry must be no longer than the applicable carrier limits. Clear transient code material on completion/timeout. Use configurable menu-length and field-count limits; long records need pagination.</p>
+<p>Invalid input should repeat the current prompt with a short correction. After a bounded number of invalid attempts, end the session. Code guessing needs limits across sessions too, by phone, IP/provider context, target digest and aggregate traffic. Avoid a permanent target lockout that lets strangers deny access to a patient's public summary.</p>
+<h2 id="11-telecom-tables-in-shared-postgresql">11. Telecom tables in shared PostgreSQL</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Table</th>
+<th>Important columns / constraints</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>telecom.channel_links</code></td>
+<td><code>id PK</code>, <code>patient_id FK</code>, encrypted E.164 phone, phone lookup digest, verified time, expiry, revoked time; unique active binding according to account policy</td>
+</tr>
+<tr>
+<td><code>telecom.sms_inbox</code></td>
+<td><code>id PK</code>, provider, provider message ID, encrypted sender/body where required, received time, processing state, attempts; unique <code>(provider, provider_message_id)</code></td>
+</tr>
+<tr>
+<td><code>telecom.sms_conversations</code></td>
+<td><code>id PK</code>, phone digest, state, resolved service/area IDs, permitted-consent reference, result IDs, expiry, version</td>
+</tr>
+<tr>
+<td><code>telecom.ussd_sessions</code></td>
+<td><code>id PK</code>, provider session ID, phone digest, service code, state, sanitized context, read-session reference, input fingerprint, version, expiry; unique <code>(provider, provider_session_id)</code></td>
+</tr>
+<tr>
+<td><code>telecom.outbox</code></td>
+<td><code>id PK</code>, unique logical job key, recipient reference, payload or render reference, source event, status, attempt count, next attempt time, claim lease, provider message ID, expiry</td>
+</tr>
+<tr>
+<td><code>telecom.delivery_events</code></td>
+<td><code>id PK</code>, provider message ID, provider status, received time, event fingerprint; unique fingerprint for duplicate reports</td>
+</tr>
+<tr>
+<td><code>telecom.channel_preferences</code></td>
+<td>phone digest, optional language, opt-out scope, updated time</td>
+</tr>
+</tbody>
+</table></div>
+<p>Use the core tables in Plan 1 for patient data, grants, facility matches, consent and access audit. Do not create a telecom copy of patients or emergency summaries. The Node database role writes telecom tables and approved audits; record access goes through the shared restricted routines.</p>
+<p>For callback-derived data, retain the minimum needed. Suggested pilot defaults: purge USSD transient state soon after expiry; keep encrypted inbound message bodies only for a short operational window such as seven days, subject to the agreed retention policy; keep delivery metadata separately from health text. These are proposed defaults to confirm for the deployment, not legal retention claims. Avoid plaintext full request/response logging at reverse proxies, tracing middleware or provider-debug export jobs.</p>
+<h2 id="12-reliable-sms-sending">12. Reliable SMS sending</h2>
+<ol>
+<li>Insert the accepted inbound event and processing job atomically; acknowledge only when durable.</li>
+<li>Worker claims jobs with a lease so multiple instances cannot process one job concurrently.</li>
+<li>A completed logical action creates one uniquely keyed outbox job.</li>
+<li>Sender renders/revalidates any time-sensitive permitted content, calls Africa's Talking and stores the provider message ID.</li>
+<li>Track <code>queued</code>, <code>sending</code>, <code>accepted</code>, <code>delivered</code>, <code>failed</code>, <code>unknown</code> and <code>expired</code> separately.</li>
+<li>Delivery callback reconciles provider status idempotently. A provider report can arrive before the send response has been persisted; retain unmatched reports temporarily and reconcile them later.</li>
+<li>Retry known transient failures with bounded exponential backoff. Permanent failures go to a review/dead-letter state.</li>
+<li>A network timeout after sending may mean the provider accepted the message. Mark it <code>unknown</code> and reconcile before resending; application-level deduplication alone cannot guarantee exactly-once delivery through a remote provider.</li>
+</ol>
+<p>Africa's Talking documents retrying incoming SMS callbacks until successful acknowledgement, which is why durable acceptance and duplicate handling matter. Verify the current retry behavior for the account. See <a href="https://help.africastalking.com/en/articles/742510-where-are-my-incoming-messages">incoming SMS callbacks</a>.</p>
+<h2 id="13-failure-behavior">13. Failure behavior</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Failure</th>
+<th>User experience</th>
+<th>Implementation response</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Ambiguous location</td>
+<td>Ask one short question with choices</td>
+<td>Do not guess precise coordinates</td>
+</tr>
+<tr>
+<td>No suitable hospital</td>
+<td>Offer another area or wider radius</td>
+<td>Keep result empty; do not invent a facility</td>
+</tr>
+<tr>
+<td>AI unavailable</td>
+<td>Explain temporary limit; offer service menu/command</td>
+<td>Keep record lookup and directory search operational</td>
+</tr>
+<tr>
+<td>FastAPI unavailable</td>
+<td>Offline functions continue</td>
+<td>No Node → FastAPI dependency</td>
+</tr>
+<tr>
+<td>PostgreSQL unavailable</td>
+<td>Brief unavailable message</td>
+<td>No cached protected record fallback; avoid false success</td>
+</tr>
+<tr>
+<td>USSD timeout</td>
+<td>Redial starts a fresh session</td>
+<td>Clear transient access context</td>
+</tr>
+<tr>
+<td>Invalid/expired/revoked code</td>
+<td>Generic unavailable message</td>
+<td>Audit outcome without exposing record existence/values</td>
+</tr>
+<tr>
+<td>SMS accepted but no delivery report</td>
+<td>Do not claim delivery</td>
+<td>Keep pending/unknown state and reconcile</td>
+</tr>
+<tr>
+<td>Repeated callback</td>
+<td>Same safe logical outcome</td>
+<td>No duplicate state transition or outbox job</td>
+</tr>
+<tr>
+<td>Consent withdrawn</td>
+<td>Subsequent personalization/record reads denied as applicable</td>
+<td>Check live scope at use; existing delivered SMS cannot be recalled</td>
+</tr>
+<tr>
+<td>Phone has no cellular coverage</td>
+<td>No fresh interaction can occur</td>
+<td>No promise of zero-signal access</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="14-later-voice-workflow">14. Later voice workflow</h2>
+<figure class="diagram" id="voice-later"><div class="diagram-head"><strong>Later release · ordinary phone call to AI voice</strong><div class="diagram-actions"><button class="button" type="button" data-expand-diagram>Enlarge</button><button class="button" type="button" data-download-diagram>Save SVG</button></div></div><div class="diagram-scroll"><div class="diagram-svg"><svg role="img" aria-labelledby="voice-later-title" style="width:100%;min-width:280px;max-width:297px;margin:auto"
+ viewBox="0.00 0.00 270.00 628.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><title id="voice-later-title">Later release · ordinary phone call to AI voice</title><desc>This remains future scope. Confirm bidirectional audio and streaming or turn-based capabilities on the provisioned telecom service.</desc>
+<g id="voice-later-graph0" class="graph" transform="scale(1 1) rotate(0) translate(18 610)">
+<title>G</title>
+<polygon fill="white" stroke="transparent" points="-18,18 -18,-610 252,-610 252,18 -18,18"/>
+
+<g id="voice-later-node1" class="node">
+<title>a</title>
+<path fill="#f6f0dc" stroke="#a9c5b4" stroke-width="1.2" d="M190,-592C190,-592 44,-592 44,-592 38,-592 32,-586 32,-580 32,-580 32,-564 32,-564 32,-558 38,-552 44,-552 44,-552 190,-552 190,-552 196,-552 202,-558 202,-564 202,-564 202,-580 202,-580 202,-586 196,-592 190,-592"/>
+<text text-anchor="middle" x="117" y="-568.2" font-family="Arial" font-size="16.00" fill="#173e34">Ordinary phone call</text>
+</g>
+
+<g id="voice-later-node2" class="node">
+<title>b</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M213.5,-512C213.5,-512 20.5,-512 20.5,-512 14.5,-512 8.5,-506 8.5,-500 8.5,-500 8.5,-466 8.5,-466 8.5,-460 14.5,-454 20.5,-454 20.5,-454 213.5,-454 213.5,-454 219.5,-454 225.5,-460 225.5,-466 225.5,-466 225.5,-500 225.5,-500 225.5,-506 219.5,-512 213.5,-512"/>
+<text text-anchor="middle" x="117" y="-488.2" font-family="Arial" font-size="16.00" fill="#173e34">Africa&#39;s Talking</text>
+<text text-anchor="middle" x="117" y="-470.2" font-family="Arial" font-size="16.00" fill="#173e34">compatible call integration</text>
+</g>
+
+<g id="voice-later-edge1" class="edge">
+<title>a&#45;&gt;b</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M117,-551.69C117,-542.44 117,-531.04 117,-520.25"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="119.8,-520.17 117,-512.17 114.2,-520.17 119.8,-520.17"/>
+</g>
+
+<g id="voice-later-node3" class="node">
+<title>c</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M220,-414C220,-414 14,-414 14,-414 8,-414 2,-408 2,-402 2,-402 2,-386 2,-386 2,-380 8,-374 14,-374 14,-374 220,-374 220,-374 226,-374 232,-380 232,-386 232,-386 232,-402 232,-402 232,-408 226,-414 220,-414"/>
+<text text-anchor="middle" x="117" y="-390.2" font-family="Arial" font-size="16.00" fill="#173e34">Node voice&#45;session adapter</text>
+</g>
+
+<g id="voice-later-edge2" class="edge">
+<title>b&#45;&gt;c</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M117,-453.99C117,-443.83 117,-432.36 117,-422.26"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="119.8,-422.15 117,-414.15 114.2,-422.15 119.8,-422.15"/>
+</g>
+
+<g id="voice-later-node4" class="node">
+<title>d</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M212.5,-334C212.5,-334 21.5,-334 21.5,-334 15.5,-334 9.5,-328 9.5,-322 9.5,-322 9.5,-288 9.5,-288 9.5,-282 15.5,-276 21.5,-276 21.5,-276 212.5,-276 212.5,-276 218.5,-276 224.5,-282 224.5,-288 224.5,-288 224.5,-322 224.5,-322 224.5,-328 218.5,-334 212.5,-334"/>
+<text text-anchor="middle" x="117" y="-310.2" font-family="Arial" font-size="16.00" fill="#173e34">Supported audio transport</text>
+<text text-anchor="middle" x="117" y="-292.2" font-family="Arial" font-size="16.00" fill="#173e34">and speech recognition</text>
+</g>
+
+<g id="voice-later-edge3" class="edge">
+<title>c&#45;&gt;d</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M117,-373.69C117,-364.44 117,-353.04 117,-342.25"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="119.8,-342.17 117,-334.17 114.2,-342.17 119.8,-342.17"/>
+</g>
+
+<g id="voice-later-node5" class="node">
+<title>e</title>
+<path fill="#e8eef7" stroke="#a9c5b4" stroke-width="1.2" d="M222,-236C222,-236 12,-236 12,-236 6,-236 0,-230 0,-224 0,-224 0,-190 0,-190 0,-184 6,-178 12,-178 12,-178 222,-178 222,-178 228,-178 234,-184 234,-190 234,-190 234,-224 234,-224 234,-230 228,-236 222,-236"/>
+<text text-anchor="middle" x="117" y="-212.2" font-family="Arial" font-size="16.00" fill="#173e34">Shared AI service</text>
+<text text-anchor="middle" x="117" y="-194.2" font-family="Arial" font-size="16.00" fill="#173e34">+ authorized data operations</text>
+</g>
+
+<g id="voice-later-edge4" class="edge">
+<title>d&#45;&gt;e</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M117,-275.97C117,-266.11 117,-254.87 117,-244.41"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="119.8,-244.23 117,-236.23 114.2,-244.23 119.8,-244.23"/>
+</g>
+
+<g id="voice-later-node6" class="node">
+<title>f</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M183,-138C183,-138 51,-138 51,-138 45,-138 39,-132 39,-126 39,-126 39,-110 39,-110 39,-104 45,-98 51,-98 51,-98 183,-98 183,-98 189,-98 195,-104 195,-110 195,-110 195,-126 195,-126 195,-132 189,-138 183,-138"/>
+<text text-anchor="middle" x="117" y="-114.2" font-family="Arial" font-size="16.00" fill="#173e34">Speech synthesis</text>
+</g>
+
+<g id="voice-later-edge5" class="edge">
+<title>e&#45;&gt;f</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M117,-177.99C117,-167.83 117,-156.36 117,-146.26"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="119.8,-146.15 117,-138.15 114.2,-146.15 119.8,-146.15"/>
+</g>
+
+<g id="voice-later-node7" class="node">
+<title>g</title>
+<path fill="#f0f6ee" stroke="#a9c5b4" stroke-width="1.2" d="M205.5,-58C205.5,-58 28.5,-58 28.5,-58 22.5,-58 16.5,-52 16.5,-46 16.5,-46 16.5,-12 16.5,-12 16.5,-6 22.5,0 28.5,0 28.5,0 205.5,0 205.5,0 211.5,0 217.5,-6 217.5,-12 217.5,-12 217.5,-46 217.5,-46 217.5,-52 211.5,-58 205.5,-58"/>
+<text text-anchor="middle" x="117" y="-34.2" font-family="Arial" font-size="16.00" fill="#173e34">Supported call playback</text>
+<text text-anchor="middle" x="117" y="-16.2" font-family="Arial" font-size="16.00" fill="#173e34">or audio transport</text>
+</g>
+
+<g id="voice-later-edge6" class="edge">
+<title>f&#45;&gt;g</title>
+<path fill="none" stroke="#557b68" stroke-width="1.2" d="M117,-97.69C117,-88.44 117,-77.04 117,-66.25"/>
+<polygon fill="#557b68" stroke="#557b68" stroke-width="1.2" points="119.8,-66.17 117,-58.17 114.2,-66.17 119.8,-66.17"/>
+</g>
+</g>
+</svg>
+</div></div><figcaption class="diagram-caption">This remains future scope. Confirm bidirectional audio and streaming or turn-based capabilities on the provisioned telecom service.</figcaption><details class="diagram-source"><summary>Original diagram / flow text</summary><pre><code>Ordinary phone call
+  → Africa&#x27;s Talking call integration
+  → Node voice-session adapter
+  → supported audio transport / speech recognition
+  → shared AI service + authorized directory/record operations
+  → speech synthesis
+  → supported call playback/audio transport</code></pre></details></figure>
+
+<p>Confirm bidirectional audio, supported streaming or turn-based modes, interruption handling, language support, caller costs and consent before implementation. Do not assume that providing a voice webhook establishes real-time AI audio capability. Keep voice behind a feature flag and outside the first SMS/USSD acceptance criteria.</p>
+<h2 id="15-implementation-order-and-demonstration">15. Implementation order and demonstration</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Milestone</th>
+<th>Build</th>
+<th>Acceptance condition</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1 — Provider boundary</td>
+<td>Callback validation, fixtures, inbox/outbox and session storage</td>
+<td>Duplicate callback causes one logical job; origin failures are rejected</td>
+</tr>
+<tr>
+<td>2 — Deterministic SMS</td>
+<td>HELP, FIND, LOOKUP, location clarification and matching</td>
+<td>SMS works with FastAPI stopped and AI disabled for command-based flows</td>
+</tr>
+<tr>
+<td>3 — USSD</td>
+<td>All three menu paths, paging, invalid input and timeout</td>
+<td>No raw codes in logs; extra fields need valid USSD scope</td>
+</tr>
+<tr>
+<td>4 — AI SMS</td>
+<td>Shared AI client, reviewed content, intent validation and fallback</td>
+<td>Model output cannot bypass record policy or invent hospital contacts</td>
+</tr>
+<tr>
+<td>5 — Personalization</td>
+<td>Verified channel linking, exact consent scopes and revocation</td>
+<td>Phone match alone never exposes a profile</td>
+</tr>
+<tr>
+<td>6 — Pilot</td>
+<td>Real operator tests, delivery monitoring, load tests and recovery</td>
+<td>Core workflows pass with data off, including expired/revoked codes</td>
+</tr>
+</tbody>
+</table></div>
+<p>Demo script:</p>
+<ol>
+<li>Use a fictional patient and explicitly select only allergies and emergency contact name for public sharing.</li>
+<li>In the portal, save the emergency summary.</li>
+<li>With mobile data off, retrieve it through USSD. Confirm medication and date of birth are absent.</li>
+<li>Create a temporary code for medications, permitted on USSD, and unlock exactly that field with both codes.</li>
+<li>Revoke the code online; another USSD read/page request must fail.</li>
+<li>Text a child-health care request without an area; receive a clarification.</li>
+<li>Reply with a known area; receive a matching seeded hospital and its address.</li>
+<li>Stop FastAPI and repeat an offline lookup/search successfully.</li>
+<li>Stop the AI service and repeat emergency lookup and structured FIND successfully.</li>
+<li>Replay the same SMS callback and the same USSD input; verify no duplicate outgoing SMS or extra transition.</li>
+</ol>
+<p>The standalone HTML includes a local simulation of these interactions for design review. It does not send SMS, dial USSD or connect to any backend.</p></article><footer class="doc-footer">HealthAccess · Full implementation plan, converted from the Markdown handoff. Diagram source text is retained below each converted flow.</footer></main></div>
+<dialog class="diagram-dialog" id="diagram-dialog" aria-labelledby="diagram-title"><div class="modal-toolbar"><h2 id="diagram-title">Diagram</h2><div class="modal-actions"><button type="button" class="button" id="zoom-out" aria-label="Zoom out">−</button><span class="zoom-value" id="diagram-zoom">100%</span><button type="button" class="button" id="zoom-in" aria-label="Zoom in">+</button><button type="button" class="button" id="zoom-reset">Fit</button><button type="button" class="button primary" id="diagram-close">Close</button></div></div><div class="modal-body" id="diagram-stage"><img id="diagram-image" alt="Expanded diagram"></div></dialog>
+<script>(() => {
+  const dialog=document.getElementById('diagram-dialog');
+  const image=document.getElementById('diagram-image');
+  const title=document.getElementById('diagram-title');
+  const stage=document.getElementById('diagram-stage');
+  const zoomLabel=document.getElementById('diagram-zoom');
+  let baseWidth=800,zoom=1;
+  const encodeSvg=svg=>'data:image/svg+xml;base64,'+btoa(unescape(encodeURIComponent(svg)));
+  function updateZoom(){image.style.width=Math.round(baseWidth*zoom)+'px';zoomLabel.textContent=Math.round(zoom*100)+'%';}
+  document.querySelectorAll('[data-expand-diagram]').forEach(button=>button.addEventListener('click',()=>{
+    const figure=button.closest('figure');const svg=figure.querySelector('svg');
+    title.textContent=figure.querySelector('.diagram-head strong').textContent;
+    const box=svg.viewBox.baseVal;
+    baseWidth=Math.min(Math.max(box.width,600),Math.max(window.innerWidth-100,600));zoom=1;
+    image.alt=title.textContent;image.src=encodeSvg(new XMLSerializer().serializeToString(svg));updateZoom();
+    dialog.showModal();stage.scrollTop=0;stage.scrollLeft=0;
+  }));
+  document.getElementById('zoom-in').addEventListener('click',()=>{zoom=Math.min(3,zoom+.25);updateZoom();});
+  document.getElementById('zoom-out').addEventListener('click',()=>{zoom=Math.max(.5,zoom-.25);updateZoom();});
+  document.getElementById('zoom-reset').addEventListener('click',()=>{zoom=1;updateZoom();});
+  document.getElementById('diagram-close').addEventListener('click',()=>dialog.close());
+  dialog.addEventListener('click',event=>{if(event.target===dialog)dialog.close();});
+  document.querySelectorAll('[data-download-diagram]').forEach(button=>button.addEventListener('click',()=>{
+    const svg=button.closest('figure').querySelector('svg');const link=document.createElement('a');
+    link.href=encodeSvg(new XMLSerializer().serializeToString(svg));link.download=button.closest('figure').id+'.svg';link.click();
+  }));
+  document.querySelectorAll('[data-copy-code]').forEach(button=>button.addEventListener('click',async()=>{
+    const text=button.closest('.source-code').querySelector('code').textContent;
+    try{if(!navigator.clipboard)throw new Error('Clipboard unavailable');await navigator.clipboard.writeText(text);button.textContent='Copied';}
+    catch{const range=document.createRange();range.selectNodeContents(button.closest('.source-code').querySelector('code'));const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);button.textContent='Text selected';}
+    setTimeout(()=>button.textContent='Copy',2200);
+  }));
+  document.getElementById('print-plan').addEventListener('click',()=>window.print());
+  if('IntersectionObserver' in window){const observer=new IntersectionObserver(entries=>{for(const entry of entries){if(!entry.isIntersecting)continue;document.querySelectorAll('.toc a').forEach(a=>a.classList.toggle('active-section',a.hash==='#'+entry.target.id));}},{rootMargin:'-10% 0px -70% 0px'});document.querySelectorAll('.document h2').forEach(h=>observer.observe(h));}
+})();
+</script></body></html>
