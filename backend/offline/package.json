@@ -1,13 +1,50 @@
 {
-  "name": "healthaccess backend",
+  "name": "healthaccess-offline",
   "version": "1.0.0",
-  "description": "this would be the control for the Offline access: handling SMS and USSD messages",
-  "main": "index.js",
+  "description": "Independent HealthAccess SMS and USSD backend",
+  "private": true,
+  "main": "dist/server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node --env-file-if-exists=.env dist/server.js",
+    "worker": "node --env-file-if-exists=.env dist/worker.js",
+    "dev": "node --env-file-if-exists=.env --import tsx --watch src/server.ts",
+    "dev:worker": "node --env-file-if-exists=.env --import tsx --watch src/worker.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test tests/*.test.ts",
+    "test:db": "tsx --test --test-concurrency=1 tests/integration/*.test.ts",
+    "db:apply": "node --env-file-if-exists=.env --import tsx scripts/apply-schema.ts",
+    "keys:generate": "tsx scripts/generate-keys.ts",
+    "db:seed-demo": "node --env-file-if-exists=.env --import tsx scripts/seed-demo.ts"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "dependencies": {
+    "@openrouter/ai-sdk-provider": "3.1.0",
+    "africastalking": "0.8.4",
+    "ai": "7.0.173",
+    "axios": "1.21.1",
+    "express": "5.3.0",
+    "pg": "8.23.1",
+    "zod": "4.6.7"
+  },
+  "overrides": {
+    "africastalking": {
+      "axios": "1.21.1",
+      "joi": "18.3.2",
+      "body-parser": "2.4.0"
+    }
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "module"
+  "type": "module",
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.6.6",
+    "@types/pg": "^8.23.1",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
 }
