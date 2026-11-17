@@ -90,8 +90,10 @@ DATABASE_URL='postgresql://ADMIN:password@localhost:5432/healthaccess' npm run d
 DATABASE_URL='postgresql://ADMIN:password@localhost:5432/healthaccess' npm run db:seed-demo
 ```
 
-The demo seed creates `Ikeja demo area`, two fictional facilities, and demo patient
-code `123456789012`. Demo facilities are labeled `DEMO` in USSD and SMS.
+The demo seed creates a real, searchable `Ikeja` area (not demo-flagged), reference
+field definitions and services, and demo patient code `123456789012` for sandbox auth
+only. It creates no facility fixtures: facility results come from approved non-demo
+directory rows or from live Serper search, and demo rows are always excluded.
 
 2. Start both processes in separate terminals:
 
@@ -120,16 +122,25 @@ ngrok http 3001
 
 Suggested USSD path: dial, choose `1`, choose `2` for child health, enter `Ikeja`.
 Emergency summary: dial, choose `2`, enter `123456789012`.
+Live emergency help: dial, choose `4`, enter `Ikeja`; results are live, unverified
+leads with 112 guidance and `1. Next` paging.
 Suggested SMS: `HELP`, `FIND child health near Ikeja`, `LOOKUP 123456789012`,
-`MORE`, `CANCEL`, `STOP`. The worker must be running to process SMS and send replies.
+`EMERGENCY Ikeja`, `EMERGENCY near Ikeja`, `MORE`, `CANCEL`, `STOP`. The worker must be
+running to process SMS and send replies.
 
 ## User Flows
 
 - SMS: `HELP`, `FIND child health near Ikeja`, `LOOKUP <12-digit code>`,
-  `ASK <general health question>`, `MORE`, `CANCEL`, `STOP`.
-- USSD: nearby care, patient-selected emergency summary, and additional selected
-  details using both the patient code and a live USSD-enabled temporary grant.
-- USSD uses database directory data only. It never waits on a model or web search.
+  `EMERGENCY [near] <area>`, `ASK <general health question>`, `MORE`, `CANCEL`, `STOP`.
+- USSD: nearby care, live emergency help with 112 guidance, patient-selected emergency
+  summary, and additional selected details using both the patient code and a live
+  USSD-enabled temporary grant.
+- When the approved directory has no non-demo facility for an area, care search falls
+  back to live Serper web leads that are clearly labeled unverified. Emergency help
+  always calls Serper Maps for "emergency hospital" and "ambulance service" in parallel.
+  If live search is unavailable, the reply tells the user to call 112 or go to the
+  nearest emergency department; no facility is ever invented.
+- Emergency requests are recorded best-effort (`EmergencyRequest` channel SMS/USSD).
 - Every protected page, including a repeated callback, checks current permissions.
   Additional grant details are never automatically forwarded by SMS.
 

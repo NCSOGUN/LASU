@@ -36,6 +36,15 @@ function commaSeparated(value = ''): string[] {
     .filter(Boolean);
 }
 
+function httpLogBodies(env: Environment, mode: string): 'off' | 'redacted' | 'full' {
+  const value = (env.LOG_HTTP_BODIES || '').trim().toLowerCase();
+  if (!value) return mode === 'production' ? 'redacted' : 'full';
+  if (value !== 'off' && value !== 'redacted' && value !== 'full') {
+    throw new Error('LOG_HTTP_BODIES must be off, redacted or full');
+  }
+  return value;
+}
+
 // The pilot has a small environment surface. Operational defaults live here.
 export function loadConfig(env: Environment = process.env) {
   const mode = env.NODE_ENV || 'development';
@@ -88,6 +97,9 @@ export function loadConfig(env: Environment = process.env) {
     allowedCidrs,
     callbackBodyLimitBytes: 8192,
     callbackRatePerMinute: 120,
+    // Full callback bodies include phone numbers and health text. Production
+    // defaults to redacted; set LOG_HTTP_BODIES=full only for local debugging.
+    httpLogBodies: httpLogBodies(env, mode),
     phoneRatePerMinute: 20,
     lookupRatePerMinute: 10,
     smsTransport: atApiKey ? ('africastalking' as const) : ('mock' as const),

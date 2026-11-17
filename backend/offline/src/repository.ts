@@ -154,6 +154,15 @@ function isUniqueViolation(error: unknown): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
 }
 
+// Live search providers format Nigerian numbers with spaces, dots or parentheses.
+// Normalize before validation so emergency leads keep their contact number.
+export function normalizePhoneNumber(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const compact = value.trim().replace(/[\s().-]+/g, '');
+  if (!compact) return null;
+  return /^\+[1-9][0-9]{7,14}$/.test(compact) ? compact : null;
+}
+
 export class Repository {
   readonly prisma: PrismaClient;
   private readonly ownsPrisma: boolean;
@@ -296,6 +305,9 @@ export class Repository {
       readMatchingContext: (id) => this.readProfileContext(id, actor, database),
       setOptOut: (optedOut) => this.setOptOut(database, actor.phone_digest, optedOut),
       storeWebLeads: (leads) => this.storeWebLeads(leads, database),
+      getWebLead: (id) => this.getWebLead(id, database),
+      recordEmergencyRequest: (request) =>
+        this.recordEmergencyRequest({ ...request, request_id: actor.request_id }, database),
       recordReferral: (referral) => this.recordReferral(referral, actor, database),
       queueFacilitySms: async (facilityId) => {
         if (!actor.session_id || !currentPhone) return false;
@@ -783,7 +795,7 @@ export class Repository {
             )))::numeric, 3)::float8
           END AS distance_km
         FROM area a
-        JOIN "facilities" f ON f.status = 'APPROVED'
+        JOIN "facilities" f ON f.status = 'APPROVED' AND f.is_demo = false
         JOIN "areas" facility_area ON facility_area.id = f.area_id
           AND facility_area.active AND facility_area.country_code = a.country_code
         JOIN "facility_services" fs ON fs.facility_id = f.id
@@ -803,7 +815,7 @@ export class Repository {
     );
   }
 
-  private async getWebLead(id: string, database: Db = this.prisma): Promise<WebLead | null> {
+  async getWebLead(id: string, database: Db = this.prisma): Promise<WebLead | null> {
     const lead = await database.webLead.findFirst({
       where: { id, status: { in: ['UNVERIFIED', 'REVIEW_CANDIDATE'] } },
       include: { source: { select: { trust_tier: true } } },
@@ -832,8 +844,7 @@ export class Repository {
     const url = clean(lead.source_url, 2048);
     const snippet = clean((lead as unknown as { snippet?: unknown }).snippet, 1000);
     const title = clean((lead as unknown as { title?: unknown }).title, 300);
-    let phone = clean(lead.phone, 40);
-    if (phone && !/^\+[1-9][0-9]{7,14}$/.test(phone)) phone = null;
+    const phone = normalizePhoneNumber(clean(lead.phone, 40));
     if (!name || !address || !url || !/^https?:\/\//.test(url)) return null;
     const provided = clean(
       (lead as unknown as { content_fingerprint?: unknown }).content_fingerprint,
@@ -896,6 +907,52 @@ export class Repository {
       ids.push(saved.id);
     }
     return ids;
+  }
+
+  async recordEmergencyRequest(
+    request: {
+      channel: 'SMS' | 'USSD';
+      area_id: string | null;
+      location_text: string;
+      results: WebLead[];
+      request_id?: string;
+    },
+    database: Db = this.prisma,
+  ): Promise<void> {
+    const results = (Array.isArray(request.results) ? request.results : [])
+      .slice(0, 8)
+      .map((lead) => ({
+        name: typeof lead.name === 'string' ? lead.name.slice(0, 200) : '',
+        address: typeof lead.address === 'string' ? lead.address.slice(0, 500) : '',
+        phone: normalizePhoneNumber(lead.phone),
+        source_url: typeof lead.source_url === 'string' ? lead.source_url.slice(0, 2048) : '',
+        source_reference:
+          typeof lead.source_reference === 'string' ? lead.source_reference.slice(0, 300) : '',
+        verification_status: 'unverified' as const,
+        service_label:
+          typeof lead.service_label === 'string' ? lead.service_label.slice(0, 80) : '',
+      }))
+      .filter((lead) => lead.name && lead.source_url);
+    let areaId: string | null = null;
+    if (request.area_id) {
+      const area = await database.area.findFirst({
+        where: { id: request.area_id, active: true },
+        select: { id: true },
+      });
+      areaId = area?.id ?? null;
+    }
+    const location = typeof request.location_text === 'string' ? request.location_text.trim() : '';
+    await database.emergencyRequest.create({
+      data: {
+        channel: request.channel,
+        kind: 'emergency',
+        area_id: areaId,
+        location_text: location ? location.slice(0, 300) : null,
+        status: results.length ? 'MATCHED' : 'NO_MATCH',
+        results: results as unknown as Prisma.InputJsonValue,
+        request_id: request.request_id ?? '',
+      },
+    });
   }
 
   private async recordReferral(

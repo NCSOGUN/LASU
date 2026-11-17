@@ -173,6 +173,19 @@ enum WebLeadStatus {
   REJECTED
 }
 
+enum EmergencyRequestChannel {
+  WEB
+  SMS
+  USSD
+}
+
+enum EmergencyRequestStatus {
+  SEARCHED
+  MATCHED
+  NO_MATCH
+  FAILED
+}
+
 enum ContentStatus {
   DRAFT
   REVIEWED
@@ -251,6 +264,7 @@ model Account {
   notification_tokens     NotificationToken[]
   reviewed_contents       ReviewedHealthContent[]
   web_observations        WebObservation[]
+  emergency_requests      EmergencyRequest[]
 
   @@index([email])
   @@map("accounts")
@@ -349,6 +363,7 @@ model PatientProfile {
   medical_events     MedicalEvent[]
   medication_schedules MedicationSchedule[]
   referral_requests  ReferralRequest[]
+  emergency_requests EmergencyRequest[]
   audit_events       AuditEvent[]
 
   @@map("patient_profiles")
@@ -799,6 +814,7 @@ model Area {
   facilities       Facility[]
   patient_profiles PatientProfile[]
   referral_requests ReferralRequest[]
+  emergency_requests EmergencyRequest[]
 
   @@index([name, city, region])
   @@map("areas")
@@ -967,6 +983,32 @@ model ReferralResult {
   @@id([referral_id, facility_id])
   @@unique([referral_id, rank])
   @@map("referral_results")
+}
+
+model EmergencyRequest {
+  id            String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  patient_id    String?                 @db.Uuid
+  account_id    String?                 @db.Uuid
+  channel       EmergencyRequestChannel
+  kind          String                  @default("emergency")
+  area_id       String?                 @db.Uuid
+  location_text String?
+  latitude      Decimal?                @db.Decimal(8, 6)
+  longitude     Decimal?                @db.Decimal(9, 6)
+  status        EmergencyRequestStatus  @default(SEARCHED)
+  results       Json                    @default("[]")
+  request_id    String                  @default("")
+  created_at    DateTime                @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime                @updatedAt @db.Timestamptz(6)
+
+  patient       PatientProfile?         @relation(fields: [patient_id], references: [id], onDelete: SetNull)
+  account       Account?                @relation(fields: [account_id], references: [id], onDelete: SetNull)
+  area          Area?                   @relation(fields: [area_id], references: [id], onDelete: SetNull)
+
+  @@index([account_id, created_at(sort: Desc)])
+  @@index([patient_id, created_at(sort: Desc)])
+  @@index([channel, created_at(sort: Desc)])
+  @@map("emergency_requests")
 }
 
 // ---------------------------------------------------------------------------

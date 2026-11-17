@@ -423,7 +423,7 @@ test(
             latitude: 10,
             longitude: 7,
             status: 'APPROVED',
-            is_demo: true,
+            is_demo: false,
           },
         });
         await prisma.facilityService.create({
@@ -453,7 +453,7 @@ test(
           { ...body, text: `1*1*Queue Test Area ${suffix}` },
           randomUUID(),
         );
-        assert.match(result, /^CON DEMO: Retry test clinic/);
+        assert.match(result, /^CON Retry test clinic/);
 
         const queue = () =>
           repository.withUssdSession(body, randomUUID(), async (_session, scoped) => {

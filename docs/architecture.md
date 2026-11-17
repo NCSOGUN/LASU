@@ -37,6 +37,7 @@ Owned by `src/app.ts` and `src/routes.ts`:
 /v1/auth          authRouter
 /v1/me            meRouter (users) and mePortalRouter (portal)
 /v1/directory     directoryRouter
+/v1/emergency     emergencyRouter
 /v1/records       recordsRouter
 /v1/symptom       symptomRouter
 /v1/medications   medicationsRouter
@@ -47,6 +48,17 @@ Each module is expected to export a named Express `Router` from
 `src/modules/<name>/router.ts`. Modules must not import each other; shared needs
 go through `src/services/**`, `src/domain/**` or `backend/shared`.
 
+Directory reads merge approved, non-demo facilities from the database with live
+Serper Maps results. Live results are stored as `sources` + `web_leads`, labelled
+`verification_status: "unverified"`, and are never presented as verified
+facilities. `include_live=false` disables the live supplement for a request.
+
+`POST /v1/emergency` searches live emergency hospitals and ambulance services
+through Serper, stores an `emergency_requests` row scoped to the authenticated
+account, and returns ranked contact results plus immediate-call guidance. It does
+not dispatch an ambulance. `GET /v1/emergency` and `GET /v1/emergency/:id` are
+account-scoped history reads.
+
 Implementation status: auth, users, portal, directory, symptom and medication
 routers have handlers. The AI layer (`src/ai/`), medication reminder job and FCM
 service are implemented and covered by DB integration tests. Live FCM delivery is
@@ -54,8 +66,8 @@ not verified; OpenRouter was smoke-tested, while production credentials for the
 other providers are not configured. See the phase table in [README.md](README.md).
 
 `src/db.ts` exports a single `PrismaClient` (cached on `globalThis` outside
-production) for the online process and for offline reuse through the workspace
-dependency. `src/middleware/auth.ts` verifies JWTs and loads a live
+production) for the online process. The offline service has its own `src/db.ts`
+using the same generated Prisma client. `src/middleware/auth.ts` verifies JWTs and loads a live
 `auth_sessions` row. `src/services/audit.ts` writes `audit_events`, including the
 `recordAiAudit()` helper used for AI actions.
 
@@ -92,7 +104,7 @@ Prisma-managed database.
 
 ### Supporting services
 
-- Redis 7 - optional cache/session-adjacent infrastructure (`REDIS_URL`).
+- Redis 7 - included in the compose stack; optional for direct runs (`REDIS_URL`).
 - S3-compatible storage - avatars and symptom attachments, presigned URLs;
   MinIO is the local option.
 - Firebase Cloud Messaging - medication push reminders.
@@ -153,19 +165,28 @@ Implemented in `src/modules/portal/`, `src/domain/access.ts` and
   values. `access_attempts` records throttled/denied lookup attempts.
 
 Controllers resolve the patient from `req.auth`; they never accept a patient id
-from the request body. Directory reads are service-first and only approved
-facilities with approved facility-service links are eligible for a care match.
-Web leads remain unverified.
+from the request body. Directory reads are service-first and only approved,
+non-demo facilities with approved facility-service links are eligible for a
+verified care match. A live Serper supplement fills the remaining result slots
+with unverified web leads; web leads remain clearly labelled as unverified.
 
 ## AI behavior
 
 Status: `src/ai/` contains models, prompts, schemas, tools, agents and the
 medication adapter, and `src/modules/symptom/` exposes the chat, follow-up and
-attachment routes. The symptom tests inject a fake agent and pass 10/10. The
+attachment routes. The symptom tests inject a fake agent and pass 18/18. The
 LangGraph checkpointer schema `ai_agent_state` is pre-created and granted to the
 runtime role; `checkpointer.setup()` is skipped when it is already initialized.
 The offline service has a separate, smaller OpenRouter pipeline for SMS
 classification and reviewed/web answers.
+
+Symptom analysis also supports server-sent events at
+`POST /v1/symptom/stream` and `POST /v1/symptom/:id/follow-up/stream`. The routes
+emit `record`, `step` (agent tool start/completed/failed), `token` and `done`
+events, with `error` replacing `done` on failure. The stream is built from
+LangGraph `streamEvents` (`version: "v2"`) and uses the same checkpointer thread
+as the non-streaming route. Client disconnects abort the model call; attachments
+are cleaned up and a newly created record is deleted only if no token was sent.
 
 - Agents: symptom chat (ReAct loop with conversation memory) and medication
   scheduling/addition.
