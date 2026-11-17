@@ -6,8 +6,6 @@ import { hero, heroScreens } from "./content";
 import { PhoneChrome } from "./Phone";
 import { PhoneScreen } from "./PhoneScreens";
 
-const pad = (n: number) => String(n).padStart(2, "0");
-
 /*
  * Screen rectangle inside /landing/hero/hand-phone.webp (688x1024, measured from the cut-out):
  * left 26.31%, top 1.86%, width 46.66%, height 66.41%. If the image is swapped, re-measure these.
