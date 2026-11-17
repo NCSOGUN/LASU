@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { act, renderHook } from "@testing-library/react";
 import {
   areaLabel,
   distanceFromCentre,
@@ -7,6 +8,11 @@ import {
   sourceTrustLabel,
   sourceTrustTone,
 } from "@/features/care/format";
+import { useDebouncedValue } from "@/features/care/useDebouncedValue";
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 describe("care formatting", () => {
   it("formats a straight-line distance to one decimal place", () => {
@@ -40,5 +46,44 @@ describe("care formatting", () => {
     expect(areaLabel({ name: "Ikeja demo area", region: "Lagos" })).toBe("Ikeja demo area, Lagos");
     expect(areaLabel({ name: "Ikeja demo area", region: null })).toBe("Ikeja demo area");
     expect(areaLabel({ name: "Lagos", region: "Lagos" })).toBe("Lagos");
+  });
+});
+
+describe("useDebouncedValue", () => {
+  it("holds a change until the delay has passed", () => {
+    vi.useFakeTimers();
+    const { result, rerender } = renderHook(({ value }) => useDebouncedValue(value, 250), {
+      initialProps: { value: "" },
+    });
+
+    rerender({ value: "i" });
+    rerender({ value: "ik" });
+    act(() => {
+      vi.advanceTimersByTime(249);
+    });
+    expect(result.current).toBe("");
+
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(result.current).toBe("ik");
+  });
+
+  it("keeps the latest value when typing continues", () => {
+    vi.useFakeTimers();
+    const { result, rerender } = renderHook(({ value }) => useDebouncedValue(value, 250), {
+      initialProps: { value: "" },
+    });
+
+    rerender({ value: "Ike" });
+    act(() => {
+      vi.advanceTimersByTime(200);
+    });
+    rerender({ value: "Ikeja" });
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+
+    expect(result.current).toBe("Ikeja");
   });
 });
