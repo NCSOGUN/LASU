@@ -372,6 +372,40 @@ export const scheduleDelete = {
   "message": "Medication schedule deleted"
 };
 
+/** Decimal strings that are not whole numbers, for the adherence parsing tests. */
+export const scheduleDecimal = {
+  "schedule": {
+    "id": "9c2e5b41-7a18-4d0e-bf52-3a6c8d1e4f70",
+    "patient_id": "20000000-0000-4000-8000-000000000005",
+    "title": "Partial adherence plan",
+    "description": null,
+    "medications": [
+      {
+        "dose": "250 mg",
+        "drug": "Amoxicillin",
+        "times": [
+          {
+            "hour": 9,
+            "minute": 0
+          },
+          {
+            "hour": 21,
+            "minute": 0
+          }
+        ],
+        "frequency": "Twice daily"
+      }
+    ],
+    "start_date": "2026-11-16T00:00:00.000Z",
+    "end_date": "2026-11-18T00:00:00.000Z",
+    "summary": "Amoxicillin 250 mg twice daily",
+    "progress": "66.67",
+    "score": "83.5",
+    "created_at": "2026-11-16T08:00:00.000Z",
+    "updated_at": "2026-11-17T09:15:00.000Z"
+  }
+};
+
 export const deviceRegistered = {
   "device": {
     "id": "85d0c92f-7e2b-4e27-8efd-289f5f6de2ea",
