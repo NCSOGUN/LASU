@@ -1,34 +1,30 @@
-import { BodyMap } from "@/features/landing/BodyMap";
+import { Bento } from "@/features/landing/Bento";
 import { Channels } from "@/features/landing/Channels";
-import { Features } from "@/features/landing/Features";
+import { FinalCta } from "@/features/landing/FinalCta";
 import { Footer } from "@/features/landing/Footer";
 import { Hero } from "@/features/landing/Hero";
-import { HowItWorks } from "@/features/landing/HowItWorks";
 import { LandingMotion } from "@/features/landing/LandingMotion";
 import { PillNav } from "@/features/landing/PillNav";
 import { Preloader } from "@/features/landing/Preloader";
-import { Problem } from "@/features/landing/Problem";
-import { Roadmap } from "@/features/landing/Roadmap";
+import { Steps } from "@/features/landing/Steps";
 import { Trust } from "@/features/landing/Trust";
 
-// Section order: landing-references.md (how-it-works before the body map, approved).
+// Landing v2: dark layout modelled on the 21st.dev voice-app template (user request), HealthAccess content.
 export default function LandingPage() {
   return (
-    <>
+    <div className="landing min-h-dvh bg-night text-fog">
       <Preloader />
       <PillNav />
       <main id="main">
         <Hero />
-        <Problem />
-        <HowItWorks />
-        <BodyMap />
-        <Features />
+        <Bento />
+        <Steps />
         <Channels />
         <Trust />
-        <Roadmap />
+        <FinalCta />
       </main>
       <Footer />
       <LandingMotion />
-    </>
+    </div>
   );
 }

@@ -1,34 +1,41 @@
 @import "tailwindcss";
 
 /*
- * HealthAccess design tokens. Source: prototype tokens + approved additions (progress.md, palette gate).
- * Shared by the landing page and the app shell. Tailwind utilities: bg-brand, text-ink, border-line, ...
+ * HealthAccess design tokens.
+ * Light app tokens come from the prototype (approved palette). The "night" tokens drive the dark landing page
+ * (redesign modelled on the 21st.dev voice-app template, recoloured to HealthAccess greens).
+ * Contrast (WCAG AA): fog on night 14.4, fog-muted on night 7.0 / on night-card 6.5, mint on night-card 10.1.
  */
 @theme {
+  /* App (light) */
   --color-brand: #17644f;
   --color-brand-dark: #104b3b;
   --color-ink: #183d35;
-  --color-muted: #5a6e67; /* darkened from prototype #62766f for AA on wash */
+  --color-muted: #5a6e67;
   --color-wash: #f3f7f4;
   --color-paper: #ffffff;
   --color-soft: #e8f3eb;
   --color-line: #dce5df;
-  --color-deep: #071f24;
-  --color-deep-raised: #0c2f33;
-  --color-deep-line: #1d4a49;
-  --color-on-deep: #e6f0ea;
-  --color-on-deep-muted: #9fb8b0;
-  --color-mint: #7fd1ae;
-  --color-amber: #d79738; /* focus ring on dark */
-  --color-amber-ink: #a8620f; /* focus ring on light */
   --color-warn: #fff3df;
   --color-error: #a23535;
+  --color-amber: #d79738;
+  --color-amber-ink: #a8620f;
+  --color-mint: #7fd1ae;
+
+  /* Landing (dark) */
+  --color-night: #070d0e;
+  --color-night-card: #0e1719;
+  --color-night-raised: #152224;
+  --color-night-line: #1d2c2e;
+  --color-fog: #d5dfdb;
+  --color-fog-muted: #8d9e98;
+  --color-fog-dim: #7d8e88;
+  --color-pill: #e9f1ed;
+  --color-teal: #2bb3a3;
 
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-head: var(--font-manrope), var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Consolas, monospace;
-
-  --radius-card: 16px;
-  --radius-section: 28px;
 
   --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-curtain: cubic-bezier(0.7, 0, 0.3, 1);
@@ -36,7 +43,6 @@
 
 @layer base {
   html {
-    color-scheme: light;
     -webkit-text-size-adjust: 100%;
   }
   body {
@@ -48,25 +54,21 @@
   :focus-visible {
     outline: 3px solid var(--color-amber-ink);
     outline-offset: 3px;
-    border-radius: 4px;
+    border-radius: 6px;
   }
-  .on-deep :focus-visible {
+  body:has(.landing) {
+    background: var(--color-night);
+  }
+  .landing :focus-visible {
     outline-color: var(--color-amber);
   }
-  ::selection {
+  .landing ::selection {
     background: var(--color-mint);
-    color: var(--color-deep);
+    color: var(--color-night);
   }
 }
 
-/* Section that overlaps the one before it with rounded top corners (CardiaTec-style card stack, plain CSS). */
-.stack-card {
-  position: relative;
-  margin-top: calc(var(--radius-section) * -1);
-  border-radius: var(--radius-section) var(--radius-section) 0 0;
-}
-
-/* ---------- Preloader (shown only when <html> has .ha-preload, set by the inline head script) ---------- */
+/* ---------- Preloader (visible only when <html> has .ha-preload, set by the inline head script) ---------- */
 .preloader {
   display: none;
 }
@@ -106,39 +108,81 @@ html.ha-preload.ha-preload-done .preloader {
   }
 }
 
-/* ---------- Hero intro: layers settle in after the curtain lifts ---------- */
-html[data-intro="play"] .hero-layer {
-  animation: layer-in 900ms var(--ease-out-soft) both;
-  animation-delay: calc(var(--depth) * 70ms);
+/* ---------- Word-by-word blur reveal (the template's signature heading motion) ----------
+ * The hidden state applies only when html[data-motion] is set by the head script (JS on, motion allowed),
+ * so without JS or under reduced motion the text is simply visible. InView sets [data-in] on the trigger. */
+html[data-motion] [data-inview] .bw {
+  display: inline-block;
+  opacity: 0;
+  filter: blur(12px);
+  translate: 0 0.18em;
 }
-@keyframes layer-in {
-  from {
-    opacity: 0;
-    scale: 0.92;
-  }
+html[data-motion] [data-inview][data-in] .bw {
+  animation: word-in 900ms var(--ease-out-soft) forwards;
+  animation-delay: calc(var(--w) * 70ms);
 }
-html[data-intro="play"] .nav-item {
-  animation: fade-up 500ms var(--ease-out-soft) both;
-  animation-delay: calc(200ms + var(--i) * 60ms);
+/* While the preloader curtain is down, hold reveals so they play as it lifts. */
+html.ha-preload:not(.ha-preload-done) .bw,
+html.ha-preload:not(.ha-preload-done) .rise {
+  animation-play-state: paused !important;
 }
-@keyframes fade-up {
-  from {
-    opacity: 0;
-    translate: 0 -6px;
+@keyframes word-in {
+  to {
+    opacity: 1;
+    filter: blur(0);
+    translate: 0 0;
   }
 }
 
-/* Slow drift on the background dot field. */
-@keyframes drift {
+/* Generic fade-up for cards. */
+html[data-motion] [data-inview] .rise {
+  opacity: 0;
+  translate: 0 28px;
+}
+html[data-motion] [data-inview][data-in] .rise {
+  animation: rise 900ms var(--ease-out-soft) forwards;
+  animation-delay: calc(var(--d, 0) * 90ms + 150ms);
+}
+@keyframes rise {
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
+/* Hero phone rises once the curtain lifts (data-intro is set by the head script or the preloader). */
+html[data-motion] .hero-phone {
+  opacity: 0;
+  translate: 0 80px;
+}
+html[data-motion][data-intro="play"] .hero-phone {
+  animation: rise 1200ms var(--ease-out-soft) 250ms forwards;
+}
+
+/* Glossy objects float gently. */
+@keyframes float {
   50% {
-    translate: 6px -8px;
+    translate: 0 -14px;
   }
 }
-.drift {
-  animation: drift 14s ease-in-out infinite;
+.float {
+  animation: float 7s ease-in-out infinite;
+  animation-delay: var(--delay, 0s);
 }
 
-/* Slide timer bar. */
+/* Fade-swap for phone screens and slides. */
+.swap-in {
+  animation: swap-in 500ms var(--ease-out-soft) both;
+}
+@keyframes swap-in {
+  from {
+    opacity: 0;
+    translate: 0 10px;
+    filter: blur(6px);
+  }
+}
+
+/* Slide timer bar (auto-advance fires on animationend). */
 .slide-progress {
   transform-origin: left;
   animation: slide-progress var(--slide-ms) linear forwards;
@@ -152,6 +196,21 @@ html[data-intro="play"] .nav-item {
   }
 }
 
+/* Light rays behind the channel orb. */
+.rays {
+  background:
+    linear-gradient(100deg, transparent 30%, rgba(127, 209, 174, 0.55) 49%, rgba(255, 255, 255, 0.8) 50%, rgba(215, 151, 56, 0.5) 51%, transparent 70%),
+    linear-gradient(80deg, transparent 32%, rgba(43, 179, 163, 0.4) 49.5%, transparent 68%);
+  filter: blur(1px);
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -161,40 +220,4 @@ html[data-intro="play"] .nav-item {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
-}
-
-/* Code ring turns very slowly (reduced motion: stopped by the global rule above). */
-@keyframes slow-spin {
-  to {
-    rotate: 360deg;
-  }
-}
-.slow-spin {
-  animation: slow-spin 160s linear infinite;
-}
-
-/* How-it-works layer stack. Default (no JS): every layer at full strength. */
-.step-layer path {
-  fill: var(--color-soft);
-  stroke: var(--color-brand);
-  stroke-opacity: 0.35;
-  transition: fill 300ms, stroke-opacity 300ms, translate 300ms var(--ease-out-soft);
-}
-.step-layer text {
-  font-size: 13px;
-  font-weight: 600;
-  fill: var(--color-ink);
-}
-[data-steps-ready] .step-layer path {
-  fill: var(--color-paper);
-  stroke-opacity: 0.2;
-}
-[data-steps-ready] .step-layer[data-active] path {
-  fill: var(--color-brand);
-  stroke-opacity: 1;
-  translate: 0 -6px;
-}
-[data-steps-ready] .step-layer[data-active] text {
-  fill: #fff;
-  translate: 0 -6px;
 }

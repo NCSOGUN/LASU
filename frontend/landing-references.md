@@ -95,3 +95,21 @@ I swapped how-it-works and the body map compared with the brief: Hero → Proble
 - **Hero:** inline/critical SVG under about 30 KB total. Text is LCP. Below-the-fold art is lazy-loaded.
 - **Font:** one variable Inter WOFF2 via `next/font`, latin subset.
 - **Fallbacks:** every animation has a static end state and a reduced-motion branch. Without JS the page is complete, with no preloader.
+
+---
+
+## v2 reference: 21st.dev voice-app template (user request, 2026-11-17)
+Source: https://voice-ai-app-dark-landing-page-v2.21st.app/, inspected in Chromium at 1440 px.
+- **Stack:** custom fonts embedded as data URLs, CSS keyframes (`mm-spin`, `mm-rot`), canvases for the orbs. No GSAP or Three.js.
+- **Structure:**
+  - sticky nav;
+  - hero: 100 px headline that blurs in word by word, with a hand-held phone photo rising;
+  - "Think smarter" bento grid;
+  - pinned-phone scroll steps (`position: sticky`, `top: 80px`);
+  - "Hands-free" carousel;
+  - "Plus" section with glossy 3D objects;
+  - call to action with an email form;
+  - footer.
+- **Kept:** layout, dark palette structure, word blur-in, pinned-phone scroll steps, bento, carousel, glossy-object section.
+- **Adapted:** purple and orange iridescence becomes mint, teal and amber. The hand photo becomes a CSS phone. The 3D objects are redrawn as original SVGs: cross, shield, pin.
+- **Skipped:** the email form (D12) and the template's photos and webp objects (licensed to the template, not ours).

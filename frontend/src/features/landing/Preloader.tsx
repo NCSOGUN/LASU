@@ -55,7 +55,7 @@ export function Preloader() {
 
   return (
     <div
-      className="preloader on-deep fixed inset-0 z-[9999] flex-col items-center justify-center gap-6 bg-deep text-on-deep"
+      className="preloader fixed inset-0 z-[9999] flex-col items-center justify-center gap-6 bg-night text-fog"
       data-testid="preloader"
     >
       <svg aria-hidden="true" width="84" height="84" viewBox="0 0 84 84">
@@ -76,7 +76,7 @@ export function Preloader() {
       <button
         type="button"
         onClick={finish}
-        className="absolute bottom-6 right-6 min-h-11 rounded-full px-4 text-sm text-on-deep-muted underline-offset-4 hover:text-on-deep hover:underline"
+        className="absolute bottom-6 right-6 min-h-11 rounded-full px-4 text-sm text-fog-muted underline-offset-4 hover:text-fog hover:underline"
       >
         Skip intro
       </button>

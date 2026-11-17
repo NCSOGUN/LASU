@@ -1,40 +1,66 @@
 # HealthAccess frontend progress
 
 ## Status summary
-Phase 2 (landing page): research is done. Waiting for approval of the palette and headline before building.
+Phase 2 (landing page): **v2 dark redesign built** (user request, 2026-11-17), modelled on the 21st.dev voice-app template and recoloured to HealthAccess greens. Typecheck, lint and build pass. Waiting for review before Phase 3 (scope.md).
 
 ## Completed
-- **Phase 0:** audit approved (2026-11-17). All five defaults accepted (see Decisions).
+- **Phase 0:** audit approved. Defaults D1–D5 accepted.
 - **Phase 1:**
-  - Next.js 16.4 (App Router, Cache Components) with TypeScript strict, Tailwind 4, ESLint 9, GSAP 3.15 and `@gsap/react`.
-  - `/api/v1/*` proxied to FastAPI (`HEALTHACCESS_API_ORIGIN`).
-  - Security headers on every route (`Referrer-Policy: no-referrer`, nosniff, no framing, Permissions-Policy).
-  - `Cache-Control: no-store` on `/app`, `/practitioner`, `/lookup`, `/admin` and `/assistant`.
-  - Reference docs moved to `docs/`. Third-party screenshots are gitignored.
+  - Next.js 16.4 (App Router, Cache Components), TypeScript strict, Tailwind 4.
+  - `/api/v1` proxied to FastAPI.
+  - Security headers, plus `no-store` on sensitive routes.
+- **Phase 2 v1:** light layered-SVG landing page (commit `76739ea`). Kept in history and replaced by v2.
+- **Phase 2 v2:** dark landing page.
+  - **Hero:** blur-in headline and a CSS phone cycling the three journeys, with counter, pause and reduced-motion support.
+  - **Feature grid** (bento): the directory card has a canvas wireframe globe.
+  - **How it works:** a pinned phone follows the scroll steps.
+  - **Channels carousel:** scroll-snap; the voice card is marked "later".
+  - **Trust section:** glossy SVG objects, plus a Release 1 scope strip.
+  - **Final CTA and footer.**
+  - **Preloader:** kept and recoloured.
+  - **Verified:**
+    - No horizontal overflow at 360, 768, 1280 or 1920 px.
+    - Reduced motion: no preloader, all content visible.
+    - Without JavaScript: content visible.
+    - Keyboard: tab order follows the page (skip link, nav links, then the carousel controls).
+    - Headings: in order, h1 → h2 → h3.
 
 ## In progress
-- **Phase 2:** landing page. `landing-references.md` is written; palette and headlines are proposed.
+- Waiting for the user's review of v2.
 
 ## Next
-- After the palette and headline are approved: build the landing sections in the order given in `landing-references.md` (how-it-works comes before the body map).
-- Run typecheck, lint and build. Take screenshots at 360, 768, 1280 and 1920 px.
+- Phase 3: write `scope.md` for the builder model.
 
 ## Blocked/Decisions
 | # | Decision | Source |
 |---|---|---|
-| D1 | Landing page at `/`, assistant at `/assistant` | Q1, approved |
-| D2 | Use the DB's 8 field keys and types (arrays for allergies, medications and conditions), not the prototype's 6 strings | Q2, approved |
-| D3 | Landing Channels section shows a scripted SMS/USSD simulation (fictional, labelled). No interactive simulator in the app | Q3, approved |
-| D4 | No analytics in Release 1. If added later: page paths only, never `/app`, `/practitioner` or `/lookup` | Q4, approved |
-| D5 | English only. Strings kept in one place for later translation | Q5, approved |
-| D6 | No Three.js. Hero art is layered SVG with GSAP: lighter, and works without WebGL | Phase 1 stack |
-| D7 | Practitioner access moves out of `/lookup` into `/practitioner/lookup` | Audit |
-| D8 | Backend points to confirm. Mock defaults: CSRF uses a double-submit cookie plus an `X-CSRF-Token` header; step-up auth is a 403 with `REAUTH_REQUIRED`; practitioner accounts are seeded | Audit gap |
-| D9 | Cache Components keeps hidden routes' state (`<Activity>`). Screens that show codes must clear them on hide or unmount | Next 16 docs |
+| D1 | Landing page at `/`, assistant at `/assistant` | Q1 |
+| D2 | DB's 8 field keys and types | Q2 |
+| D3 | Channels shown as fictional simulations; no interactive simulator | Q3 |
+| D4 | No analytics in Release 1 | Q4 |
+| D5 | English only; landing strings in `src/features/landing/content.ts` | Q5 |
+| D6 | No Three.js. The globe is about 100 lines of canvas 2D | Stack |
+| D7 | Practitioner access lives at `/practitioner/lookup`, not `/lookup` | Audit |
+| D8 | Backend points to confirm. Mock defaults: CSRF uses a double-submit cookie plus `X-CSRF-Token`; step-up auth is a 403 with `REAUTH_REQUIRED`; practitioner accounts are seeded | Audit |
+| D9 | Next 16 keeps hidden routes' state alive. Screens that show codes must clear them on hide | Next 16 docs |
+| D10 | **v2 redesign** follows the 21st.dev "Murmur" template's layout and motion only. No template assets are copied: the hand photo becomes a CSS phone, and the glossy images are original SVGs in `public/landing/objects/` | User request |
+| D11 | **GSAP removed.** v2 motion is reveal-on-enter, done with CSS and one IntersectionObserver. This supersedes the original stack note | v2 |
+| D12 | The template's email form is replaced by links. There is no newsletter backend, and collecting emails needs a consent and storage decision | v2 |
+| D13 | Template sections not carried over: problem block, body-silhouette map, team. The v1 versions are in commit `76739ea` if wanted back | v2 |
+| D14 | Fonts: Inter (body) plus Manrope (headings) to match the template's display face | v2 |
 
 **Open items:**
-- **[SOURCE NEEDED]:** no statistics are available yet. The landing page uses qualitative copy only.
-- `directory.web_leads` (unverified web-search facilities) exists in the DB and the Node service but not in Plan 1. If the API ever returns them, they need an "unverified" label.
+- **[SOURCE NEEDED]:** none outstanding. v2 contains no statistics.
+- `directory.web_leads` exists in the DB but not in Plan 1. If shown, label it "unverified".
+- Links to `/assistant`, `/lookup`, `/register`, `/find-care` and `/login` return 404 until Phase 3 builds those routes. Next's link prefetch logs these in the console.
 
 ## Review log
-_(empty)_
+- **2026-11-17, v1 self-review:**
+  - Nav contrast over dark sections fixed.
+  - Body-map list order fixed on mobile.
+  - Preloader skip button no longer focusable after the curtain lifts.
+- **2026-11-17, v2 self-review:**
+  - The hero carousel label wrapped on mobile; the controls were moved out of the phone's width.
+  - Step text was dimmed on mobile, where every step shows its own screen; dimming now applies only at `lg`.
+  - A light strip showed below the footer; fixed with `body:has(.landing)`.
+  - Phone text inherited `text-center` from the hero; fixed.

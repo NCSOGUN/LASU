@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" aria-hidden="true">
+  <defs>
+    <linearGradient id="b" x1="30" y1="20" x2="170" y2="185" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#d9fff0"/><stop offset=".3" stop-color="#7fd1ae"/><stop offset=".62" stop-color="#2bb3a3"/><stop offset=".85" stop-color="#17644f"/><stop offset="1" stop-color="#d79738"/>
+    </linearGradient>
+    <radialGradient id="h" cx="70" cy="55" r="70" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fff" stop-opacity=".95"/><stop offset=".5" stop-color="#fff" stop-opacity=".18"/><stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="r" x1="0" y1="0" x2="200" y2="200" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fff" stop-opacity=".9"/><stop offset=".5" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#ffd59a" stop-opacity=".7"/>
+    </linearGradient>
+    <filter id="s" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="9"/></filter>
+  </defs>
+  <path d="M78 22h44a12 12 0 0 1 12 12v32h32a12 12 0 0 1 12 12v44a12 12 0 0 1-12 12h-32v32a12 12 0 0 1-12 12H78a12 12 0 0 1-12-12v-32H34a12 12 0 0 1-12-12V78a12 12 0 0 1 12-12h32V34a12 12 0 0 1 12-12z" fill="#2bb3a3" opacity=".45" filter="url(#s)" transform="translate(6 10)"/>
+  <path d="M78 22h44a12 12 0 0 1 12 12v32h32a12 12 0 0 1 12 12v44a12 12 0 0 1-12 12h-32v32a12 12 0 0 1-12 12H78a12 12 0 0 1-12-12v-32H34a12 12 0 0 1-12-12V78a12 12 0 0 1 12-12h32V34a12 12 0 0 1 12-12z" fill="url(#b)"/>
+  <path d="M78 22h44a12 12 0 0 1 12 12v32h32a12 12 0 0 1 12 12v44a12 12 0 0 1-12 12h-32v32a12 12 0 0 1-12 12H78a12 12 0 0 1-12-12v-32H34a12 12 0 0 1-12-12V78a12 12 0 0 1 12-12h32V34a12 12 0 0 1 12-12z" fill="url(#h)"/>
+  <path d="M78 22h44a12 12 0 0 1 12 12v32h32a12 12 0 0 1 12 12v44a12 12 0 0 1-12 12h-32v32a12 12 0 0 1-12 12H78a12 12 0 0 1-12-12v-32H34a12 12 0 0 1-12-12V78a12 12 0 0 1 12-12h32V34a12 12 0 0 1 12-12z" fill="none" stroke="url(#r)" stroke-width="2.5"/>
+  <ellipse cx="88" cy="44" rx="14" ry="6" fill="#fff" opacity=".85" transform="rotate(-20 88 44)"/>
+</svg>
