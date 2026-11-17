@@ -39,13 +39,13 @@ export function Phone({
   return (
     <div className={`relative aspect-9/19 w-full ${className}`}>
       {/* Side buttons sit just outside the rim. */}
-      <span className='phone-button absolute -left-0.75 top-[17%] h-[4%] w-1 rounded-l-sm' />
-      <span className='phone-button absolute -left-0.75 top-[24%] h-[7.5%] w-1 rounded-l-sm' />
-      <span className='phone-button absolute -left-0.75 top-[33%] h-[7.5%] w-1 rounded-l-sm' />
-      <span className='phone-button absolute -right-0.75 top-[26%] h-[11%] w-1 rounded-r-sm' />
+      <span className='phone-button absolute -left-1 top-[17%] h-[4%] w-1.5 rounded-l-sm' />
+      <span className='phone-button absolute -left-1 top-[24%] h-[7.5%] w-1.5 rounded-l-sm' />
+      <span className='phone-button absolute -left-1 top-[33%] h-[7.5%] w-1.5 rounded-l-sm' />
+      <span className='phone-button absolute -right-1 top-[26%] h-[11%] w-1.5 rounded-r-sm' />
 
-      <div className='phone-rim h-full rounded-[3.1rem] p-0.75'>
-        <div className='h-full rounded-[2.95rem] bg-black p-2.25 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]'>
+      <div className='phone-rim h-full rounded-[3.2rem] p-1.5'>
+        <div className='h-full rounded-[2.9rem] bg-black p-2.25 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]'>
           <div className='h-full overflow-hidden rounded-[2.4rem]'>
             <PhoneChrome>{children}</PhoneChrome>
           </div>
