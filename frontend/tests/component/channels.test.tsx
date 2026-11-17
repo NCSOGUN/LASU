@@ -198,7 +198,7 @@ describe("ChannelsScreen", () => {
     fireEvent.click(screen.getByRole("button", { name: "Send code" }));
     expect(await screen.findByText(/Code sent to/)).toBeInTheDocument();
     expect(begins).toBe(2);
-  }, 20000);
+  });
 
   it("counts down the resend timer and sends a new code", async () => {
     let begins = 0;
