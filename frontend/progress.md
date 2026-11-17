@@ -3,8 +3,9 @@
 ## Status summary
 Phase 2 (landing page) is done: dark v2, Murmur-style hero.
 Phase 3 is written: `scope.md` and `docs/BUILDER_PROMPT.md`, based on the live API snapshot in `docs/api/`.
-**M0 Foundation is complete on `feat/m0-foundation` and ready for review step 0.**
-Next: reviewer approval, then the six M1 lanes.
+**M0 Foundation is complete and pushed.**
+**M1 is in progress:** Lane F is merged. Lanes A–E are being finished in their worktrees by a second round of agents, then merged in the order C, A, B, E, D.
+Next: review step 1 after the lanes merge, then M2 integration.
 
 ## Completed
 - **Phase 0:** audit approved. Defaults D1–D5 accepted.
@@ -34,12 +35,24 @@ Next: reviewer approval, then the six M1 lanes.
   - `docs/BUILDER_PROMPT.md`: orchestration prompt for the builder model (M0 lead, six parallel sub-agent lanes, M2 integration, gates).
 
 ## In progress
-- None. M0 is complete; waiting for review step 0.
+- **M1 lanes after the server restart.** Lanes A–E already have 3–4 commits and uncommitted work in their worktrees. The lead took over at 23:17, stopped the stale agents, and relaunched five agents: review the pending diff, commit, pass typecheck/lint/vitest/e2e, and push `lane/x`.
+  - Lane A Record: `../ha-lane-a`, `lane/a`, e2e port 3221.
+  - Lane B Sharing: `../ha-lane-b`, `lane/b`, e2e port 3222.
+  - Lane C Care: `../ha-lane-c`, `lane/c`, e2e port 3223.
+  - Lane D AI: `../ha-lane-d`, `lane/d`, e2e port 3224.
+  - Lane E Channels: `../ha-lane-e`, `lane/e`, e2e port 3225.
+- Lead-side M2 prep on the integration branch: overview cards wired to independent queries, mobile Lighthouse runner, security sweep, shared Intl/Decimal helpers, overview derivations, app error/not-found states. The overview e2e will be rewritten after the lane merge.
+- **M1 merge log:**
+  - Lane F Landing copy merged (`7fea4af`, merge `b00775b`). Applied its two requests in shared components (`f025449`): third hero CTA, nav link on desktop and in the disclosure, linked final-card title. Added a copy test for every §7.11 string. Typecheck, lint, unit/component and e2e green after the merge.
+  - After the server restart: restored the known-good auth e2e, removed the corrupted null-byte overview e2e/support files, and fixed the BFF so the Bearer-authenticated `/auth/phone/begin` and `/auth/phone/confirm` routes pass through the generic proxy while token routes stay blocked (`39fcd76`). Pushed `feat/m0-foundation` at `3a37186`.
+  - Lane C Care merged (`0f2c0e9`, merge `e0c9755`). Public find-care, results, detail, debounce and empty/wider-radius flows. Integration: typecheck, lint, 148 unit/component tests and 10 e2e tests green.
+- Reviewer has asked the lead to continue through the remaining gates without waiting for permission. Gate reports will still be written at step 1 and step 2.
 
 ## Next
-- Reviewer: review step 0 against `scope.md` §10 and §12.
-- Builder after approval: launch lanes A–F in parallel worktrees, then merge F, C, A, B, E, D.
-- Backend team: answer B1–B6 (scope §1).
+- Merge lanes one at a time into `feat/m0-foundation` in the order C, A, B, E, D; after each merge run typecheck, lint, vitest and e2e.
+- Apply lane "Requests for lead" in shared files, with tests; send a lane back if its done-criteria are not met.
+- M2: rewrite the overview e2e, run axe at 390/768/1024/1440 on every screen, Lighthouse mobile on `/app` and `/find-care`, security sweep, build, push and open the PR.
+- Reviewer: review step 1 after all lanes merge green.
 
 ## M0 foundation (2026-11-17)
 Completed on `feat/m0-foundation`:

@@ -17,6 +17,18 @@ function secret(env: Environment, name: string): string {
   return value;
 }
 
+function optionalSecret(env: Environment, name: string): string | undefined {
+  const value = env[name]?.trim();
+  if (!value) return undefined;
+  if (
+    !/^[A-Za-z0-9+/]{43}=$/.test(value) ||
+    Buffer.from(value, 'base64').toString('base64') !== value
+  ) {
+    throw new Error(`${name} must be a base64 32-byte secret`);
+  }
+  return value;
+}
+
 function commaSeparated(value = ''): string[] {
   return value
     .split(',')
@@ -32,6 +44,11 @@ export function loadConfig(env: Environment = process.env) {
   const dataEncryptionKey = secret(env, 'DATA_ENCRYPTION_KEY');
   if (codeDigestKey === dataEncryptionKey)
     throw new Error('Digest and encryption secrets must be independent');
+  const phoneDigestKey = optionalSecret(env, 'PHONE_DIGEST_KEY') ?? codeDigestKey;
+  const inputFingerprintKey = optionalSecret(env, 'INPUT_FINGERPRINT_KEY') ?? dataEncryptionKey;
+  const encryptionKeyVersion = Number(env.ENCRYPTION_KEY_VERSION || 1);
+  if (!Number.isInteger(encryptionKeyVersion) || encryptionKeyVersion < 1)
+    throw new Error('Invalid ENCRYPTION_KEY_VERSION');
   const callbackToken = required(env, 'CALLBACK_TOKEN');
   if (!/^[A-Za-z0-9_-]{32,128}$/.test(callbackToken))
     throw new Error('CALLBACK_TOKEN needs 32-128 URL-safe characters');
@@ -61,10 +78,10 @@ export function loadConfig(env: Environment = process.env) {
     databaseTimeoutMs: 750,
     codeDigestKey,
     // HMAC purpose labels separate code, phone and request fingerprints.
-    phoneDigestKey: codeDigestKey,
+    phoneDigestKey,
     dataEncryptionKey,
-    inputFingerprintKey: dataEncryptionKey,
-    encryptionKeyVersion: 1,
+    inputFingerprintKey,
+    encryptionKeyVersion,
     callbackPathKey: callbackToken,
     callbackAuthMode:
       mode === 'production' ? ('ip_allowlist' as const) : ('development_open' as const),

@@ -95,3 +95,12 @@ export async function readJson(request: Request): Promise<unknown> {
     return null;
   }
 }
+
+// Token endpoints go through /api/auth/* only. Phone verification is a Bearer-authenticated /auth/* route,
+// so it is the one exception the generic proxy forwards.
+const AUTH_ALLOWED = new Set(["auth/phone/begin", "auth/phone/confirm"]);
+
+export function isBlockedPath(segments: string[] | undefined) {
+  if (!segments?.length || segments.some((segment) => !segment || segment === "." || segment === "..")) return true;
+  return segments[0] === "auth" && !AUTH_ALLOWED.has(segments.join("/"));
+}
