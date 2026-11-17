@@ -125,7 +125,10 @@ export function AssistantThread({ id }: { id: string }) {
         queryClient.invalidateQueries({ queryKey: ["symptom", id] });
         queryClient.invalidateQueries({ queryKey: ["symptoms"] });
       } else {
-        setError(toApiError(caught));
+        const failure = toApiError(caught);
+        // A timed-out follow-up may still have been saved: refresh the thread before the user retries.
+        if (failure.code === "upstream_timeout") void queryClient.invalidateQueries({ queryKey: ["symptom", id] });
+        setError(failure);
         setPhase("error");
       }
     } finally {

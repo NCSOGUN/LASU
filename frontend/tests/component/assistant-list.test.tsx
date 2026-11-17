@@ -179,4 +179,41 @@ describe("AssistantPage", () => {
     expect(body!.get("includeRecords")).toBe("false");
     expect(body!.get("modifyHistory")).toBe("true");
   });
+  it("shows the 502 invalid answer message with a retry", async () => {
+    server.use(
+      http.post("/api/v1/symptom", () =>
+        HttpResponse.json({ error: "ai_invalid_response", message: "bad", request_id: "req-502" }, { status: 502 }),
+      ),
+    );
+    const user = userEvent.setup();
+    renderWithProviders(<AssistantPage />);
+    await screen.findByText("Mild headache and runny nose");
+    await user.type(screen.getByLabelText("Describe how you feel"), "I have a headache.");
+    await user.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(await screen.findByText("The assistant could not produce a valid answer. Try again.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
+  });
+
+  it("refetches the list after a timeout before offering a retry", async () => {
+    let gets = 0;
+    server.use(
+      http.get("/api/v1/symptom", () => {
+        gets += 1;
+        return HttpResponse.json(symptomList);
+      }),
+      http.post("/api/v1/symptom", () =>
+        HttpResponse.json({ error: "upstream_timeout", message: "slow", request_id: "req-504" }, { status: 504 }),
+      ),
+    );
+    const user = userEvent.setup();
+    renderWithProviders(<AssistantPage />);
+    await screen.findByText("Mild headache and runny nose");
+    await user.type(screen.getByLabelText("Describe how you feel"), "I have a headache.");
+    await user.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(await screen.findByText("This took too long")).toBeInTheDocument();
+    expect(screen.getByText(/may still have been created/i)).toBeInTheDocument();
+    await waitFor(() => expect(gets).toBeGreaterThanOrEqual(2));
+  });
 });

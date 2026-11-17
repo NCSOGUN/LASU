@@ -149,7 +149,10 @@ export function CreateScheduleForm() {
         setPhase("cancelled");
         queryClient.invalidateQueries({ queryKey: ["medications"] });
       } else {
-        setApiError(toApiError(caught));
+        const failure = toApiError(caught);
+        // A timed-out AI create may still have produced a schedule: refresh the list before the user retries.
+        if (failure.code === "upstream_timeout") void queryClient.invalidateQueries({ queryKey: ["medications"] });
+        setApiError(failure);
         setPhase("idle");
       }
     } finally {

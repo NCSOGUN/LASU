@@ -86,7 +86,10 @@ export function NewConversation({
         queryClient.invalidateQueries({ queryKey: ["symptoms"] });
         onCancelled();
       } else {
-        setError(toApiError(caught));
+        const failure = toApiError(caught);
+        // The outcome of a timed-out create is unknown: refresh the list before the user retries.
+        if (failure.code === "upstream_timeout") void queryClient.invalidateQueries({ queryKey: ["symptoms"] });
+        setError(failure);
         setPhase("error");
       }
     } finally {
