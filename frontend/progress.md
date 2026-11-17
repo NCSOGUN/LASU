@@ -49,6 +49,7 @@ Phase 2 (landing page): **v2 dark redesign built** (user request, 2026-11-17), m
 | D13 | Template sections not carried over: problem block, body-silhouette map, team. The v1 versions are in commit `76739ea` if wanted back | v2 |
 | D14 | Fonts: Inter (body) plus Manrope (headings) to match the template's display face | v2 |
 | D15 | **Hero hand photo:** generated with Higgsfield (`gpt_image_2_6`, job `8c2517f4…`, variant 3 of 4, about 1 credit). Higgsfield's background remover kept only the phone, so the cut-out was done locally by keying the black background (scratchpad script). Stored as `public/landing/hero/hand-phone.webp` (688×1024, 65 KB). The screen rectangle is measured in `HeroPhone.tsx`; re-measure if the image changes | User request |
+| D16 | Hero headline changed by the user to "Care Within Reach, / Wherever You Are": two equal lines, as in the reference template. This replaces approved option 1 | User request |
 
 **Open items:**
 - **[SOURCE NEEDED]:** none outstanding. v2 contains no statistics.

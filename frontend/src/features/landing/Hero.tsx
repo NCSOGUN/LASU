@@ -18,17 +18,17 @@ export function Hero() {
       <div className='relative mx-auto max-w-7xl px-5 text-center'>
         <h1
           id='hero-title'
-          className='relative z-0 font-head font-bold leading-[1.02] tracking-[-0.045em] text-fog'>
-          <span className='block text-[clamp(2.75rem,9.5vw,7rem)]'>
-            <BlurText text={hero.headline} />
+          className='relative z-0 text-balance font-head text-[clamp(2.1rem,8.8vw,6.5rem)] font-bold leading-[1.06] tracking-[-0.04em] text-fog'>
+          <span className='block'>
+            <BlurText text={hero.headline[0]} />
           </span>
-          <span className='mt-1 block text-balance text-[clamp(1.75rem,4.8vw,3.6rem)] tracking-[-0.04em]'>
-            <BlurText text={hero.subline} offset={3} />
+          <span className='block'>
+            <BlurText text={hero.headline[1]} offset={3} />
           </span>
         </h1>
 
         {/* Pulled up so the phone sits over the lower half of the second headline line. */}
-        <div className='relative z-10 -mt-[clamp(1.1rem,2.9vw,2.4rem)]'>
+        <div className='relative z-10 -mt-[clamp(1.4rem,3.6vw,3.4rem)]'>
           <HeroPhone />
         </div>
 
