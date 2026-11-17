@@ -16,7 +16,7 @@ export function FinalCta() {
           <BlurText text={finalCta.title} />
         </h2>
 
-        <div className="rise relative mt-12 grid overflow-hidden rounded-[22px] border border-white/[0.06] bg-[radial-gradient(120%_120%_at_85%_60%,rgba(43,179,163,0.22),transparent_55%),var(--color-night-card)] md:grid-cols-[1.2fr_1fr]">
+        <div className="rise relative mt-12 grid overflow-hidden rounded-[22px] border border-white/[0.06] bg-night-card md:grid-cols-[1.2fr_1fr]">
           <div className="p-7 sm:p-10">
             <p className="text-sm text-fog-muted">{finalCta.cardKicker}</p>
             <h3 className="mt-2 font-head text-2xl font-semibold tracking-[-0.03em] text-fog sm:text-3xl">{finalCta.cardTitle}</h3>

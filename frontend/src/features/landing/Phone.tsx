@@ -1,7 +1,7 @@
 /** Screen contents of the phone: status bar, app header, screen body, home indicator. */
 export function PhoneChrome({ children }: { children: React.ReactNode }) {
   return (
-    <div className='relative flex h-full flex-col overflow-hidden bg-[#0a1112] text-left'>
+    <div className='relative flex h-full flex-col overflow-hidden bg-[#0a0f10] text-left'>
       <div className='flex items-center justify-between px-6 pb-1 pt-3 text-[11px] font-semibold text-fog'>
         <span>9:41</span>
         <span className='h-5 w-20 rounded-full bg-black' />
@@ -10,11 +10,11 @@ export function PhoneChrome({ children }: { children: React.ReactNode }) {
           <span className='h-2 w-4 rounded-sm bg-mint' />
         </span>
       </div>
-      <div className='flex items-center gap-2 border-b border-white/5 px-4 pb-2.5 pt-1.5'>
-        <span className='grid size-6 place-items-center rounded-full bg-gradient-to-br from-mint to-teal text-[11px] font-bold text-night'>
+      <div className='flex items-center gap-2 px-4 pb-2.5 pt-1.5'>
+        <span className='grid size-7 place-items-center rounded-full bg-gradient-to-br from-mint via-teal to-amber text-[12px] font-bold text-night'>
           +
         </span>
-        <span className='text-xs font-semibold text-fog'>HealthAccess</span>
+        <span className='text-[13px] font-semibold text-fog'>HealthAccess</span>
         <span className='ml-auto rounded-full bg-white/5 px-2 py-0.5 text-[9px] text-fog-muted'>
           Fictional data
         </span>
@@ -25,7 +25,10 @@ export function PhoneChrome({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** CSS phone frame (no photo assets). Decorative: callers set aria-hidden. */
+/**
+ * CSS phone modelled on Murmur's frame: brushed-metal rim, thick black bezel, side buttons, neutral drop
+ * shadow (no coloured glow). Decorative: callers set aria-hidden.
+ */
 export function Phone({
   children,
   className = '',
@@ -34,10 +37,19 @@ export function Phone({
   className?: string;
 }) {
   return (
-    <div
-      className={`relative aspect-[9/19] w-full rounded-[2.6rem] border border-white/10 bg-[#0b1213] p-2.5 shadow-[0_40px_120px_-20px_rgba(43,179,163,0.35),inset_0_0_0_1px_rgba(255,255,255,0.04)] ${className}`}>
-      <div className='h-full overflow-hidden rounded-[2.1rem] ring-1 ring-white/5'>
-        <PhoneChrome>{children}</PhoneChrome>
+    <div className={`relative aspect-9/19 w-full ${className}`}>
+      {/* Side buttons sit just outside the rim. */}
+      <span className='phone-button absolute -left-0.75 top-[17%] h-[4%] w-1 rounded-l-sm' />
+      <span className='phone-button absolute -left-0.75 top-[24%] h-[7.5%] w-1 rounded-l-sm' />
+      <span className='phone-button absolute -left-0.75 top-[33%] h-[7.5%] w-1 rounded-l-sm' />
+      <span className='phone-button absolute -right-0.75 top-[26%] h-[11%] w-1 rounded-r-sm' />
+
+      <div className='phone-rim h-full rounded-[3.1rem] p-0.75'>
+        <div className='h-full rounded-[2.95rem] bg-black p-2.25 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]'>
+          <div className='h-full overflow-hidden rounded-[2.4rem]'>
+            <PhoneChrome>{children}</PhoneChrome>
+          </div>
+        </div>
       </div>
     </div>
   );

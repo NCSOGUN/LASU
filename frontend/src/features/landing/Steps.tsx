@@ -70,7 +70,6 @@ export function Steps() {
 
         <div aria-hidden="true" className="hidden lg:block">
           <div className="sticky top-[calc(50vh-320px)]">
-            <div className="absolute inset-0 -z-10 scale-110 rounded-full bg-[radial-gradient(circle,rgba(43,179,163,0.3),transparent_65%)] blur-2xl" />
             <Phone>
               <PhoneScreen k={steps[active].key} />
             </Phone>

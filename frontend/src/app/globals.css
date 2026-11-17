@@ -196,6 +196,34 @@ html[data-motion][data-intro="play"] .hero-phone {
   }
 }
 
+/* Brushed-titanium phone rim (Murmur-style frame): light catches the corners, darker along the sides. */
+.phone-rim {
+  background: linear-gradient(
+    155deg,
+    #b9bec3 0%,
+    #4a4f54 14%,
+    #7c8287 30%,
+    #2a2d30 52%,
+    #5d6268 72%,
+    #a8adb2 90%,
+    #474b50 100%
+  );
+  box-shadow:
+    0 50px 100px -30px rgba(0, 0, 0, 0.85),
+    0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+.phone-button {
+  background: linear-gradient(90deg, #3a3e42, #8d9298 50%, #3a3e42);
+}
+
+/* Gradient hairline border for in-screen cards (Murmur's glowing card), in HealthAccess colours. */
+.grad-border {
+  border: 1px solid transparent;
+  background:
+    linear-gradient(var(--grad-fill, #0c1517), var(--grad-fill, #0c1517)) padding-box,
+    conic-gradient(from 200deg, #7fd1ae, #2bb3a3, #d79738, #f2c27b, #7fd1ae) border-box;
+}
+
 /* Light rays behind the channel orb. */
 .rays {
   background:

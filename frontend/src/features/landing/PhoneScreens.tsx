@@ -18,7 +18,7 @@ const Glow = ({
   className?: string;
 }) => (
   <div
-    className={`rounded-2xl border border-mint/30 bg-gradient-to-b from-mint/[0.08] to-transparent p-3 shadow-[0_0_30px_-8px_rgba(127,209,174,0.45)] ${className}`}>
+    className={`grad-border rounded-2xl p-3 shadow-[0_0_24px_-10px_rgba(242,194,123,0.35)] ${className}`}>
     {children}
   </div>
 );
@@ -61,7 +61,7 @@ const Toggle = ({ label, on }: { label: string; on: boolean }) => (
 );
 
 const Composer = () => (
-  <div className='absolute inset-x-3 bottom-2 flex items-center justify-between rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-[10px] text-fog-muted'>
+  <div className='grad-border absolute inset-x-3 bottom-2 flex items-center justify-between rounded-full px-3 py-2 text-[10px] text-fog-muted [--grad-fill:#0d1214]'>
     Tell us what you need…
     <span className='grid size-5 place-items-center rounded-full bg-mint text-[10px] font-bold text-night'>
       ↑
