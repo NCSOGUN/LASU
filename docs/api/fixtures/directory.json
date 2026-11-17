@@ -1,0 +1,271 @@
+{
+  "group": "Directory",
+  "order": 30,
+  "description": "Public directory of active services, Nigerian areas and approved facilities. No authentication required.",
+  "endpoints": [
+    {
+      "id": "directory-services",
+      "name": "List services",
+      "method": "GET",
+      "path": "/directory/services",
+      "summary": "List active service codes.",
+      "description": "Returns active services ordered by sort_order and service_code.",
+      "auth": "none",
+      "roles": [],
+      "contentType": "application/json",
+      "responses": [
+        {
+          "status": 200,
+          "label": "OK",
+          "description": "Active services.",
+          "headers": {
+            "content-type": "application/json; charset=utf-8"
+          },
+          "body": [
+            {
+              "service_code": "general",
+              "label": "General care",
+              "description": "General outpatient and primary care"
+            },
+            {
+              "service_code": "pediatrics",
+              "label": "Child health",
+              "description": "Child and paediatric care"
+            },
+            {
+              "service_code": "maternity",
+              "label": "Maternity care",
+              "description": "Pregnancy and maternity care"
+            }
+          ]
+        }
+      ],
+      "curl": "curl -sS -X GET http://localhost:3000/v1/directory/services",
+      "notes": []
+    },
+    {
+      "id": "directory-areas",
+      "name": "Search areas",
+      "method": "GET",
+      "path": "/directory/areas",
+      "summary": "Search Nigerian areas by name, city, region or alias.",
+      "description": "Exact matches are returned before prefix matches, de-duplicated by id. Only active NG areas are considered. limit is clamped to 1-10 and defaults to 5.",
+      "auth": "none",
+      "roles": [],
+      "contentType": "application/json",
+      "queryParams": [
+        {
+          "name": "q",
+          "type": "string",
+          "required": false,
+          "description": "Search term, max 120 characters. Omit to list the first areas alphabetically."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "default": 5,
+          "description": "1-10; values outside the range are clamped."
+        }
+      ],
+      "responses": [
+        {
+          "status": 200,
+          "label": "OK",
+          "description": "Matching areas.",
+          "headers": {
+            "content-type": "application/json; charset=utf-8"
+          },
+          "body": [
+            {
+              "id": "20000000-0000-4000-8000-000000000001",
+              "name": "Ikeja demo area",
+              "region": "Lagos",
+              "city": "Ikeja",
+              "is_demo": true
+            }
+          ]
+        }
+      ],
+      "curl": "curl -sS -X GET http://localhost:3000/v1/directory/areas?q=ikeja",
+      "notes": []
+    },
+    {
+      "id": "directory-facilities",
+      "name": "Find facilities by service",
+      "method": "GET",
+      "path": "/directory/facilities",
+      "summary": "Find approved facilities offering a service near an area.",
+      "description": "Requires service and area_id. Approved facilities with an approved service entry are measured from the area centre and filtered by radius_km. Results are sorted by distance then name. limit is clamped to 1-10 and defaults to 3; radius_km is clamped to 1-200 and defaults to 25.",
+      "auth": "none",
+      "roles": [],
+      "contentType": "application/json",
+      "queryParams": [
+        {
+          "name": "service",
+          "type": "string",
+          "required": true,
+          "description": "Service code such as general, pediatrics or maternity."
+        },
+        {
+          "name": "area_id",
+          "type": "uuid",
+          "required": true,
+          "description": "Area id from /directory/areas."
+        },
+        {
+          "name": "radius_km",
+          "type": "number",
+          "required": false,
+          "default": 25,
+          "description": "Positive radius, clamped to 1-200 km."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "default": 3,
+          "description": "1-10; values outside the range are clamped."
+        }
+      ],
+      "responses": [
+        {
+          "status": 200,
+          "label": "OK",
+          "description": "Matching facilities with distance_km.",
+          "headers": {
+            "content-type": "application/json; charset=utf-8"
+          },
+          "body": [
+            {
+              "id": "20000000-0000-4000-8000-000000000002",
+              "name": "Demo Community Hospital",
+              "address": "12 Example Road, Ikeja",
+              "phone": null,
+              "distance_km": 0.385,
+              "is_demo": true,
+              "service_code": "general"
+            },
+            {
+              "id": "20000000-0000-4000-8000-000000000003",
+              "name": "Demo Child Health Clinic",
+              "address": "8 Sample Street, Ikeja",
+              "phone": null,
+              "distance_km": 0.547,
+              "is_demo": true,
+              "service_code": "general"
+            }
+          ]
+        },
+        {
+          "status": 400,
+          "label": "Bad Request",
+          "description": "Both required query parameters are missing.",
+          "headers": {
+            "content-type": "application/json; charset=utf-8"
+          },
+          "body": {
+            "error": "validation_error",
+            "request_id": "6749034b-4ba4-46cb-a457-512fe48cc55c",
+            "issues": [
+              {
+                "path": "service",
+                "message": "Required"
+              },
+              {
+                "path": "area_id",
+                "message": "Required"
+              }
+            ]
+          }
+        },
+        {
+          "status": 400,
+          "label": "Bad Request",
+          "description": "area_id is missing.",
+          "headers": {
+            "content-type": "application/json; charset=utf-8"
+          },
+          "body": {
+            "error": "validation_error",
+            "request_id": "ab05a6b6-60e4-472c-aa0b-ffe7a8440e32",
+            "issues": [
+              {
+                "path": "area_id",
+                "message": "Required"
+              }
+            ]
+          }
+        }
+      ],
+      "curl": "curl -sS -X GET http://localhost:3000/v1/directory/facilities?service=general&area_id=20000000-0000-4000-8000-000000000001&radius_km=25",
+      "notes": [
+        "Unknown area ids return an empty array, not 404."
+      ]
+    },
+    {
+      "id": "directory-facility-detail",
+      "name": "Get a facility",
+      "method": "GET",
+      "path": "/directory/facilities/{id}",
+      "summary": "Return one approved facility with its approved services.",
+      "description": "Returns the facility address, area, coordinates, verification timestamps, source trust tier and the sorted list of approved active services. Returns 404 not_found when the facility is missing or not APPROVED.",
+      "auth": "none",
+      "roles": [],
+      "contentType": "application/json",
+      "pathParams": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "description": "Facility id from /directory/facilities."
+        }
+      ],
+      "responses": [
+        {
+          "status": 200,
+          "label": "OK",
+          "description": "Facility detail with approved services.",
+          "headers": {
+            "content-type": "application/json; charset=utf-8"
+          },
+          "body": {
+            "id": "20000000-0000-4000-8000-000000000002",
+            "name": "Demo Community Hospital",
+            "address": "12 Example Road, Ikeja",
+            "area_id": "20000000-0000-4000-8000-000000000001",
+            "area": {
+              "id": "20000000-0000-4000-8000-000000000001",
+              "name": "Ikeja demo area",
+              "region": "Lagos",
+              "city": "Ikeja"
+            },
+            "latitude": 6.6041,
+            "longitude": 3.3489,
+            "phone": null,
+            "last_verified_at": "2026-11-17T15:43:56.515Z",
+            "verified_at": "2026-11-17T15:43:56.515Z",
+            "is_demo": true,
+            "source_trust": "unknown",
+            "services": [
+              {
+                "service_code": "general",
+                "label": "General care",
+                "availability_note": null
+              },
+              {
+                "service_code": "pediatrics",
+                "label": "Child health",
+                "availability_note": null
+              }
+            ]
+          }
+        }
+      ],
+      "curl": "curl -sS -X GET http://localhost:3000/v1/directory/facilities/20000000-0000-4000-8000-000000000002",
+      "notes": [
+        "latitude and longitude are numbers or null."
+      ]
+    }
+  ]
+}

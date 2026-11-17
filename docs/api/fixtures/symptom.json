@@ -1,0 +1,418 @@
+{
+  "group": "Symptom analysis",
+  "order": 40,
+  "description": "AI-assisted symptom intake. Each create or follow-up request makes a real model call, then returns the stored symptom record and conversation. Records are scoped to the authenticated account; ids that do not belong to the caller return 404 so ownership is not disclosed.",
+  "endpoints": [
+    {
+      "id": "symptom-create",
+      "name": "Create a symptom analysis",
+      "method": "POST",
+      "path": "/symptom",
+      "summary": "Send a symptom description with optional attachments and receive an AI assessment.",
+      "description": "multipart/form-data. Creates a symptom record for the authenticated account's patient profile, stores up to five attachments, runs the symptom agent with the patient's context, and returns the full conversation. The agent may set the record's name, severity and summary. Attachments must be image/* or application/pdf, max 10 MB each and max 5 files. Accounts without a patient profile get 404 not_found. When the AI provider is unconfigured the endpoint returns 503 ai_unavailable and removes the half-created record.",
+      "auth": "bearer",
+      "roles": [],
+      "contentType": "multipart/form-data",
+      "bodyFields": [
+        {
+          "name": "message",
+          "type": "string",
+          "required": true,
+          "description": "Symptom description, trimmed length 1-8000 characters."
+        },
+        {
+          "name": "includeRecords",
+          "type": "boolean",
+          "required": false,
+          "description": "Include the patient's stored records and reviewed facility content in the AI context. Accepts true/false/1/0/yes/no/on/off. Default true."
+        },
+        {
+          "name": "modifyHistory",
+          "type": "boolean",
+          "required": false,
+          "description": "Allow the agent to update the stored name, severity and summary. Default true."
+        },
+        {
+          "name": "images",
+          "type": "file[]",
+          "required": false,
+          "description": "0-5 repeated parts, each an image/* or application/pdf file up to 10 MB. No file is embedded in this fixture."
+        }
+      ],
+      "responses": [
+        {
+          "status": 201,
+          "label": "Created",
+          "description": "Stored symptom record plus the full AI thread (Human message and AI reply).",
+          "headers": {
+            "content-type": "application/json; charset=utf-8"
+          },
+          "body": {
+            "symptom": {
+              "id": "ab143840-0058-4486-aa0d-2faf0c88121a",
+              "patient_id": "20000000-0000-4000-8000-000000000005",
+              "account_id": "20000000-0000-4000-8000-000000000004",
+              "name": "Mild headache and runny nose",
+              "severity": "MILD",
+              "summary": "Mild headache and runny nose for two days.",
+              "include_records": true,
+              "modify_history": true,
+              "files": [],
+              "thread_id": "symptom_ab143840-0058-4486-aa0d-2faf0c88121a",
+              "model_version": "openrouter",
+              "created_at": "2026-11-17T16:13:58.179Z",
+              "updated_at": "2026-11-17T16:14:08.281Z"
+            },
+            "messages": [
+              {
+                "type": "Human",
+                "content": "I have had a mild headache and a runny nose for two days."
+              },
+              {
+                "type": "AI",
+                "content": "A mild headache with a runny nose for two days is often due to a common viral infection, though other causes are possible.\n\n- Rest, drink fluids, and try saline nasal spray or a humidifier.\n- For the headache, you can consider an over-the-counter pain reliever if it’s normally safe for you; follow the label and check with a pharmacist if you’re unsure whether it’s suitable with your medicines or allergies.\n- Consider a COVID test, especially if you’ve had an exposure or will be around someone at higher risk.\n\nSeek urgent care for a sudden or severe headache, confusion, weakness, stiff neck, trouble breathing, or other rapidly worsening symptoms. Contact a healthcare professional if symptoms worsen or aren’t improving after about 10 days."
+              }
+            ]
+          }
+        }
+      ],
+      "curl": "TOKEN=\"<access-jwt>\"\ncurl -sS -X POST http://localhost:3000/v1/symptom \\\n  -H \"authorization: Bearer $TOKEN\" \\\n  -F 'message=I have had a mild headache and a runny nose for two days.' \\\n  -F 'includeRecords=true' \\\n  -F 'modifyHistory=true'",
+      "notes": [
+        "Captured live: 201 in 15.8 s with model_version \"openrouter\" (server model openai/gpt-6-luna).",
+        "messages is the whole thread on create: the Human message followed by the AI reply, which uses Markdown.",
+        "files lists object-storage keys for attachments and is [] when none were sent.",
+        "The request is synchronous; allow at least 180 s in client code."
+      ]
+    },
+    {
+      "id": "symptom-list",
+      "name": "List symptom analyses",
+      "method": "GET",
+      "path": "/symptom",
+      "summary": "Paginated list of the caller's symptom records, newest first.",
+      "description": "Returns records scoped to the authenticated account, ordered by created_at descending.",
+      "auth": "bearer",
+      "roles": [],
+      "queryParams": [
+        {
+          "name": "page",
+          "type": "integer",
+          "required": false,
+          "default": 1,
+          "description": "1-based page. Non-numeric or < 1 falls back to 1; capped at 100000."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "default": 10,
+          "description": "Page size 1-100. Values above 100 are clamped to 100."
+        }
+      ],
+      "responses": [
+        {
+          "status": 200,
+          "label": "OK",
+          "description": "Current page of symptom records.",
+          "headers": {
+            "content-type": "application/json; charset=utf-8"
+          },
+          "body": {
+            "symptoms": [
+              {
+                "id": "ab143840-0058-4486-aa0d-2faf0c88121a",
+                "patient_id": "20000000-0000-4000-8000-000000000005",
+                "account_id": "20000000-0000-4000-8000-000000000004",
+                "name": "Mild headache and runny nose",
+                "severity": "MILD",
+                "summary": "Mild headache and runny nose for two days.",
+                "include_records": true,
+                "modify_history": true,
+                "files": [],
+                "thread_id": "symptom_ab143840-0058-4486-aa0d-2faf0c88121a",
+                "model_version": "openrouter",
+                "created_at": "2026-11-17T16:13:58.179Z",
+                "updated_at": "2026-11-17T16:14:08.281Z"
+              }
+            ],
+            "page": 1,
+            "limit": 10,
+            "total": 1,
+            "totalPages": 1
+          }
+        },
+        {
+          "status": 401,
+          "label": "Unauthorized",
+          "description": "Captured with the Authorization header omitted.",
+          "headers": {
+            "content-type": "application/json; charset=utf-8"
+          },
+          "body": {
+            "error": "unauthorized",
+            "message": "Authentication required",
+            "request_id": "275475e4-fa16-445b-b83c-a51a20db51b4"
+          }
+        }
+      ],
+      "curl": "TOKEN=\"<access-jwt>\"\ncurl -sS \"http://localhost:3000/v1/symptom?page=1&limit=10\" \\\n  -H \"authorization: Bearer $TOKEN\"",
+      "notes": [
+        "totalPages is 0 when total is 0.",
+        "Pagination fields (page, limit, total, totalPages) sit beside the symptoms array at the top level."
+      ]
+    },
+    {
+      "id": "symptom-get",
+      "name": "Get one symptom analysis",
+      "method": "GET",
+      "path": "/symptom/{id}",
+      "summary": "Fetch a symptom record and its stored AI conversation.",
+      "description": "Loads the record and its LangGraph thread history. A malformed uuid, an unknown id, or a record owned by another account all return 404 not_found.",
+      "auth": "bearer",
+      "roles": [],
+      "pathParams": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "description": "Symptom analysis id returned by POST /symptom."
+        }
+      ],
+      "responses": [
+        {
+          "status": 200,
+          "label": "OK",
+          "description": "Record plus the stored conversation history.",
+          "headers": {
+            "content-type": "application/json; charset=utf-8"
+          },
+          "body": {
+            "symptom": {
+              "id": "ab143840-0058-4486-aa0d-2faf0c88121a",
+              "patient_id": "20000000-0000-4000-8000-000000000005",
+              "account_id": "20000000-0000-4000-8000-000000000004",
+              "name": "Mild headache and runny nose",
+              "severity": "MILD",
+              "summary": "Mild headache and runny nose for two days.",
+              "include_records": true,
+              "modify_history": true,
+              "files": [],
+              "thread_id": "symptom_ab143840-0058-4486-aa0d-2faf0c88121a",
+              "model_version": "openrouter",
+              "created_at": "2026-11-17T16:13:58.179Z",
+              "updated_at": "2026-11-17T16:14:08.281Z"
+            },
+            "messages": [
+              {
+                "type": "Human",
+                "content": "I have had a mild headache and a runny nose for two days."
+              },
+              {
+                "type": "AI",
+                "content": "A mild headache with a runny nose for two days is often due to a common viral infection, though other causes are possible.\n\n- Rest, drink fluids, and try saline nasal spray or a humidifier.\n- For the headache, you can consider an over-the-counter pain reliever if it’s normally safe for you; follow the label and check with a pharmacist if you’re unsure whether it’s suitable with your medicines or allergies.\n- Consider a COVID test, especially if you’ve had an exposure or will be around someone at higher risk.\n\nSeek urgent care for a sudden or severe headache, confusion, weakness, stiff neck, trouble breathing, or other rapidly worsening symptoms. Contact a healthcare professional if symptoms worsen or aren’t improving after about 10 days."
+              }
+            ]
+          }
+        },
+        {
+          "status": 404,
+          "label": "Not found",
+          "description": "Captured with a valid-format uuid that belongs to no record visible to this account.",
+          "headers": {
+            "content-type": "application/json; charset=utf-8"
+          },
+          "body": {
+            "error": "not_found",
+            "message": "Symptom analysis record not found",
+            "request_id": "971444ac-d52b-423a-908d-23da8b683b5e"
+          }
+        }
+      ],
+      "curl": "TOKEN=\"<access-jwt>\"\nSYMPTOM_ID=<symptom-id>\ncurl -sS http://localhost:3000/v1/symptom/$SYMPTOM_ID \\\n  -H \"authorization: Bearer $TOKEN\"",
+      "notes": [
+        "Non-uuid ids return the same 404 body as unknown ids rather than a 400.",
+        "messages is the stored thread for the record and grows with each follow-up."
+      ]
+    },
+    {
+      "id": "symptom-follow-up",
+      "name": "Continue a symptom conversation",
+      "method": "POST",
+      "path": "/symptom/{id}/follow-up",
+      "summary": "Ask a follow-up question in an existing symptom thread.",
+      "description": "Uses the record's stored includeRecords/modifyHistory settings and the same multipart rules as create. Attachments are appended to the record's files. Unlike create, the response contains only the last two messages: the new Human message and the AI reply.",
+      "auth": "bearer",
+      "roles": [],
+      "contentType": "multipart/form-data",
+      "pathParams": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "description": "Symptom analysis id."
+        }
+      ],
+      "bodyFields": [
+        {
+          "name": "message",
+          "type": "string",
+          "required": true,
+          "description": "Follow-up text, trimmed length 1-8000 characters."
+        },
+        {
+          "name": "images",
+          "type": "file[]",
+          "required": false,
+          "description": "0-5 image/* or application/pdf parts, max 10 MB each. No file is embedded here."
+        }
+      ],
+      "responses": [
+        {
+          "status": 200,
+          "label": "OK",
+          "description": "Updated record plus the last two thread messages.",
+          "headers": {
+            "content-type": "application/json; charset=utf-8"
+          },
+          "body": {
+            "symptom": {
+              "id": "ab143840-0058-4486-aa0d-2faf0c88121a",
+              "patient_id": "20000000-0000-4000-8000-000000000005",
+              "account_id": "20000000-0000-4000-8000-000000000004",
+              "name": "Mild headache and runny nose",
+              "severity": "MILD",
+              "summary": "Mild headache and runny nose for two days; headache gets a little worse in the evening.",
+              "include_records": true,
+              "modify_history": true,
+              "files": [],
+              "thread_id": "symptom_ab143840-0058-4486-aa0d-2faf0c88121a",
+              "model_version": "openrouter",
+              "created_at": "2026-11-17T16:13:58.179Z",
+              "updated_at": "2026-11-17T16:14:37.432Z"
+            },
+            "messages": [
+              {
+                "type": "Human",
+                "content": "Should I be worried if the headache gets a little worse in the evening?"
+              },
+              {
+                "type": "AI",
+                "content": "A slight increase in the evening **isn’t necessarily a reason to worry**. Tiredness, not drinking enough, or nasal congestion can make a mild headache feel more noticeable later in the day.\n\nTry drinking fluids, resting, and using saline spray; notice whether anything seems to trigger or relieve it. Seek urgent care for a sudden or severe headache, confusion, weakness or numbness, vision changes, a stiff neck with fever, or repeated vomiting. If it keeps worsening or isn’t improving over the next several days, contact a healthcare professional."
+              }
+            ]
+          }
+        }
+      ],
+      "curl": "TOKEN=\"<access-jwt>\"\nSYMPTOM_ID=<symptom-id>\ncurl -sS -X POST http://localhost:3000/v1/symptom/$SYMPTOM_ID/follow-up \\\n  -H \"authorization: Bearer $TOKEN\" \\\n  -F 'message=Should I be worried if the headache gets a little worse in the evening?'",
+      "notes": [
+        "The agent may rewrite name, severity and summary; check symptom.updated_at.",
+        "Unknown or foreign ids return 404 before any model call is made.",
+        "Requires a configured AI provider; otherwise 503 ai_unavailable."
+      ]
+    },
+    {
+      "id": "symptom-update",
+      "name": "Update a symptom analysis",
+      "method": "PATCH",
+      "path": "/symptom/{id}",
+      "summary": "Correct the stored name and/or severity without calling the model.",
+      "description": "Accepts name and/or severity only. Unknown keys are rejected with 400 validation_error, and an empty object returns 400 invalid_update.",
+      "auth": "bearer",
+      "roles": [],
+      "contentType": "application/json",
+      "pathParams": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "description": "Symptom analysis id."
+        }
+      ],
+      "bodyExample": {
+        "name": "Headache and runny nose (day 2)",
+        "severity": "MODERATE"
+      },
+      "bodyFields": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": false,
+          "description": "New title, 1-200 characters. Omit to leave unchanged."
+        },
+        {
+          "name": "severity",
+          "type": "string",
+          "required": false,
+          "description": "MILD, MODERATE or SEVERE (case-insensitive). Omit to leave unchanged."
+        }
+      ],
+      "responses": [
+        {
+          "status": 200,
+          "label": "OK",
+          "description": "The updated symptom record.",
+          "headers": {
+            "content-type": "application/json; charset=utf-8"
+          },
+          "body": {
+            "symptom": {
+              "id": "ab143840-0058-4486-aa0d-2faf0c88121a",
+              "patient_id": "20000000-0000-4000-8000-000000000005",
+              "account_id": "20000000-0000-4000-8000-000000000004",
+              "name": "Headache and runny nose (day 2)",
+              "severity": "MODERATE",
+              "summary": "Mild headache and runny nose for two days; headache gets a little worse in the evening.",
+              "include_records": true,
+              "modify_history": true,
+              "files": [],
+              "thread_id": "symptom_ab143840-0058-4486-aa0d-2faf0c88121a",
+              "model_version": "openrouter",
+              "created_at": "2026-11-17T16:13:58.179Z",
+              "updated_at": "2026-11-17T16:14:44.689Z"
+            }
+          }
+        }
+      ],
+      "curl": "TOKEN=\"<access-jwt>\"\nSYMPTOM_ID=<symptom-id>\ncurl -sS -X PATCH http://localhost:3000/v1/symptom/$SYMPTOM_ID \\\n  -H \"authorization: Bearer $TOKEN\" \\\n  -H 'content-type: application/json' \\\n  -d '{\"name\":\"Headache and runny nose (day 2)\",\"severity\":\"MODERATE\"}'",
+      "notes": [
+        "The literal legacy value \"SEVERITY\" is normalized to \"SEVERE\".",
+        "Severity is stored uppercase as MILD, MODERATE or SEVERE."
+      ]
+    },
+    {
+      "id": "symptom-delete",
+      "name": "Delete a symptom analysis",
+      "method": "DELETE",
+      "path": "/symptom/{id}",
+      "summary": "Delete a record, its attachments and its AI thread.",
+      "description": "Removes the row, deletes stored attachments, clears the AI thread history and returns {deleted:true}. Unknown or foreign ids return 404 not_found.",
+      "auth": "bearer",
+      "roles": [],
+      "pathParams": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "description": "Symptom analysis id."
+        }
+      ],
+      "responses": [
+        {
+          "status": 200,
+          "label": "OK",
+          "description": "Deletion confirmed.",
+          "headers": {
+            "content-type": "application/json; charset=utf-8"
+          },
+          "body": {
+            "deleted": true
+          }
+        }
+      ],
+      "curl": "TOKEN=\"<access-jwt>\"\nSYMPTOM_ID=<symptom-id>\ncurl -sS -X DELETE http://localhost:3000/v1/symptom/$SYMPTOM_ID \\\n  -H \"authorization: Bearer $TOKEN\"",
+      "notes": [
+        "The captured record was deleted after this call, so its id now returns 404."
+      ]
+    }
+  ]
+}

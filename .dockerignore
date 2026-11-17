@@ -1,0 +1,12 @@
+.git
+.github
+.vscode
+node_modules
+**/node_modules
+**/dist
+**/.env
+.env
+**/*.log
+coverage
+plans
+frontend

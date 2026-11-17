@@ -3,4 +3,8 @@
 node_modules/
 coverage/
 *.log
+*.tsbuildinfo
 backend/offline/dist/
+backend/online/dist/
+backend/shared/dist/
+backend/online/generated/
