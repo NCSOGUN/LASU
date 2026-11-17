@@ -1,26 +1,200 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/*
+ * HealthAccess design tokens. Source: prototype tokens + approved additions (progress.md, palette gate).
+ * Shared by the landing page and the app shell. Tailwind utilities: bg-brand, text-ink, border-line, ...
+ */
+@theme {
+  --color-brand: #17644f;
+  --color-brand-dark: #104b3b;
+  --color-ink: #183d35;
+  --color-muted: #5a6e67; /* darkened from prototype #62766f for AA on wash */
+  --color-wash: #f3f7f4;
+  --color-paper: #ffffff;
+  --color-soft: #e8f3eb;
+  --color-line: #dce5df;
+  --color-deep: #071f24;
+  --color-deep-raised: #0c2f33;
+  --color-deep-line: #1d4a49;
+  --color-on-deep: #e6f0ea;
+  --color-on-deep-muted: #9fb8b0;
+  --color-mint: #7fd1ae;
+  --color-amber: #d79738; /* focus ring on dark */
+  --color-amber-ink: #a8620f; /* focus ring on light */
+  --color-warn: #fff3df;
+  --color-error: #a23535;
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Consolas, monospace;
+
+  --radius-card: 16px;
+  --radius-section: 28px;
+
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-curtain: cubic-bezier(0.7, 0, 0.3, 1);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  html {
+    color-scheme: light;
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    background: var(--color-wash);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    line-height: 1.55;
+  }
+  :focus-visible {
+    outline: 3px solid var(--color-amber-ink);
+    outline-offset: 3px;
+    border-radius: 4px;
+  }
+  .on-deep :focus-visible {
+    outline-color: var(--color-amber);
+  }
+  ::selection {
+    background: var(--color-mint);
+    color: var(--color-deep);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* Section that overlaps the one before it with rounded top corners (CardiaTec-style card stack, plain CSS). */
+.stack-card {
+  position: relative;
+  margin-top: calc(var(--radius-section) * -1);
+  border-radius: var(--radius-section) var(--radius-section) 0 0;
+}
+
+/* ---------- Preloader (shown only when <html> has .ha-preload, set by the inline head script) ---------- */
+.preloader {
+  display: none;
+}
+html.ha-preload .preloader {
+  display: flex;
+}
+html.ha-preload.ha-preload-done .preloader {
+  transform: translateY(-100%);
+  visibility: hidden; /* keeps the off-screen skip button out of the tab order */
+  transition:
+    transform 700ms var(--ease-curtain),
+    visibility 0s 700ms;
+}
+.preloader-dot {
+  opacity: 0.18;
+  animation: preloader-dot 520ms var(--ease-out-soft) forwards;
+  animation-delay: calc(var(--i) * 45ms);
+}
+.preloader-dot[data-cross="false"] {
+  animation: none;
+}
+@keyframes preloader-dot {
+  to {
+    opacity: 1;
+    fill: var(--color-mint);
+  }
+}
+.preloader-tagline {
+  opacity: 0;
+  filter: blur(8px);
+  animation: blur-in 600ms var(--ease-out-soft) 250ms forwards;
+}
+@keyframes blur-in {
+  to {
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
+/* ---------- Hero intro: layers settle in after the curtain lifts ---------- */
+html[data-intro="play"] .hero-layer {
+  animation: layer-in 900ms var(--ease-out-soft) both;
+  animation-delay: calc(var(--depth) * 70ms);
+}
+@keyframes layer-in {
+  from {
+    opacity: 0;
+    scale: 0.92;
+  }
+}
+html[data-intro="play"] .nav-item {
+  animation: fade-up 500ms var(--ease-out-soft) both;
+  animation-delay: calc(200ms + var(--i) * 60ms);
+}
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    translate: 0 -6px;
+  }
+}
+
+/* Slow drift on the background dot field. */
+@keyframes drift {
+  50% {
+    translate: 6px -8px;
+  }
+}
+.drift {
+  animation: drift 14s ease-in-out infinite;
+}
+
+/* Slide timer bar. */
+.slide-progress {
+  transform-origin: left;
+  animation: slide-progress var(--slide-ms) linear forwards;
+}
+.slide-progress[data-paused="true"] {
+  animation-play-state: paused;
+}
+@keyframes slide-progress {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Code ring turns very slowly (reduced motion: stopped by the global rule above). */
+@keyframes slow-spin {
+  to {
+    rotate: 360deg;
+  }
+}
+.slow-spin {
+  animation: slow-spin 160s linear infinite;
+}
+
+/* How-it-works layer stack. Default (no JS): every layer at full strength. */
+.step-layer path {
+  fill: var(--color-soft);
+  stroke: var(--color-brand);
+  stroke-opacity: 0.35;
+  transition: fill 300ms, stroke-opacity 300ms, translate 300ms var(--ease-out-soft);
+}
+.step-layer text {
+  font-size: 13px;
+  font-weight: 600;
+  fill: var(--color-ink);
+}
+[data-steps-ready] .step-layer path {
+  fill: var(--color-paper);
+  stroke-opacity: 0.2;
+}
+[data-steps-ready] .step-layer[data-active] path {
+  fill: var(--color-brand);
+  stroke-opacity: 1;
+  translate: 0 -6px;
+}
+[data-steps-ready] .step-layer[data-active] text {
+  fill: #fff;
+  translate: 0 -6px;
 }
