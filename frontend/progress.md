@@ -3,7 +3,8 @@
 ## Status summary
 Phase 2 (landing page) is done: dark v2, Murmur-style hero.
 Phase 3 is written: `scope.md` and `docs/BUILDER_PROMPT.md`, based on the live API snapshot in `docs/api/`.
-Next: the builder model runs M0. The reviewer (this session) checks each gate.
+**M0 Foundation is complete on `feat/m0-foundation` and ready for review step 0.**
+Next: reviewer approval, then the six M1 lanes.
 
 ## Completed
 - **Phase 0:** audit approved. Defaults D1–D5 accepted.
@@ -33,11 +34,29 @@ Next: the builder model runs M0. The reviewer (this session) checks each gate.
   - `docs/BUILDER_PROMPT.md`: orchestration prompt for the builder model (M0 lead, six parallel sub-agent lanes, M2 integration, gates).
 
 ## In progress
-- None. Waiting for the builder model to start M0.
+- None. M0 is complete; waiting for review step 0.
 
 ## Next
-- Builder: M0 Foundation, then "review step 0" (scope §10).
+- Reviewer: review step 0 against `scope.md` §10 and §12.
+- Builder after approval: launch lanes A–F in parallel worktrees, then merge F, C, A, B, E, D.
 - Backend team: answer B1–B6 (scope §1).
+
+## M0 foundation (2026-11-17)
+Completed on `feat/m0-foundation`:
+- **Dependencies:** axios, TanStack Query (+ devtools as a dev dependency), zod, react-markdown; MSW, Vitest + coverage + jsdom + Testing Library, Playwright, axe. Arc foundation and the full scope §6 inventory installed with the shadcn CLI (brings motion, lucide-react, Radix primitives).
+- **BFF (§3.1):**
+  - `/api/auth/{login,register,refresh,logout,session}` set and clear `ha_at` (`Path=/`, 900 s) and `ha_rt` (`Path=/api/auth`, 30 d); both HttpOnly, SameSite=Lax, Secure only in production.
+  - Tokens never appear in a response body.
+  - `/api/v1/[...path]` forwards path, query and streamed multipart bodies; attaches the bearer; copies status/JSON, `Cache-Control: no-store` and `x-request-id`; maps upstream 401 to `token_expired`; blocks `/auth/*`; 190 s AI timeouts, 20 s otherwise; 504 on timeout.
+  - CSRF: `X-HA-Client: web` plus an Origin matching the request Host (and forwarded headers), enforced in every mutation route handler.
+  - `src/proxy.ts` guards `/app/:path*`, `/practitioner/:path*` and `/lookup`, redirects guests to `/login?next=<pathname>` and never decodes a JWT.
+  - Removed the old `/api/v1` rewrite; added `/api/:path*` to the `no-store` list; tightened `Permissions-Policy` to `geolocation=()`.
+- **Data layer (§3.2):** axios instance with `X-HA-Client`, `withCredentials`, 20 s timeout and `aiTimeout`; single-flight refresh (5 parallel 401s → 1 refresh, unit tested); `ApiError` mapper; query keys; TanStack defaults (`staleTime` 30 s, retry only 5xx except 503, no mutation retries); Zod parsing at the boundary.
+- **Schemas and mocks:** one Zod file per API group covering all 48 snapshot endpoints, typed fixtures generated from the snapshot examples, and base MSW auth handlers. The schema test asserts every 2xx example parses and that every endpoint with a 2xx body is covered.
+- **Arc and shell (§6, §7.2 without data cards):** midnight/green theme tokens in `src/styles/arc-theme.css`; Arc foundation imported only in the `(app)`, `(auth)` and `(public)` layouts; Manrope also exposed as `--font-geist`; desktop sidebar, mobile Arc drawer, topbar with Arc `UserMenu`, session gate and logout.
+- **Auth (§7.1):** `/login` and `/register` with Arc inputs, password fields and password strength; generic credential error; `email_taken` mapped to the email field; inactive-account denied state; validated `next` redirect; logout in `user-menu`.
+- **Tests:** 98 unit/component tests pass; 8 Playwright tests pass (guard, login → shell → logout, open-redirect rejection, axe at 390/768/1024/1440, security evidence). `test:live` passes against the real demo account (login, refresh, session, `/me/fields`, directory services, logout; no AI and no record writes).
+- **Evidence:** `test-results/screens/*.png`, `test-results/security/evidence.png`, `test-results/security/grep.txt`.
 
 ## Blocked/Decisions
 | # | Decision | Source |
@@ -65,6 +84,10 @@ Next: the builder model runs M0. The reviewer (this session) checks each gate.
 | D22 | First build includes the AI symptom assistant, medication schedules, the practitioner portal, and phone/SMS/USSD consent | User choice |
 | D23 | **A separate builder model implements; this session reviews.** The builder runs parallel sub-agent lanes and must write tests. The user's note overrides their "you build it" option | User note |
 | D24 | Not built: generative-UI renderer, admin, FCM/service worker, password reset, map/geolocation. The landing copy needs fixes because AI and lookup now require sign-in (scope §7.11) | API gaps |
+| D25 | **Auth screens are composed from Arc primitives, not the `login-centered` block.** `login-centered` is passkey/email-code only and has no password or API callback, so it cannot implement §7.1. `signup-form` also omits name split, password confirmation, date of birth and phone. We use Arc `Input`, `PasswordField`, `PasswordStrength`, `Button`, `Alert` and a token-only panel. Report to the reviewer; if `login-centered` is mandatory, the scope needs a password variant | Component docs |
+| D26 | **`proxy.ts` CSRF expected origin uses `Host` / `x-forwarded-host` plus `x-forwarded-proto`, not `request.url`.** Next 16 normalises localhost, which made a real `Origin: http://127.0.0.1:3210` fail. Still same-origin, still rejects a foreign Origin | Live smoke |
+| D27 | **Tailwind's Turbopack loader is limited to non-module CSS and excludes `src/components/arc/**`.** Running it over CSS modules emptied their class exports; running it over Arc CSS failed on `:global(...)`. `globals.css` still gets Tailwind; Arc files are untouched | Build |
+| D28 | **E2E runs on port 3210 with its own production build.** A developer `next dev` on 3000 shares `.next` and broke CSS during the first run. `test:e2e` starts `next build && next start` on 3210 with `reuseExistingServer: false` | Test run |
 | D16 | Hero headline changed by the user to "Care Within Reach, / Wherever You Are": two equal lines, as in the reference template. This replaces approved option 1 | User request |
 
 **Open items:**
@@ -74,6 +97,13 @@ Next: the builder model runs M0. The reviewer (this session) checks each gate.
 - Backend questions B1–B6 are in scope §1: allergy field vs records, duplicate condition/medication fields, `includeRecords` and the AI provider, HTTPS-only, a practitioner test account, no `GET /me/consents`.
 
 ## Review log
+- **2026-11-17, M0 self-review:**
+  - Build caught three issues and they are fixed: `runtime`/`dynamic` route config is incompatible with `cacheComponents` (removed); Turbopack + Tailwind was emptying CSS-module class exports (D27); CSRF origin comparison broke on `127.0.0.1` (D26).
+  - Axe caught a label-content-name mismatch in Arc `UserMenu` because the initials avatar is visible text. Fixed with an initials data-URI avatar, so the accessible name contains the visible account name.
+  - Auth pages now mount `Providers`; the first draft would have thrown at runtime because `(auth)` sits outside `(app)`.
+  - Verified: no `ha_*` cookie is readable from `document.cookie`; localStorage and sessionStorage are empty; the only `sessionStorage` use in `src` is the landing intro flag; the only `console.*` is `src/lib/log.ts` (path and status only).
+  - Screenshots at 390/768/1024/1440: `test-results/screens/`. Security evidence: `test-results/security/evidence.png` and `grep.txt`.
+  - Deviation D25 (auth block) is the only intentional UI deviation from the inventory; it needs reviewer sign-off.
 - **2026-11-17, v1 self-review:**
   - Nav contrast over dark sections fixed.
   - Body-map list order fixed on mobile.
