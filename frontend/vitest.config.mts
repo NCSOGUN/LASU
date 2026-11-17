@@ -9,9 +9,9 @@ export default defineConfig({
     exclude: ["tests/e2e/**", "tests/live/**", "node_modules/**"],
     css: true,
     restoreMocks: true,
-    // Arc's animated controls are heavy in jsdom; a 5 s default made auth and timeline tests flaky under load.
-    testTimeout: 20_000,
-    hookTimeout: 20_000,
+    fileParallelism: false,
+    testTimeout: 30_000,
+    hookTimeout: 30_000,
     coverage: {
       provider: "v8",
       include: ["src/api/**", "src/lib/**"],

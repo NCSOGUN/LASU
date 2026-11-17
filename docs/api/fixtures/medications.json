@@ -1,0 +1,907 @@
+{
+  "group": "Medications and reminders",
+  "order": 50,
+  "description": "Medication schedules, per-dose moments and device registration. All schedule and moment routes resolve the patient from the bearer token; a body patient id is never accepted. Numeric progress/score fields are Decimal strings, not JSON numbers.",
+  "endpoints": [
+    {
+      "id": "meds-schedule-create",
+      "name": "Create a structured medication schedule",
+      "method": "POST",
+      "path": "/medications",
+      "summary": "Create a schedule from an explicit medication array without an AI call.",
+      "description": "Deterministic path: a non-empty medications array of structured entries skips the model. The API creates the schedule and one moment per dose per day between startDate and endDate. The response contains the schedule but no moments; read them with GET /medications/:id. Date-only inputs are interpreted as the same calendar date in UTC: startDate 2026-11-17 is returned as start_date 2026-11-17T00:00:00.000Z and endDate 2026-11-19 as end_date 2026-11-19T00:00:00.000Z. Dose moments are absolute instants; render them in the user's local timezone.",
+      "auth": "bearer",
+      "roles": [],
+      "contentType": "application/json",
+      "bodyExample": {
+        "title": "Headache relief plan",
+        "description": "Short course for tension headache",
+        "summary": "Paracetamol 500 mg up to three times daily for two days",
+        "startDate": "2026-11-17",
+        "endDate": "2026-11-19",
+        "medications": [
+          {
+            "drug": "Paracetamol",
+            "dose": "500 mg",
+            "frequency": "Three times daily",
+            "times": [
+              {
+                "hour": 8,
+                "minute": 0
+              },
+              {
+                "hour": 14,
+                "minute": 0
+              },
+              {
+                "hour": 20,
+                "minute": 0
+              }
+            ]
+          }
+        ]
+      },
+      "bodyFields": [
+        {
+          "name": "title",
+          "type": "string",
+          "required": false,
+          "description": "Schedule title. Stored as null when omitted."
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "required": false,
+          "description": "Free-text description. Stored as null when omitted."
+        },
+        {
+          "name": "summary",
+          "type": "string",
+          "required": false,
+          "description": "Short summary. When omitted it is generated as \"<drug> <dose>, ...\"."
+        },
+        {
+          "name": "startDate",
+          "type": "string",
+          "required": true,
+          "description": "ISO date; day precision. Must not be after endDate."
+        },
+        {
+          "name": "endDate",
+          "type": "string",
+          "required": true,
+          "description": "ISO date; day precision, inclusive for moment generation."
+        },
+        {
+          "name": "medications",
+          "type": "object[]",
+          "required": true,
+          "description": "At least one entry: {drug (required), dose, frequency, times: [{hour 0-23, minute 0-59}] (at least one)}. A malformed structured array returns 400 instead of falling back to the AI path."
+        }
+      ],
+      "responses": [
+        {
+          "status": 201,
+          "label": "Created",
+          "description": "Schedule row; moments are created but not included.",
+          "headers": {
+            "content-type": "application/json; charset=utf-8"
+          },
+          "body": {
+            "schedule": {
+              "id": "ff5c2b3f-81ea-4038-9b93-adce5efcdf46",
+              "patient_id": "20000000-0000-4000-8000-000000000005",
+              "title": "Headache relief plan",
+              "description": "Short course for tension headache",
+              "medications": [
+                {
+                  "dose": "500 mg",
+                  "drug": "Paracetamol",
+                  "times": [
+                    {
+                      "hour": 8,
+                      "minute": 0
+                    },
+                    {
+                      "hour": 14,
+                      "minute": 0
+                    },
+                    {
+                      "hour": 20,
+                      "minute": 0
+                    }
+                  ],
+                  "frequency": "Three times daily"
+                }
+              ],
+              "start_date": "2026-11-17T00:00:00.000Z",
+              "end_date": "2026-11-19T00:00:00.000Z",
+              "summary": "Paracetamol 500 mg up to three times daily for two days",
+              "progress": "0",
+              "score": "100",
+              "created_at": "2026-11-17T16:22:06.462Z",
+              "updated_at": "2026-11-17T16:22:06.462Z"
+            }
+          }
+        },
+        {
+          "status": 400,
+          "label": "Invalid schedule",
+          "description": "endDate precedes startDate.",
+          "headers": {
+            "content-type": "application/json; charset=utf-8"
+          },
+          "body": {
+            "error": "invalid_schedule",
+            "message": "End date must not precede start date",
+            "request_id": "192ba9e6-93cb-4f2b-885f-ec4ad2e4a58a"
+          }
+        },
+        {
+          "status": 400,
+          "label": "Invalid schedule",
+          "description": "Empty medications array.",
+          "headers": {
+            "content-type": "application/json; charset=utf-8"
+          },
+          "body": {
+            "error": "invalid_schedule",
+            "message": "Medications or a document is required",
+            "request_id": "448273ed-bd7b-4e3d-aee2-5a39cb35a6bf"
+          }
+        }
+      ],
+      "curl": "TOKEN=\"<access-jwt>\"\ncurl -sS -X POST http://localhost:3000/v1/medications \\\n  -H \"authorization: Bearer $TOKEN\" \\\n  -H 'content-type: application/json' \\\n  -d '{\"title\":\"Headache relief plan\",\"description\":\"Short course for tension headache\",\"summary\":\"Paracetamol 500 mg up to three times daily for two days\",\"startDate\":\"2026-11-17\",\"endDate\":\"2026-11-19\",\"medications\":[{\"drug\":\"Paracetamol\",\"dose\":\"500 mg\",\"frequency\":\"Three times daily\",\"times\":[{\"hour\":8,\"minute\":0},{\"hour\":14,\"minute\":0},{\"hour\":20,\"minute\":0}]}]}'",
+      "notes": [
+        "Captured live: 201 in 29 ms; no model call on this path.",
+        "progress and score are strings: the capture is progress \"0\", score \"100\".",
+        "progress only counts decided moments (TAKEN or MISSED), so it stays 0 while every moment is PENDING.",
+        "The captured start_date/end_date round-trip the input calendar dates: 2026-11-17T00:00:00.000Z and 2026-11-19T00:00:00.000Z."
+      ]
+    },
+    {
+      "id": "meds-schedule-create-ai",
+      "name": "Create a schedule from free text (AI-assisted)",
+      "method": "POST",
+      "path": "/medications",
+      "summary": "Let the scheduler model turn unstructured text or a document into a schedule.",
+      "description": "Used when medications is free text (or absent and a document is uploaded). The API calls the medication scheduler agent and persists its JSON draft. Explicit title/description/summary override the model's values. The same route accepts multipart/form-data with a single document file (max 10 MB) instead of JSON.",
+      "auth": "bearer",
+      "roles": [],
+      "contentType": "application/json",
+      "bodyExample": {
+        "startDate": "2026-11-17",
+        "endDate": "2026-11-20",
+        "medications": "Amoxicillin 500 mg three times daily for four days"
+      },
+      "bodyFields": [
+        {
+          "name": "startDate",
+          "type": "string",
+          "required": true,
+          "description": "ISO date; day precision."
+        },
+        {
+          "name": "endDate",
+          "type": "string",
+          "required": true,
+          "description": "ISO date; must not precede startDate."
+        },
+        {
+          "name": "medications",
+          "type": "string",
+          "required": false,
+          "description": "Free-text medication instructions. Required unless a document part is uploaded; a structured array takes the deterministic path instead."
+        },
+        {
+          "name": "document",
+          "type": "file",
+          "required": false,
+          "description": "multipart/form-data only: one file up to 10 MB. Not embedded in this fixture."
+        },
+        {
+          "name": "title",
+          "type": "string",
+          "required": false,
+          "description": "Optional override of the model-generated title."
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "required": false,
+          "description": "Optional override of the model-generated description."
+        },
+        {
+          "name": "summary",
+          "type": "string",
+          "required": false,
+          "description": "Optional override of the model-generated summary."
+        }
+      ],
+      "responses": [
+        {
+          "status": 201,
+          "label": "Created (AI-assisted)",
+          "description": "Schedule built from the model draft; the model filled title and summary.",
+          "headers": {
+            "content-type": "application/json; charset=utf-8"
+          },
+          "body": {
+            "schedule": {
+              "id": "6a1b5704-af72-4cce-aa11-21807dd95d0b",
+              "patient_id": "20000000-0000-4000-8000-000000000005",
+              "title": null,
+              "description": null,
+              "medications": [
+                {
+                  "dose": "500 mg",
+                  "drug": "Amoxicillin",
+                  "times": [
+                    {
+                      "hour": 8,
+                      "minute": 0
+                    },
+                    {
+                      "hour": 14,
+                      "minute": 0
+                    },
+                    {
+                      "hour": 20,
+                      "minute": 0
+                    }
+                  ],
+                  "frequency": "Three times daily"
+                }
+              ],
+              "start_date": "2026-11-17T00:00:00.000Z",
+              "end_date": "2026-11-20T00:00:00.000Z",
+              "summary": "Take amoxicillin 500 mg three times daily for four days, from November 17 through November 20, 2026.",
+              "progress": "0",
+              "score": "100",
+              "created_at": "2026-11-17T16:22:27.700Z",
+              "updated_at": "2026-11-17T16:22:27.700Z"
+            }
+          }
+        }
+      ],
+      "curl": "TOKEN=\"<access-jwt>\"\ncurl -sS -X POST http://localhost:3000/v1/medications \\\n  -H \"authorization: Bearer $TOKEN\" \\\n  -H 'content-type: application/json' \\\n  -d '{\"startDate\":\"2026-11-17\",\"endDate\":\"2026-11-20\",\"medications\":\"Amoxicillin 500 mg three times daily for four days\"}'",
+      "notes": [
+        "Captured live: 201 in 5.5 s against OpenRouter (openai/gpt-6-luna).",
+        "The draft returned title null, description null and summary \"Take amoxicillin 500 mg three times daily for four days, from November 17 through November 20, 2026.\"; the schedule dates round-tripped as 2026-11-17T00:00:00.000Z and 2026-11-20T00:00:00.000Z.",
+        "Model output is not clinically validated; review drug, dose and times before use.",
+        "Missing provider config returns 503 ai_unavailable; invalid model JSON returns 502 ai_invalid_response.",
+        "The schedule response does not include model_version; the AI write is recorded in the audit log as actorRef ai:<model>."
+      ]
+    },
+    {
+      "id": "meds-schedule-list",
+      "name": "List medication schedules",
+      "method": "GET",
+      "path": "/medications",
+      "summary": "Paginated schedules for the authenticated patient, newest first.",
+      "description": "Returns schedule rows without moments, ordered by created_at descending.",
+      "auth": "bearer",
+      "roles": [],
+      "queryParams": [
+        {
+          "name": "page",
+          "type": "integer",
+          "required": false,
+          "default": 1,
+          "description": "1-based page; invalid values fall back to 1."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "default": 10,
+          "description": "Page size; values above 50 are clamped to 50."
+        }
+      ],
+      "responses": [
+        {
+          "status": 200,
+          "label": "OK",
+          "description": "Current page of schedules.",
+          "headers": {
+            "content-type": "application/json; charset=utf-8"
+          },
+          "body": {
+            "schedules": [
+              {
+                "id": "ff5c2b3f-81ea-4038-9b93-adce5efcdf46",
+                "patient_id": "20000000-0000-4000-8000-000000000005",
+                "title": "Headache relief plan",
+                "description": "Short course for tension headache",
+                "medications": [
+                  {
+                    "dose": "500 mg",
+                    "drug": "Paracetamol",
+                    "times": [
+                      {
+                        "hour": 8,
+                        "minute": 0
+                      },
+                      {
+                        "hour": 14,
+                        "minute": 0
+                      },
+                      {
+                        "hour": 20,
+                        "minute": 0
+                      }
+                    ],
+                    "frequency": "Three times daily"
+                  }
+                ],
+                "start_date": "2026-11-17T00:00:00.000Z",
+                "end_date": "2026-11-19T00:00:00.000Z",
+                "summary": "Paracetamol 500 mg up to three times daily for two days",
+                "progress": "0",
+                "score": "100",
+                "created_at": "2026-11-17T16:22:06.462Z",
+                "updated_at": "2026-11-17T16:22:06.462Z"
+              }
+            ],
+            "page": 1,
+            "limit": 10,
+            "total": 1,
+            "totalPages": 1
+          }
+        }
+      ],
+      "curl": "TOKEN=\"<access-jwt>\"\ncurl -sS \"http://localhost:3000/v1/medications?page=1&limit=10\" \\\n  -H \"authorization: Bearer $TOKEN\"",
+      "notes": [
+        "totalPages is Math.ceil(total / limit), so it is 0 when there are no schedules.",
+        "Schedules require a patient profile; accounts without one get 403 patient_profile_required."
+      ]
+    },
+    {
+      "id": "meds-schedule-get",
+      "name": "Get one medication schedule",
+      "method": "GET",
+      "path": "/medications/{id}",
+      "summary": "Fetch a schedule with all of its dose moments, ordered by time.",
+      "description": "Returns the schedule plus moments (time, drug, dose, frequency, status, notification flags). Unknown ids, non-uuid ids and other patients' schedules return 404 not_found.",
+      "auth": "bearer",
+      "roles": [],
+      "pathParams": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "description": "Medication schedule id returned by POST /medications."
+        }
+      ],
+      "responses": [
+        {
+          "status": 200,
+          "label": "OK",
+          "description": "Schedule with nine PENDING moments for three days at three times daily.",
+          "headers": {
+            "content-type": "application/json; charset=utf-8"
+          },
+          "body": {
+            "schedule": {
+              "id": "ff5c2b3f-81ea-4038-9b93-adce5efcdf46",
+              "patient_id": "20000000-0000-4000-8000-000000000005",
+              "title": "Headache relief plan",
+              "description": "Short course for tension headache",
+              "medications": [
+                {
+                  "dose": "500 mg",
+                  "drug": "Paracetamol",
+                  "times": [
+                    {
+                      "hour": 8,
+                      "minute": 0
+                    },
+                    {
+                      "hour": 14,
+                      "minute": 0
+                    },
+                    {
+                      "hour": 20,
+                      "minute": 0
+                    }
+                  ],
+                  "frequency": "Three times daily"
+                }
+              ],
+              "start_date": "2026-11-17T00:00:00.000Z",
+              "end_date": "2026-11-19T00:00:00.000Z",
+              "summary": "Paracetamol 500 mg up to three times daily for two days",
+              "progress": "0",
+              "score": "100",
+              "created_at": "2026-11-17T16:22:06.462Z",
+              "updated_at": "2026-11-17T16:22:06.462Z",
+              "moments": [
+                {
+                  "id": "04f6d070-d980-4326-a9b0-5ce7e0b79585",
+                  "medication_schedule_id": "ff5c2b3f-81ea-4038-9b93-adce5efcdf46",
+                  "drug": "Paracetamol",
+                  "dose": "500 mg",
+                  "frequency": "Three times daily",
+                  "status": "PENDING",
+                  "time": "2026-11-17T07:00:00.000Z",
+                  "notified_user": false,
+                  "notified_at": null,
+                  "created_at": "2026-11-17T16:22:06.464Z"
+                },
+                {
+                  "id": "ae10333d-b68b-4c18-aec6-0bc6ccf5c702",
+                  "medication_schedule_id": "ff5c2b3f-81ea-4038-9b93-adce5efcdf46",
+                  "drug": "Paracetamol",
+                  "dose": "500 mg",
+                  "frequency": "Three times daily",
+                  "status": "PENDING",
+                  "time": "2026-11-17T13:00:00.000Z",
+                  "notified_user": false,
+                  "notified_at": null,
+                  "created_at": "2026-11-17T16:22:06.464Z"
+                },
+                {
+                  "id": "3207275c-e34f-4372-a4ee-7f9ab94b06d1",
+                  "medication_schedule_id": "ff5c2b3f-81ea-4038-9b93-adce5efcdf46",
+                  "drug": "Paracetamol",
+                  "dose": "500 mg",
+                  "frequency": "Three times daily",
+                  "status": "PENDING",
+                  "time": "2026-11-17T19:00:00.000Z",
+                  "notified_user": false,
+                  "notified_at": null,
+                  "created_at": "2026-11-17T16:22:06.464Z"
+                },
+                {
+                  "id": "0c68fada-0401-45ee-a3fe-aadf2d00beaa",
+                  "medication_schedule_id": "ff5c2b3f-81ea-4038-9b93-adce5efcdf46",
+                  "drug": "Paracetamol",
+                  "dose": "500 mg",
+                  "frequency": "Three times daily",
+                  "status": "PENDING",
+                  "time": "2026-11-18T07:00:00.000Z",
+                  "notified_user": false,
+                  "notified_at": null,
+                  "created_at": "2026-11-17T16:22:06.464Z"
+                },
+                {
+                  "id": "a65667fe-aa3a-495e-aa53-8eba711b2ec3",
+                  "medication_schedule_id": "ff5c2b3f-81ea-4038-9b93-adce5efcdf46",
+                  "drug": "Paracetamol",
+                  "dose": "500 mg",
+                  "frequency": "Three times daily",
+                  "status": "PENDING",
+                  "time": "2026-11-18T13:00:00.000Z",
+                  "notified_user": false,
+                  "notified_at": null,
+                  "created_at": "2026-11-17T16:22:06.464Z"
+                },
+                {
+                  "id": "0ec0fffd-8cb9-40bc-8fbc-fb8962f05b27",
+                  "medication_schedule_id": "ff5c2b3f-81ea-4038-9b93-adce5efcdf46",
+                  "drug": "Paracetamol",
+                  "dose": "500 mg",
+                  "frequency": "Three times daily",
+                  "status": "PENDING",
+                  "time": "2026-11-18T19:00:00.000Z",
+                  "notified_user": false,
+                  "notified_at": null,
+                  "created_at": "2026-11-17T16:22:06.464Z"
+                },
+                {
+                  "id": "382c8be3-f60a-49e1-aed8-d8aa2a9deb93",
+                  "medication_schedule_id": "ff5c2b3f-81ea-4038-9b93-adce5efcdf46",
+                  "drug": "Paracetamol",
+                  "dose": "500 mg",
+                  "frequency": "Three times daily",
+                  "status": "PENDING",
+                  "time": "2026-11-19T07:00:00.000Z",
+                  "notified_user": false,
+                  "notified_at": null,
+                  "created_at": "2026-11-17T16:22:06.464Z"
+                },
+                {
+                  "id": "04c00d85-d108-4f31-91db-498aa00dd781",
+                  "medication_schedule_id": "ff5c2b3f-81ea-4038-9b93-adce5efcdf46",
+                  "drug": "Paracetamol",
+                  "dose": "500 mg",
+                  "frequency": "Three times daily",
+                  "status": "PENDING",
+                  "time": "2026-11-19T13:00:00.000Z",
+                  "notified_user": false,
+                  "notified_at": null,
+                  "created_at": "2026-11-17T16:22:06.464Z"
+                },
+                {
+                  "id": "12f31a0c-0657-45d7-aa1d-1200741b1b9a",
+                  "medication_schedule_id": "ff5c2b3f-81ea-4038-9b93-adce5efcdf46",
+                  "drug": "Paracetamol",
+                  "dose": "500 mg",
+                  "frequency": "Three times daily",
+                  "status": "PENDING",
+                  "time": "2026-11-19T19:00:00.000Z",
+                  "notified_user": false,
+                  "notified_at": null,
+                  "created_at": "2026-11-17T16:22:06.464Z"
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "curl": "TOKEN=\"<access-jwt>\"\nSCHEDULE_ID=<schedule-id>\ncurl -sS http://localhost:3000/v1/medications/$SCHEDULE_ID \\\n  -H \"authorization: Bearer $TOKEN\"",
+      "notes": [
+        "moments are sorted by time ascending, not by drug.",
+        "moment.time is an absolute instant. The 8:00 dose is stored as 07:00:00.000Z, so render moments in the user's local timezone instead of slicing the UTC string.",
+        "In the capture notified_user is false and notified_at is null because no reminder cycle had processed these future moments."
+      ]
+    },
+    {
+      "id": "meds-moment-update",
+      "name": "Mark a dose moment",
+      "method": "PATCH",
+      "path": "/medications/moments/{id}",
+      "summary": "Set one dose moment to TAKEN, MISSED or PENDING and recompute schedule progress.",
+      "description": "Updates the moment by id, then recomputes the parent schedule's progress and score. The response includes the updated moment plus both recomputed values.",
+      "auth": "bearer",
+      "roles": [],
+      "contentType": "application/json",
+      "pathParams": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "description": "Moment id (medication_moments.id), not the schedule id."
+        }
+      ],
+      "bodyExample": {
+        "status": "TAKEN"
+      },
+      "bodyFields": [
+        {
+          "name": "status",
+          "type": "string",
+          "required": true,
+          "description": "TAKEN, MISSED or PENDING (uppercase enum)."
+        }
+      ],
+      "responses": [
+        {
+          "status": 200,
+          "label": "OK",
+          "description": "Updated moment plus the parent schedule's progress and score.",
+          "headers": {
+            "content-type": "application/json; charset=utf-8"
+          },
+          "body": {
+            "moment": {
+              "id": "04f6d070-d980-4326-a9b0-5ce7e0b79585",
+              "medication_schedule_id": "ff5c2b3f-81ea-4038-9b93-adce5efcdf46",
+              "drug": "Paracetamol",
+              "dose": "500 mg",
+              "frequency": "Three times daily",
+              "status": "TAKEN",
+              "time": "2026-11-17T07:00:00.000Z",
+              "notified_user": false,
+              "notified_at": null,
+              "created_at": "2026-11-17T16:22:06.464Z"
+            },
+            "progress": "100",
+            "score": "100"
+          }
+        }
+      ],
+      "curl": "TOKEN=\"<access-jwt>\"\nMOMENT_ID=<moment-id>\ncurl -sS -X PATCH http://localhost:3000/v1/medications/moments/$MOMENT_ID \\\n  -H \"authorization: Bearer $TOKEN\" \\\n  -H 'content-type: application/json' \\\n  -d '{\"status\":\"TAKEN\"}'",
+      "notes": [
+        "progress is taken / (taken + missed) as a percentage with up to two decimals; one TAKEN and no MISSED yields 100 while remaining moments are still PENDING.",
+        "Both progress and score are Decimal strings in JSON, for example \"100\".",
+        "A moment owned by another patient returns 404 not_found."
+      ]
+    },
+    {
+      "id": "meds-schedule-add",
+      "name": "Add medications to a schedule",
+      "method": "PATCH",
+      "path": "/medications/{id}/add",
+      "summary": "Append structured medications and create their new dose moments.",
+      "description": "Appends to the schedule's medications JSON and creates new PENDING moments for the supplied window. The schedule's own start_date, end_date, title, summary and existing moments are unchanged. Free text or a multipart document switches to the AI addition path. Responds 201 with the schedule but no moments.",
+      "auth": "bearer",
+      "roles": [],
+      "contentType": "application/json",
+      "pathParams": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "description": "Medication schedule id."
+        }
+      ],
+      "bodyExample": {
+        "startDate": "2026-11-17",
+        "endDate": "2026-11-18",
+        "medications": [
+          {
+            "drug": "Ibuprofen",
+            "dose": "200 mg",
+            "frequency": "Twice daily",
+            "times": [
+              {
+                "hour": 9,
+                "minute": 30
+              },
+              {
+                "hour": 21,
+                "minute": 30
+              }
+            ]
+          }
+        ]
+      },
+      "bodyFields": [
+        {
+          "name": "startDate",
+          "type": "string",
+          "required": true,
+          "description": "First day for the new moments."
+        },
+        {
+          "name": "endDate",
+          "type": "string",
+          "required": true,
+          "description": "Last day for the new moments; must not precede startDate."
+        },
+        {
+          "name": "medications",
+          "type": "object[]",
+          "required": true,
+          "description": "One or more {drug, dose, frequency, times[]} entries; same schema as create."
+        },
+        {
+          "name": "document",
+          "type": "file",
+          "required": false,
+          "description": "multipart/form-data alternative for the AI path; not embedded here."
+        }
+      ],
+      "responses": [
+        {
+          "status": 201,
+          "label": "Created",
+          "description": "Schedule with both medications; new moments are not included.",
+          "headers": {
+            "content-type": "application/json; charset=utf-8"
+          },
+          "body": {
+            "schedule": {
+              "id": "ff5c2b3f-81ea-4038-9b93-adce5efcdf46",
+              "patient_id": "20000000-0000-4000-8000-000000000005",
+              "title": "Headache relief plan",
+              "description": "Short course for tension headache",
+              "medications": [
+                {
+                  "dose": "500 mg",
+                  "drug": "Paracetamol",
+                  "times": [
+                    {
+                      "hour": 8,
+                      "minute": 0
+                    },
+                    {
+                      "hour": 14,
+                      "minute": 0
+                    },
+                    {
+                      "hour": 20,
+                      "minute": 0
+                    }
+                  ],
+                  "frequency": "Three times daily"
+                },
+                {
+                  "dose": "200 mg",
+                  "drug": "Ibuprofen",
+                  "times": [
+                    {
+                      "hour": 9,
+                      "minute": 30
+                    },
+                    {
+                      "hour": 21,
+                      "minute": 30
+                    }
+                  ],
+                  "frequency": "Twice daily"
+                }
+              ],
+              "start_date": "2026-11-17T00:00:00.000Z",
+              "end_date": "2026-11-19T00:00:00.000Z",
+              "summary": "Paracetamol 500 mg up to three times daily for two days",
+              "progress": "100",
+              "score": "100",
+              "created_at": "2026-11-17T16:22:06.462Z",
+              "updated_at": "2026-11-17T16:22:16.184Z"
+            }
+          }
+        }
+      ],
+      "curl": "TOKEN=\"<access-jwt>\"\nSCHEDULE_ID=<schedule-id>\ncurl -sS -X PATCH http://localhost:3000/v1/medications/$SCHEDULE_ID/add \\\n  -H \"authorization: Bearer $TOKEN\" \\\n  -H 'content-type: application/json' \\\n  -d '{\"startDate\":\"2026-11-17\",\"endDate\":\"2026-11-18\",\"medications\":[{\"drug\":\"Ibuprofen\",\"dose\":\"200 mg\",\"frequency\":\"Twice daily\",\"times\":[{\"hour\":9,\"minute\":30},{\"hour\":21,\"minute\":30}]}]}'",
+      "notes": [
+        "Returns 201, not 200, because new moments are created.",
+        "The captured response still shows the schedule's original dates (2026-11-17T00:00:00.000Z and 2026-11-19T00:00:00.000Z); only medications and moments were extended.",
+        "Re-adding an existing drug appends a second entry; it does not merge times."
+      ]
+    },
+    {
+      "id": "meds-schedule-remove",
+      "name": "Remove a medication from a schedule",
+      "method": "PATCH",
+      "path": "/medications/{id}/remove",
+      "summary": "Remove a drug and delete its still-PENDING dose moments.",
+      "description": "Matches drug case-insensitively after trimming, removes it from the schedule's medications array and deletes its PENDING moments, optionally only those at or after from. TAKEN and MISSED moments are retained. Returns the schedule without moments.",
+      "auth": "bearer",
+      "roles": [],
+      "contentType": "application/json",
+      "pathParams": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "description": "Medication schedule id."
+        }
+      ],
+      "bodyExample": {
+        "drug": "Ibuprofen"
+      },
+      "bodyFields": [
+        {
+          "name": "drug",
+          "type": "string",
+          "required": true,
+          "description": "Drug name to remove; case-insensitive, whitespace-trimmed."
+        },
+        {
+          "name": "from",
+          "type": "string",
+          "required": false,
+          "description": "Optional ISO date; only PENDING moments at or after it are deleted."
+        }
+      ],
+      "responses": [
+        {
+          "status": 200,
+          "label": "OK",
+          "description": "Schedule with only Paracetamol remaining.",
+          "headers": {
+            "content-type": "application/json; charset=utf-8"
+          },
+          "body": {
+            "schedule": {
+              "id": "ff5c2b3f-81ea-4038-9b93-adce5efcdf46",
+              "patient_id": "20000000-0000-4000-8000-000000000005",
+              "title": "Headache relief plan",
+              "description": "Short course for tension headache",
+              "medications": [
+                {
+                  "dose": "500 mg",
+                  "drug": "Paracetamol",
+                  "times": [
+                    {
+                      "hour": 8,
+                      "minute": 0
+                    },
+                    {
+                      "hour": 14,
+                      "minute": 0
+                    },
+                    {
+                      "hour": 20,
+                      "minute": 0
+                    }
+                  ],
+                  "frequency": "Three times daily"
+                }
+              ],
+              "start_date": "2026-11-17T00:00:00.000Z",
+              "end_date": "2026-11-19T00:00:00.000Z",
+              "summary": "Paracetamol 500 mg up to three times daily for two days",
+              "progress": "100",
+              "score": "100",
+              "created_at": "2026-11-17T16:22:06.462Z",
+              "updated_at": "2026-11-17T16:22:16.202Z"
+            }
+          }
+        }
+      ],
+      "curl": "TOKEN=\"<access-jwt>\"\nSCHEDULE_ID=<schedule-id>\ncurl -sS -X PATCH http://localhost:3000/v1/medications/$SCHEDULE_ID/remove \\\n  -H \"authorization: Bearer $TOKEN\" \\\n  -H 'content-type: application/json' \\\n  -d '{\"drug\":\"Ibuprofen\"}'",
+      "notes": [
+        "Removing a drug that is not present leaves the medication list unchanged and still returns 200.",
+        "The response omits moments; re-fetch GET /medications/:id to confirm deletions."
+      ]
+    },
+    {
+      "id": "meds-device-register",
+      "name": "Register a device push token",
+      "method": "POST",
+      "path": "/devices",
+      "summary": "Upsert an FCM token for the signed-in account.",
+      "description": "Upserts by token: repeat calls update account owner, platform and last_used_at. FCM is disabled in this environment (FCM_ENABLED=false), so registration stores the token but no push is delivered.",
+      "auth": "bearer",
+      "roles": [],
+      "contentType": "application/json",
+      "bodyExample": {
+        "token": "demo-web-token-7f3c9a2e",
+        "platform": "WEB"
+      },
+      "bodyFields": [
+        {
+          "name": "token",
+          "type": "string",
+          "required": true,
+          "description": "FCM registration token, 1-4096 characters."
+        },
+        {
+          "name": "platform",
+          "type": "string",
+          "required": true,
+          "description": "IOS, ANDROID or WEB (uppercase enum)."
+        }
+      ],
+      "responses": [
+        {
+          "status": 201,
+          "label": "Created",
+          "description": "Device id and platform; the token is not echoed.",
+          "headers": {
+            "content-type": "application/json; charset=utf-8"
+          },
+          "body": {
+            "device": {
+              "id": "85d0c92f-7e2b-4e27-8efd-289f5f6de2ea",
+              "platform": "WEB"
+            }
+          }
+        }
+      ],
+      "curl": "TOKEN=\"<access-jwt>\"\ncurl -sS -X POST http://localhost:3000/v1/devices \\\n  -H \"authorization: Bearer $TOKEN\" \\\n  -H 'content-type: application/json' \\\n  -d '{\"token\":\"demo-web-token-7f3c9a2e\",\"platform\":\"WEB\"}'",
+      "notes": [
+        "Requires authentication but no patient profile.",
+        "Response is {device:{id,platform}}; keep the token client-side, it is not returned."
+      ]
+    },
+    {
+      "id": "meds-schedule-delete",
+      "name": "Delete a medication schedule",
+      "method": "DELETE",
+      "path": "/medications/{id}",
+      "summary": "Delete a schedule and cascade its moments.",
+      "description": "Deletes the schedule row for the authenticated patient; moments cascade via the database relation. Returns {message} or 404 not_found when no row matches.",
+      "auth": "bearer",
+      "roles": [],
+      "pathParams": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "description": "Medication schedule id."
+        }
+      ],
+      "responses": [
+        {
+          "status": 200,
+          "label": "OK",
+          "description": "Deletion confirmed.",
+          "headers": {
+            "content-type": "application/json; charset=utf-8"
+          },
+          "body": {
+            "message": "Medication schedule deleted"
+          }
+        }
+      ],
+      "curl": "TOKEN=\"<access-jwt>\"\nSCHEDULE_ID=<schedule-id>\ncurl -sS -X DELETE http://localhost:3000/v1/medications/$SCHEDULE_ID \\\n  -H \"authorization: Bearer $TOKEN\"",
+      "notes": [
+        "The captured schedules (structured and AI-assisted) were deleted after capture; GET /medications returned total 0."
+      ]
+    }
+  ]
+}

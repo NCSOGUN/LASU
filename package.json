@@ -1,0 +1,30 @@
+{
+  "name": "healthaccess",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "HealthAccess monorepo: online portal and API, offline SMS/USSD, shared patient-access core",
+  "workspaces": [
+    "backend/shared",
+    "backend/online",
+    "backend/offline"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build:shared": "npm run build --workspace @healthaccess/shared",
+    "build:online": "npm run build --workspace @healthaccess/online",
+    "build:offline": "npm run build --workspace @healthaccess/offline",
+    "build": "npm run build:shared && npm run build:online && npm run build:offline",
+    "typecheck": "npm run typecheck --workspace @healthaccess/shared && npm run typecheck --workspace @healthaccess/online && npm run typecheck --workspace @healthaccess/offline",
+    "test": "npm run test --workspace @healthaccess/shared && npm run test --workspace @healthaccess/online && npm run test --workspace @healthaccess/offline",
+    "dev:online": "npm run dev --workspace @healthaccess/online",
+    "dev:offline": "npm run dev --workspace @healthaccess/offline",
+    "dev:worker": "npm run dev:worker --workspace @healthaccess/offline",
+    "db:migrate": "npm run db:migrate --workspace @healthaccess/online",
+    "db:seed": "npm run db:seed --workspace @healthaccess/online",
+    "db:generate": "npm run db:generate --workspace @healthaccess/online",
+    "docs:api": "node docs/api/build.mjs"
+  }
+}
