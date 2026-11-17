@@ -41,7 +41,8 @@ password: DemoPass123!
 code:     123456789012
 ```
 
-Run `npm run db:seed` if the account is missing. The login example uses these
+Run `npm run db:seed` if the account is missing; in Docker use
+`docker compose run --rm online npm run db:seed`. The login example uses these
 credentials. Captured response examples use the demo account or cleared test
 accounts, with `<access-jwt>` / `<refresh-token>` placeholders; they never contain
 live tokens. When you run login yourself, the response viewer shows the real token

@@ -20,6 +20,7 @@ export async function runWorker() {
     : {
         searchHealth: async () => [],
         discoverFacilities: async () => [],
+        discoverEmergency: async () => [],
       };
   const assistant = createAssistant(config, { search, repository });
   const provider = createSmsProvider(config);

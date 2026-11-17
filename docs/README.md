@@ -37,11 +37,11 @@ Phase labels are based on code present in the repository on 17 November 2026.
 | Phase                         | State       | Evidence / gap                                                                                                          |
 | ----------------------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------- |
 | Foundation                    | Implemented | npm workspaces, Prisma schema, migrations, Express app, `/health/live`, `/health/ready`, `/v1`, shared package             |
-| Database                      | Implemented | 48 tables + invariant migration; idempotent seed with reference and demo data; `tests/schema.test.ts` passes 6/6           |
+| Database                      | Implemented | 49 tables + migrations; idempotent seed with reference data and a sandbox patient; `tests/schema.test.ts` passes 6/6        |
 | Auth + users                  | Implemented | register/login/refresh/logout, Google OAuth, phone verification, profile/medical CRUD; 21 DB tests pass                 |
-| Portal + directory            | Implemented | portal service, grants/consents/record reads and directory routes; 20 portal/directory tests pass                       |
-| Symptom chat + AI             | Implemented | symptom routes, attachment upload, AI agents/tools, audited reads/writes; 10 symptom tests pass with a fake agent        |
-| Medications + reminders       | Implemented | HTTP routes, domain, reminder job, FCM service, 21 medication/reminder tests pass; live FCM delivery not configured      |
+| Portal + directory            | Implemented | portal service, grants/consents/record reads; approved non-demo facilities plus live Serper leads; directory/emergency suites pass |
+| Symptom chat + AI             | Implemented | symptom routes, attachment upload, SSE token/step streaming, AI agents/tools, audited reads/writes; 18 symptom tests pass |
+| Medications + reminders       | Implemented | HTTP routes, domain, reminder job, FCM service, 22 medication/reminder tests pass; live FCM delivery not configured      |
 | Offline SMS/USSD              | Implemented | Prisma repository, `db:migrate`/`db:seed-demo`, no `pg` or routines; 71 unit + 20 DB integration tests pass              |
 | Docs / DevOps                 | Implemented | READMEs, Dockerfiles, `docker-compose.yml` with PostgreSQL and Redis, API reference, CI; secret management, monitoring and alerting are not included |
 | Patient/frontend UI           | Not present | `frontend/` contains only a placeholder README                                                                           |
@@ -60,11 +60,12 @@ Browser / portal                     Basic phone
       v                                  v
 backend/online (Express 5)          Africa's Talking
   - /v1 auth, portal, directory          |
-  - symptom chat, medications            v
-  - JWT access/refresh              backend/offline HTTP process
-  - AI agents + audits                - provider callback validation
-  - S3 presigned uploads               - deterministic USSD state machine
-      |                                - durable SMS/event acceptance
+  - emergency search, medications        v
+  - symptom chat + SSE streaming    backend/offline HTTP process
+  - live Serper directory             - provider callback validation
+  - JWT access/refresh                - deterministic USSD state machine
+  - AI agents + audits                - live emergency/care fallback
+  - S3 presigned uploads               - durable SMS/event acceptance
       |                                    |
       |                                backend/offline worker
       |                                  - SMS conversation jobs
@@ -97,7 +98,7 @@ backend/
   online/                      @healthaccess/online
     prisma/schema.prisma       single database source of truth
     prisma/migrations/         Prisma migrations
-    prisma/seed.ts             reference data + demo fixtures
+    prisma/seed.ts             reference data + sandbox patient (no demo facilities)
     src/app.ts                 middleware, health, /v1 mounting
     src/routes.ts              module router wiring
     src/db.ts                  PrismaClient singleton

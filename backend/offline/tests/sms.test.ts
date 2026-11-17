@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { createSmsEngine, isPotentiallyUrgent } from '../src/channels/sms.js';
 import type { SmsRepository, SmsResult } from '../src/channels/sms.js';
 import { smsSegments, renderFacility, renderWebLead } from '../src/channels/render.js';
+import type { WebLead } from '../src/types.js';
 
 const services = [
   { service_code: 'general', label: 'General care' },
@@ -13,7 +14,27 @@ function textOf(result: SmsResult) {
   return reply.kind === 'text' ? reply.text : '';
 }
 
-function setup(overrides: Partial<SmsRepository> = {}) {
+function lead(id: string, name = 'Live Emergency Hospital'): WebLead {
+  return {
+    name,
+    address: `${id} Marina Road, Lagos`,
+    phone: '+2349091481560',
+    latitude: null,
+    longitude: null,
+    source_url: `https://maps.google.com/?cid=${id}`,
+    source_reference: id,
+    verification_status: 'unverified',
+    service_label: 'Emergency hospital',
+  };
+}
+
+function setup(
+  overrides: Partial<SmsRepository> = {},
+  search?: {
+    discoverFacilities(request: { serviceLabel: string; area: string }): Promise<WebLead[]>;
+    discoverEmergency?(request: { area: string }): Promise<WebLead[]>;
+  },
+) {
   const calls: string[] = [];
   const repository: SmsRepository = {
     listServices: async () => services,
@@ -49,6 +70,7 @@ function setup(overrides: Partial<SmsRepository> = {}) {
         },
         answer: async () => ({ text: 'Safe fallback.' }),
       },
+      search,
     }),
   };
 }
@@ -82,6 +104,8 @@ test('code-like inputs never reach a model and urgency bypasses clarification', 
     context: { serviceCode: 'general' },
   });
   assert.match(textOf(urgent), /immediate in-person/);
+  assert.match(textOf(urgent), /call 112/);
+  assert.match(textOf(urgent), /EMERGENCY <area>/);
   assert.deepEqual(calls, []);
   assert.equal(isPotentiallyUrgent('I am suicidal'), true);
   const withPhone = await engine.process('I cannot breathe, call 08030000000');
@@ -136,4 +160,144 @@ test('rendering distinguishes verified directory from unverified leads and encod
   assert.equal(smsSegments('a'.repeat(161)).segments, 2);
   assert.equal(smsSegments('^'.repeat(81)).segments, 2);
   assert.deepEqual(smsSegments('\u4e2d'.repeat(71)), { encoding: 'UCS-2', segments: 2 });
+});
+
+test('EMERGENCY prompts for an area, returns live leads, records the request and pages with MORE', async () => {
+  const emergencyRequests: Array<{ area: string; count: number }> = [];
+  const searched: string[] = [];
+  const { engine } = setup(
+    {
+      storeWebLeads: async () => ['lead1', 'lead2'],
+      recordEmergencyRequest: async (request) => {
+        emergencyRequests.push({
+          area: request.location_text,
+          count: request.results.length,
+        });
+        assert.equal(request.channel, 'SMS');
+        assert.equal(request.area_id, null);
+      },
+    },
+    {
+      discoverFacilities: async () => [],
+      discoverEmergency: async ({ area }) => {
+        searched.push(area);
+        return [lead('lead1'), lead('lead2', 'Ambulance Response Unit')];
+      },
+    },
+  );
+
+  const prompt = await engine.process('EMERGENCY');
+  assert.equal(prompt.state, 'awaiting_emergency_area');
+  assert.match(textOf(prompt), /Which area/);
+  assert.match(textOf(prompt), /Call 112 now/);
+
+  const first = await engine.process('Ikeja', prompt);
+  assert.equal(first.state, 'showing_emergency');
+  assert.deepEqual(first.replies, [
+    { kind: 'web_lead', id: 'lead1', serviceCode: undefined, areaId: null },
+  ]);
+  assert.deepEqual(searched, ['Ikeja']);
+  assert.deepEqual(emergencyRequests, [{ area: 'Ikeja', count: 2 }]);
+
+  const second = await engine.process('MORE', first);
+  assert.equal(second.state, 'showing_emergency');
+  assert.equal(second.context.resultIndex, 1);
+  assert.equal(second.replies[0].kind, 'web_lead');
+  assert.equal(second.replies[0].kind === 'web_lead' && second.replies[0].id, 'lead2');
+
+  const exhausted = await engine.process('MORE', second);
+  assert.equal(exhausted.state, 'idle');
+  assert.match(textOf(exhausted), /No more emergency results/);
+  assert.match(textOf(exhausted), /Call 112 now/);
+});
+
+test('EMERGENCY <area> and EMERGENCY near <area> search directly; blank area prompts', async () => {
+  const searched: string[] = [];
+  const { engine } = setup(
+    {
+      storeWebLeads: async () => ['lead1'],
+      recordEmergencyRequest: async () => {},
+    },
+    {
+      discoverFacilities: async () => [],
+      discoverEmergency: async ({ area }) => {
+        searched.push(area);
+        return [lead('lead1')];
+      },
+    },
+  );
+  assert.equal((await engine.process('EMERGENCY Ikeja')).state, 'showing_emergency');
+  assert.equal((await engine.process('EMERGENCY near Agege')).state, 'showing_emergency');
+  assert.deepEqual(searched, ['Ikeja', 'Agege']);
+  assert.equal((await engine.process('EMERGENCY near')).state, 'awaiting_emergency_area');
+});
+
+test('EMERGENCY without live results gives safe 112 guidance and never fabricates a facility', async () => {
+  const records: Array<{ count: number; area: string }> = [];
+  const { engine } = setup(
+    {
+      storeWebLeads: async () => [],
+      recordEmergencyRequest: async (request) => {
+        records.push({ count: request.results.length, area: request.location_text });
+      },
+    },
+    {
+      discoverFacilities: async () => [],
+      discoverEmergency: async () => [],
+    },
+  );
+  const fallback = await engine.process('EMERGENCY Ikeja');
+  assert.equal(fallback.state, 'idle');
+  assert.equal(fallback.replies[0].kind, 'text');
+  assert.match(textOf(fallback), /Call 112 now/);
+  assert.match(textOf(fallback), /nearest emergency department/);
+  assert.doesNotMatch(textOf(fallback), /Hospital|Clinic/);
+  assert.deepEqual(records, [{ count: 0, area: 'Ikeja' }]);
+});
+
+test('care FIND falls back to unverified live leads when the directory is empty', async () => {
+  const { engine } = setup(
+    {
+      findFacilities: async () => [],
+      storeWebLeads: async () => ['lead1'],
+    },
+    {
+      discoverFacilities: async ({ serviceLabel, area }) => {
+        assert.equal(serviceLabel, 'General care');
+        assert.equal(area, 'Ikeja');
+        return [lead('lead1', 'Live Care Clinic')];
+      },
+    },
+  );
+  const result = await engine.process('FIND general near Ikeja');
+  assert.equal(result.state, 'showing_results');
+  assert.equal(result.context.resultKind, 'web');
+  assert.equal(result.replies[0].kind, 'web_lead');
+  assert.equal(result.replies[0].kind === 'web_lead' && result.replies[0].id, 'lead1');
+});
+
+test('care web fallback uses the chosen area label, not the area id', async () => {
+  const searched: string[] = [];
+  const { engine } = setup(
+    {
+      findAreas: async () => [
+        { id: 'area-a', name: 'Ikeja', region: 'Lagos' },
+        { id: 'area-b', name: 'Ikeja', region: 'Ogun' },
+      ],
+      findFacilities: async () => [],
+      storeWebLeads: async () => ['lead1'],
+    },
+    {
+      discoverFacilities: async ({ area }) => {
+        searched.push(area);
+        return [lead('lead1', 'Live Care Clinic')];
+      },
+    },
+  );
+  const choice = await engine.process('FIND general near Ikeja');
+  assert.equal(choice.state, 'awaiting_area_choice');
+  const result = await engine.process('1', choice);
+  assert.equal(result.state, 'showing_results');
+  assert.equal(result.context.resultKind, 'web');
+  assert.deepEqual(searched, ['Ikeja, Lagos']);
 });

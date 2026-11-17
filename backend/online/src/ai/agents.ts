@@ -32,6 +32,54 @@ export interface ConversationEntry {
   content: string;
 }
 
+export type SymptomStreamStepStatus = 'started' | 'completed' | 'failed';
+
+export interface SymptomStreamStep {
+  type: 'step';
+  id: string;
+  name: string;
+  status: SymptomStreamStepStatus;
+  input?: unknown;
+  output?: unknown;
+  error?: string;
+}
+
+export type SymptomStreamEvent =
+  | { type: 'token'; content: string }
+  | SymptomStreamStep
+  | { type: 'done'; messages: ConversationEntry[] };
+
+export interface SymptomStreamOptions {
+  signal?: AbortSignal;
+}
+
+const MAX_STREAM_PAYLOAD = 2000;
+
+function boundedPayload(value: unknown): unknown {
+  if (value === undefined) return undefined;
+  if (typeof value === 'string') {
+    return value.length > MAX_STREAM_PAYLOAD
+      ? `${value.slice(0, MAX_STREAM_PAYLOAD)}…[truncated]`
+      : value;
+  }
+  try {
+    const json = JSON.stringify(value);
+    if (json === undefined) return undefined;
+    return json.length > MAX_STREAM_PAYLOAD
+      ? `${json.slice(0, MAX_STREAM_PAYLOAD)}…[truncated]`
+      : value;
+  } catch {
+    return '[unserializable]';
+  }
+}
+
+function boundedError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error ?? 'Tool failed');
+  return message.length > MAX_STREAM_PAYLOAD
+    ? `${message.slice(0, MAX_STREAM_PAYLOAD)}…[truncated]`
+    : message;
+}
+
 export interface SymptomAgentContext extends AgentToolContext {
   symptomId: string;
   includeRecords: boolean;
@@ -158,6 +206,82 @@ export async function runSymptomChat(
   );
   const messages = Array.isArray(result.messages) ? (result.messages as BaseMessage[]) : [];
   return toConversation(messages);
+}
+
+function streamChunkText(chunk: unknown): string {
+  if (!chunk) return '';
+  if (typeof chunk === 'string') return chunk;
+  if (typeof chunk === 'object' && 'content' in chunk) {
+    return messageText((chunk as { content?: unknown }).content);
+  }
+  return '';
+}
+
+export async function* runSymptomChatStream(
+  context: SymptomAgentContext,
+  input: AgentMessageInput,
+  options: SymptomStreamOptions = {},
+): AsyncGenerator<SymptomStreamEvent> {
+  await ensureCheckpointerReady();
+  const threadId = threadIdFor(context.symptomId);
+  const agent = getSymptomAgent({
+    ...context,
+    hasImages: Boolean(input.images?.length),
+  });
+
+  const events = agent.streamEvents(
+    { messages: [buildHumanMessage(input)] },
+    {
+      version: 'v2',
+      configurable: { thread_id: threadId },
+      ...(options.signal ? { signal: options.signal } : {}),
+    },
+  );
+
+  for await (const event of events) {
+    if (event.event === 'on_chat_model_stream') {
+      const content = streamChunkText(event.data?.chunk);
+      if (content) {
+        yield { type: 'token', content };
+      }
+      continue;
+    }
+
+    if (event.event === 'on_tool_start') {
+      yield {
+        type: 'step',
+        id: event.run_id,
+        name: event.name,
+        status: 'started',
+        input: boundedPayload(event.data?.input),
+      };
+      continue;
+    }
+
+    if (event.event === 'on_tool_end') {
+      yield {
+        type: 'step',
+        id: event.run_id,
+        name: event.name,
+        status: 'completed',
+        output: boundedPayload(streamChunkText(event.data?.output) || event.data?.output),
+      };
+      continue;
+    }
+
+    if (event.event === 'on_tool_error') {
+      const toolError = (event.data as Record<string, unknown> | undefined)?.error;
+      yield {
+        type: 'step',
+        id: event.run_id,
+        name: event.name,
+        status: 'failed',
+        error: boundedError(toolError),
+      };
+    }
+  }
+
+  yield { type: 'done', messages: await readSymptomHistory(threadId) };
 }
 
 export async function readSymptomHistory(threadId: string): Promise<ConversationEntry[]> {

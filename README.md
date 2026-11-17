@@ -275,6 +275,7 @@ Postgres and Redis volumes.
 ```sh
 # If Docker is missing:
 # curl -fsSL https://get.docker.com | sh
+# sudo usermod -aG docker "$USER"   # then log out and back in
 
 git clone <your-repo-url> healthaccess
 cd healthaccess

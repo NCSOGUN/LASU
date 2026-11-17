@@ -14,6 +14,7 @@ async function serve(
 ) {
   const calls: InboundSms[] = [];
   const events: UssdEvent[] = [];
+  const logs: Array<Record<string, unknown>> = [];
   const config = {
     allowedCidrs: [],
     callbackAuthMode: 'development_open' as const,
@@ -22,6 +23,7 @@ async function serve(
     callbackBodyLimitBytes: 8192,
     atSmsInboundNumbers: ['1234'],
     atUssdServiceCode: '*test#',
+    httpLogBodies: 'full' as const,
     ...configOverrides,
   };
   const app = createApp({
@@ -40,7 +42,14 @@ async function serve(
       },
       ...overrides,
     },
-    logger: { error() {} },
+    logger: {
+      error() {},
+      info(entry: unknown) {
+        if (entry && typeof entry === 'object') {
+          logs.push(entry as Record<string, unknown>);
+        }
+      },
+    },
   });
   const server = app.listen(0, '127.0.0.1');
   await once(server, 'listening');
@@ -58,7 +67,7 @@ async function serve(
       },
       body: new URLSearchParams(body),
     });
-  return { post, url, calls, events };
+  return { post, url, calls, events, logs };
 }
 
 test('development callbacks accept provider posts and reject malformed form fields', async (t) => {
@@ -115,6 +124,56 @@ test('SMS durable acceptance failure is not acknowledged; USSD safely terminates
   assert.equal(await ussd.text(), 'CON HealthAccess');
   assert.match(ussd.headers.get('content-type') || '', /text\/plain/);
   assert.equal((await fetch(`${url}/health/live`)).status, 200);
+});
+
+test('logs every HTTP request with method, safe URL and configured body mode', async (t) => {
+  const full = await serve(t);
+  await full.post('/sms/inbound', {
+    id: 'AT-LOG-1',
+    from: '+2348000000000',
+    to: '1234',
+    text: 'HELP',
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+  const fullEntry = full.logs.find((entry) => entry.event === 'http_request');
+  assert.ok(fullEntry);
+  assert.equal(fullEntry.method, 'POST');
+  assert.match(
+    String(fullEntry.url),
+    /^\/callbacks\/africastalking\/\[token\]\/sms\/inbound$/,
+  );
+  assert.equal(String(fullEntry.url).includes('test-path'), false);
+  assert.equal(fullEntry.status, 200);
+  const fullBody = fullEntry.body as Record<string, string>;
+  assert.equal(fullBody.from, '+2348000000000');
+  assert.equal(fullBody.text, 'HELP');
+
+  const redacted = await serve(t, {}, { httpLogBodies: 'redacted' });
+  await redacted.post('/sms/inbound', {
+    id: 'AT-LOG-2',
+    from: '+2348000000000',
+    to: '1234',
+    text: 'I have a fever',
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+  const entry = redacted.logs.find((item) => item.event === 'http_request');
+  assert.ok(entry);
+  const body = entry.body as Record<string, string>;
+  assert.equal(body.from, '***0000');
+  assert.equal(body.to, '***1234');
+  assert.equal(body.text, '[redacted 14 chars]');
+
+  const off = await serve(t, {}, { httpLogBodies: 'off' });
+  await off.post('/sms/inbound', {
+    id: 'AT-LOG-3',
+    from: '+2348000000000',
+    to: '1234',
+    text: 'HELP',
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+  const offEntry = off.logs.find((item) => item.event === 'http_request');
+  assert.ok(offEntry);
+  assert.equal('body' in offEntry, false);
 });
 
 test('CIDR matching handles IPv4-mapped addresses and strict ranges', () => {
