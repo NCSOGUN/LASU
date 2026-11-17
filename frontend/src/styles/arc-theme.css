@@ -1,0 +1,25 @@
+/*
+ * Arc dashboard theme. Only the tokens approved in scope.md §6 are overridden.
+ * Contrast checked against the landing palette: fog 14.4:1, fog-muted 7:1, text-muted 5.7:1 on night.
+ */
+:root[data-theme="dark"][data-accent="green"] {
+  --background: #070d0e;
+  --surface: #0e1719;
+  --surface-muted: #0b1314;
+  --surface-raised: #152224;
+  --border: #1d2c2e;
+  --border-subtle: #162325;
+  --border-strong: #2a3d3f;
+  --foreground: #d5dfdb;
+  --text-secondary: #8d9e98;
+  --text-muted: #7d8e88;
+  --accent: #7fd1ae;
+  --accent-strong: #a8e4c9;
+  --accent-subtle: rgb(127 209 174 / 0.14);
+  --accent-foreground: #07211a;
+  --control-on: #2bb3a3;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}

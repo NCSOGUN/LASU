@@ -3,8 +3,19 @@ import { Inter, Manrope } from "next/font/google";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
-// Display face for headings (close to the reference template's geometric head font).
-const manrope = Manrope({ subsets: ["latin"], weight: ["500", "600", "700"], variable: "--font-manrope", display: "swap" });
+// Display face for headings. Arc reads --font-geist for display type, so the brand face lands in Arc headings too.
+const manrope = Manrope({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-geist",
+  display: "swap",
+});
+const manropeBrand = Manrope({
+  subsets: ["latin"],
+  weight: ["500", "600", "700"],
+  variable: "--font-manrope",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "HealthAccess: care within reach",
@@ -27,7 +38,13 @@ if(location.pathname==='/'&&!seen){d.classList.add('ha-preload');setTimeout(func
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${inter.variable} ${manrope.variable}`} suppressHydrationWarning>
+    <html
+      lang="en"
+      className={`${inter.variable} ${manrope.variable} ${manropeBrand.variable}`}
+      data-theme="dark"
+      data-accent="green"
+      suppressHydrationWarning
+    >
       <head>
         <script dangerouslySetInnerHTML={{ __html: preloadGate }} />
       </head>

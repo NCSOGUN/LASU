@@ -1,0 +1,190 @@
+.shell {
+  min-height: 100dvh;
+  display: grid;
+  grid-template-columns: 244px minmax(0, 1fr);
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+}
+
+.skip {
+  position: absolute;
+  left: -9999px;
+  top: 8px;
+  z-index: 100;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: var(--surface-raised);
+  color: var(--foreground);
+}
+
+.skip:focus {
+  left: 16px;
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  padding: 28px 16px 20px;
+  border-right: 1px solid var(--border-subtle);
+  background: var(--surface-muted);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 8px;
+  color: var(--foreground);
+  font-family: var(--font-geist), var(--font-inter), sans-serif;
+  font-size: 1.0625rem;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  text-decoration: none;
+}
+
+.mark {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: var(--accent);
+  color: var(--accent-foreground);
+  font-size: 1.125rem;
+  line-height: 1;
+}
+
+.navList {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.navLink {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 42px;
+  padding: 0 10px;
+  border-radius: 8px;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  text-decoration: none;
+}
+
+.navLink:hover {
+  background: var(--surface);
+  color: var(--foreground);
+}
+
+.navLinkActive {
+  background: var(--accent-subtle);
+  color: var(--accent-strong);
+}
+
+.sidebarLabel {
+  margin: 0 0 6px;
+  padding: 0 10px;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.practitioner {
+  display: grid;
+  gap: 2px;
+}
+
+.sidebarNote {
+  margin: auto 0 0;
+  padding: 14px 10px 0;
+  border-top: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.workspace {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 64px;
+  padding: 10px clamp(16px, 3vw, 32px);
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--background);
+}
+
+.topbarStart {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.mobileMenu {
+  display: none;
+}
+
+.mobileBrand {
+  color: var(--foreground);
+  font-family: var(--font-geist), var(--font-inter), sans-serif;
+  font-size: 1rem;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.account {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.accountSkeleton {
+  width: 120px;
+}
+
+.main {
+  width: 100%;
+  max-width: 1200px;
+  margin-inline: auto;
+  padding: 32px clamp(16px, 3vw, 32px) 64px;
+}
+
+.main > * {
+  min-width: 0;
+}
+
+@media (max-width: 767px) {
+  .shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sidebar {
+    display: none;
+  }
+
+  .mobileMenu {
+    display: block;
+  }
+
+  .topbar {
+    min-height: 60px;
+  }
+
+  .main {
+    padding-top: 24px;
+  }
+}
