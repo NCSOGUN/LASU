@@ -42,7 +42,8 @@ Next: review step 1 after the lanes merge, then M2 integration.
   - Lane D AI: `../ha-lane-d`, `lane/d`, e2e port 3224.
   - Lane E Channels: `../ha-lane-e`, `lane/e`, e2e port 3225.
   - Lane F Landing copy: `../ha-lane-f`, `lane/f`.
-- Lead-side M2 prep done while lanes run: mobile Lighthouse runner (`scripts/lighthouse.mjs`, `npm run lighthouse`), security sweep (`scripts/security-sweep.mjs`, `npm run security`), shared Intl/Decimal helpers (`src/lib/format.ts`), overview derivations and presentational card surfaces (`src/features/dashboard/`) with component tests. They are not wired to data until the lane hooks land.
+- Lead-side M2 prep done while lanes run: mobile Lighthouse runner (`scripts/lighthouse.mjs`, `npm run lighthouse`), security sweep (`scripts/security-sweep.mjs`, `npm run security`), shared Intl/Decimal helpers (`src/lib/format.ts`), overview derivations and presentational card surfaces (`src/features/dashboard/`) with component tests, plus app error and not-found states. The overview surfaces are not wired to data until the lane hooks land.
+- Reviewer has asked the lead to continue through the remaining gates without waiting for permission. Gate reports will still be written at step 1 and step 2.
 
 ## Next
 - Merge lanes one at a time into `feat/m0-foundation` in the order F, C, A, B, E, D; after each merge run typecheck, lint, unit/component and e2e.
