@@ -30,6 +30,7 @@ export function PatientCodeCard() {
   }
 
   async function confirmRotate() {
+    if (rotate.isPending) return;
     setRotateError(null);
     try {
       await rotate.mutateAsync();

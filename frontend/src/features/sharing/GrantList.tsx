@@ -32,7 +32,7 @@ export function GrantList({
   }
 
   async function confirmRevoke() {
-    if (!target) return;
+    if (!target || revoke.isPending) return;
     try {
       await revoke.mutateAsync(target.id);
       setStatus("Access revoked. The person can no longer open this record.");

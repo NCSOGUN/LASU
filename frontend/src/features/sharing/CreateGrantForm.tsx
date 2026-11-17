@@ -91,6 +91,7 @@ export function CreateGrantForm({ fields, fieldsLoading, fieldsError, onRetryFie
   }
 
   async function submitGrant() {
+    if (create.isPending) return;
     setFieldError(null);
     setChannelError(null);
 
@@ -113,6 +114,8 @@ export function CreateGrantForm({ fields, fieldsLoading, fieldsError, onRetryFie
         expires_in_minutes: Number(duration),
       });
       setReceipt(result);
+      // The code now lives only in this component's state; drop it from the mutation cache too.
+      create.reset();
       setSelectedFields([]);
       setChannels(["WEB_PRACTITIONER"]);
       setDuration("30");

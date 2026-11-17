@@ -47,6 +47,7 @@ export function PractitionerRecordScreen({ id }: { id: string }) {
   }, [refetch]);
 
   async function closeRecord() {
+    if (close.isPending) return;
     try {
       await close.mutateAsync();
       router.push("/practitioner/lookup");
@@ -128,7 +129,7 @@ export function PractitionerRecordScreen({ id }: { id: string }) {
           </div>
 
           <div className={styles.countdown} role="timer" aria-live="off" aria-label="Time left in this access session">
-            {now > 0 && expiresAt !== null ? (
+            {expiresAt !== null ? (
               <p className={styles.countdownText}>Access ends in {formatRemaining(expiresAt - now)}.</p>
             ) : null}
             {record.data.expires_at ? (

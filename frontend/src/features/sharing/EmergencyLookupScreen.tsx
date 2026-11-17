@@ -29,6 +29,7 @@ export function EmergencyLookupScreen() {
   }, [resetLookup]);
 
   async function submitLookup() {
+    if (lookup.isPending) return;
     setFieldError(null);
     if (code.length !== PATIENT_CODE_LENGTH) {
       setFieldError(`Enter the ${PATIENT_CODE_LENGTH}-digit patient code.`);
@@ -140,14 +141,19 @@ export function EmergencyLookupScreen() {
           </div>
 
           {showResult ? (
-            <dl className={styles.resultList}>
-              {result.fields?.map((field) => (
-                <div key={field.key}>
-                  <dt>{field.label}</dt>
-                  <dd>{formatFieldValue(field.value)}</dd>
-                </div>
-              ))}
-            </dl>
+            <>
+              <span className={styles.srOnly} role="status">
+                Shared emergency information loaded.
+              </span>
+              <dl className={styles.resultList}>
+                {result.fields?.map((field) => (
+                  <div key={field.key}>
+                    <dt>{field.label}</dt>
+                    <dd>{formatFieldValue(field.value)}</dd>
+                  </div>
+                ))}
+              </dl>
+            </>
           ) : (
             <Alert tone="info" title="No shared information">
               {unavailableMessage}

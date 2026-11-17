@@ -33,7 +33,7 @@ export function AccessLogScreen() {
   const now = useMinuteClock();
 
   const labelFor = (key: string) => fields.data?.fields.find((field) => field.key === key)?.label ?? humaniseKey(key);
-  const showSkeleton = events.isLoading || now === 0;
+  const showSkeleton = events.isLoading;
 
   const timelineEvents: TimelineEvent[] = (events.data ?? []).map((event) => {
     const fieldsText = fieldList(event, labelFor);

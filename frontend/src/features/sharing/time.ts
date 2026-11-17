@@ -17,7 +17,8 @@ export function useLocalTimeZone(): string {
 }
 
 function createClock(intervalMs: number) {
-  let current = 0;
+  // Start with a real reading so the first client render never blocks content on a tick.
+  let current = Date.now();
   const listeners = new Set<() => void>();
   let timer: ReturnType<typeof setInterval> | null = null;
 

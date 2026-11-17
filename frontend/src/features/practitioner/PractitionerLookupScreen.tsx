@@ -40,6 +40,7 @@ export function PractitionerLookupScreen() {
   }, [resetOpenGrant]);
 
   async function submitOpen() {
+    if (openGrant.isPending) return;
     const nextErrors: Record<string, string> = {};
     if (patientCode.length !== PATIENT_CODE_LENGTH) nextErrors.patient_code = "Enter the 12-digit patient code.";
     if (grantCode.length !== GRANT_CODE_LENGTH) nextErrors.grant_code = "Enter the 8-digit access code.";

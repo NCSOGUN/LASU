@@ -27,6 +27,7 @@
 
 .subtitle a {
   color: var(--accent-strong);
+  text-decoration: underline;
   text-underline-offset: 3px;
 }
 
