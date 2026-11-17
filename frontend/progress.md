@@ -43,6 +43,8 @@ Next: review step 1 after the lanes merge, then M2 integration.
   - Lane E Channels: `../ha-lane-e`, `lane/e`, e2e port 3225.
   - Lane F Landing copy: `../ha-lane-f`, `lane/f`.
 - Lead-side M2 prep done while lanes run: mobile Lighthouse runner (`scripts/lighthouse.mjs`, `npm run lighthouse`), security sweep (`scripts/security-sweep.mjs`, `npm run security`), shared Intl/Decimal helpers (`src/lib/format.ts`), overview derivations and presentational card surfaces (`src/features/dashboard/`) with component tests, plus app error and not-found states. The overview surfaces are not wired to data until the lane hooks land.
+- **M1 merge log:**
+  - Lane F Landing copy merged (`7fea4af`, merge `b00775b`). Applied its two requests in shared components (`f025449`): third hero CTA, nav link on desktop and in the disclosure, linked final-card title. Added a copy test for every §7.11 string. Typecheck, lint, unit/component and e2e green after the merge.
 - Reviewer has asked the lead to continue through the remaining gates without waiting for permission. Gate reports will still be written at step 1 and step 2.
 
 ## Next
