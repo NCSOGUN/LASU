@@ -67,7 +67,7 @@ export const steps: { key: ScreenKey; title: string; body: string }[] = [
   {
     key: "ask",
     title: "Find care near you",
-    body: "Use the find-care form to choose a service and an area or landmark. No account is needed, and results show the distance from the area centre.",
+    body: "Use the find-care form to choose a service and an area. No account is needed, and results show the distance from the area centre.",
   },
   {
     key: "match",

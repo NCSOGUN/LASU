@@ -19,7 +19,11 @@ export function FinalCta() {
         <div className="rise relative mt-12 grid overflow-hidden rounded-[22px] border border-white/[0.06] bg-night-card md:grid-cols-[1.2fr_1fr]">
           <div className="p-7 sm:p-10">
             <p className="text-sm text-fog-muted">{finalCta.cardKicker}</p>
-            <h3 className="mt-2 font-head text-2xl font-semibold tracking-[-0.03em] text-fog sm:text-3xl">{finalCta.cardTitle}</h3>
+            <h3 className="mt-2 font-head text-2xl font-semibold tracking-[-0.03em] text-fog sm:text-3xl">
+              <Link href={finalCta.primary.href} className="hover:text-white">
+                {finalCta.cardTitle}
+              </Link>
+            </h3>
             <p className="mt-3 max-w-sm text-[15px] text-fog-muted">{finalCta.cardBody}</p>
             <div className="mt-7 flex flex-wrap gap-3">
               <Link href={finalCta.primary.href} className="inline-flex min-h-11 items-center gap-1 rounded-full bg-pill px-5 text-sm font-medium text-night hover:bg-white">
