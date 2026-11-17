@@ -35,7 +35,7 @@ Next: review step 1 after the lanes merge, then M2 integration.
   - `docs/BUILDER_PROMPT.md`: orchestration prompt for the builder model (M0 lead, six parallel sub-agent lanes, M2 integration, gates).
 
 ## In progress
-- **M1 lanes after the server restart.** Lanes A–E already have 3–4 commits and uncommitted work in their worktrees. A second round of five agents is finishing each lane: review the pending diff, commit, pass typecheck/lint/vitest/e2e, and push `lane/x`.
+- **M1 lanes after the server restart.** Lanes A–E already have 3–4 commits and uncommitted work in their worktrees. The lead took over at 23:17, stopped the stale agents, and relaunched five agents: review the pending diff, commit, pass typecheck/lint/vitest/e2e, and push `lane/x`.
   - Lane A Record: `../ha-lane-a`, `lane/a`, e2e port 3221.
   - Lane B Sharing: `../ha-lane-b`, `lane/b`, e2e port 3222.
   - Lane C Care: `../ha-lane-c`, `lane/c`, e2e port 3223.
