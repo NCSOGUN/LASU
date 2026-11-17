@@ -167,102 +167,104 @@ export function RecordScreen() {
         <FormError error={formError} onRetry={() => void submit()} />
       ) : null}
 
-      {fields.length === 0 ? (
-        <EmptyState
-          icon={<FileText size={24} strokeWidth={1.5} />}
-          title="No fields to edit yet"
-          description="Your record fields will appear here after they are set up. Contact support if this looks wrong."
-          action={
-            <Link className={styles.link} href="/app">
-              Back to overview
-            </Link>
-          }
-        />
-      ) : (
-        <section className={styles.section} aria-labelledby="record-fields-title">
-          <div className={styles.sectionHead}>
-            <div className={styles.sectionCopy}>
-              <h2 id="record-fields-title" className={styles.sectionTitle}>
-                Record fields
-              </h2>
-              <p className={styles.sectionNote}>
-                New fields are private until you choose to share them. Only the fields you change are sent when you
-                save.
-              </p>
+      <section className={styles.section} aria-labelledby="record-fields-title">
+        <div className={styles.sectionHead}>
+          <div className={styles.sectionCopy}>
+            <h2 id="record-fields-title" className={styles.sectionTitle}>
+              Record fields
+            </h2>
+            <p className={styles.sectionNote}>
+              New fields are private until you choose to share them. Only the fields you change are sent when you
+              save.
+            </p>
+          </div>
+          {dirtyKeys.length ? (
+            <Badge tone="warning" size="sm">
+              {`${dirtyKeys.length} unsaved ${dirtyKeys.length === 1 ? "change" : "changes"}`}
+            </Badge>
+          ) : null}
+        </div>
+
+        {fields.length === 0 ? (
+          <EmptyState
+            icon={<FileText size={24} strokeWidth={1.5} />}
+            title="No fields to edit yet"
+            description="Your record fields will appear here after they are set up. Contact support if this looks wrong."
+            action={
+              <Link className={styles.link} href="/app">
+                Back to overview
+              </Link>
+            }
+          />
+        ) : (
+          <>
+            <div className={styles.fieldList}>
+              {fields.map((field) => (
+                <FieldRow
+                  key={field.key}
+                  field={field}
+                  value={draft[field.key] ?? valueForDraft(field.value)}
+                  error={fieldErrors[field.key]}
+                  onChange={(value) => changeValue(field.key, value)}
+                />
+              ))}
             </div>
-            {dirtyKeys.length ? (
-              <Badge tone="warning" size="sm">
-                {`${dirtyKeys.length} unsaved ${dirtyKeys.length === 1 ? "change" : "changes"}`}
-              </Badge>
-            ) : null}
-          </div>
 
-          <div className={styles.fieldList}>
-            {fields.map((field) => (
-              <FieldRow
-                key={field.key}
-                field={field}
-                value={draft[field.key] ?? valueForDraft(field.value)}
-                error={fieldErrors[field.key]}
-                onChange={(value) => changeValue(field.key, value)}
-              />
-            ))}
-          </div>
-
-          {conflict ? (
-            <div className={styles.conflict}>
-              <div className={styles.conflictGrid}>
-                {conflictRows.map((change) => (
-                  <div key={change.key} className={styles.conflictColumn}>
-                    <p className={styles.conflictHeading}>{change.label}</p>
-                    <p className={styles.conflictValue}>
-                      Saved value: <strong>{change.server}</strong>
-                    </p>
-                    <p className={styles.conflictValue}>
-                      Your change: <strong>{change.mine}</strong>
-                    </p>
-                  </div>
-                ))}
+            {conflict ? (
+              <div className={styles.conflict}>
+                <div className={styles.conflictGrid}>
+                  {conflictRows.map((change) => (
+                    <div key={change.key} className={styles.conflictColumn}>
+                      <p className={styles.conflictHeading}>{change.label}</p>
+                      <p className={styles.conflictValue}>
+                        Saved value: <strong>{change.server}</strong>
+                      </p>
+                      <p className={styles.conflictValue}>
+                        Your change: <strong>{change.mine}</strong>
+                      </p>
+                    </div>
+                  ))}
+                </div>
+                <div className={styles.actions}>
+                  <Button
+                    type="button"
+                    loading={updateFields.isPending}
+                    disabled={updateFields.isPending}
+                    onClick={() => void submit(conflict.version, conflictRows.map((change) => change.key))}
+                  >
+                    Use my changes
+                  </Button>
+                  <Button type="button" variant="secondary" onClick={discardConflicts}>
+                    Discard my changes
+                  </Button>
+                </div>
               </div>
+            ) : null}
+
+            {!conflict && clientError ? (
+              <p className={styles.fieldError} role="alert">
+                {clientError}
+              </p>
+            ) : null}
+
+            {!conflict ? (
               <div className={styles.actions}>
                 <Button
                   type="button"
                   loading={updateFields.isPending}
                   disabled={updateFields.isPending}
-                  onClick={() => void submit(conflict.version, conflictRows.map((change) => change.key))}
+                  onClick={() => void submit()}
                 >
-                  Use my changes
+                  Save changes
                 </Button>
-                <Button type="button" variant="secondary" onClick={discardConflicts}>
-                  Discard my changes
-                </Button>
+                <StatusLine>{saved}</StatusLine>
               </div>
-            </div>
-          ) : null}
-
-          {!conflict && clientError ? (
-            <p className={styles.fieldError} role="alert">
-              {clientError}
-            </p>
-          ) : null}
-
-          {!conflict ? (
-            <div className={styles.actions}>
-              <Button
-                type="button"
-                loading={updateFields.isPending}
-                disabled={updateFields.isPending}
-                onClick={() => void submit()}
-              >
-                Save changes
-              </Button>
+            ) : (
               <StatusLine>{saved}</StatusLine>
-            </div>
-          ) : (
-            <StatusLine>{saved}</StatusLine>
-          )}
-        </section>
-      )}
+            )}
+          </>
+        )}
+      </section>
     </div>
   );
 }

@@ -148,6 +148,31 @@ describe("EmergencySummaryScreen", () => {
     expect(screen.getAllByText("Not shareable in an emergency").length).toBeGreaterThan(0);
   });
 
+  it("marks an eligible field without a value as needing one first", async () => {
+    server.use(
+      http.get("/api/v1/me/fields", () =>
+        HttpResponse.json({
+          version: 2,
+          fields: fieldsResponse.fields.map((field) =>
+            field.key === "blood_pressure"
+              ? { ...field, emergency_eligible: true, value: null, field_version: null }
+              : field,
+          ),
+        }),
+      ),
+      http.get("/api/v1/me/emergency-summary", () => HttpResponse.json(emergencySummaryEmpty)),
+    );
+
+    renderWithProviders(<EmergencySummaryScreen />);
+    const checkbox = await screen.findByRole("checkbox", { name: "Blood pressure" });
+    expect(checkbox).toBeDisabled();
+    expect(screen.getByText("Add a value first")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Add a value on My record" })).toHaveAttribute(
+      "href",
+      "/app/record",
+    );
+  });
+
   it("shows a denied state without a retry", async () => {
     server.use(
       http.get("/api/v1/me/fields", () =>
