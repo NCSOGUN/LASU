@@ -127,3 +127,32 @@ export const symptomUpdate = {
 export const symptomDelete = {
   "deleted": true
 };
+
+/** A severe record, used by the urgent-care alert state and the badge tests. */
+export const symptomSevere = {
+  "symptom": {
+    "id": "5f3d8e2a-1b44-4c6a-9d77-2e4f1a8c0b31",
+    "patient_id": "20000000-0000-4000-8000-000000000005",
+    "account_id": "20000000-0000-4000-8000-000000000004",
+    "name": "Sudden severe chest pain",
+    "severity": "SEVERE",
+    "summary": "Sudden severe chest pain with shortness of breath.",
+    "include_records": false,
+    "modify_history": true,
+    "files": [],
+    "thread_id": "symptom_5f3d8e2a-1b44-4c6a-9d77-2e4f1a8c0b31",
+    "model_version": "openrouter",
+    "created_at": "2026-11-17T16:30:00.000Z",
+    "updated_at": "2026-11-17T16:30:10.000Z"
+  },
+  "messages": [
+    {
+      "type": "Human",
+      "content": "I have sudden severe chest pain and shortness of breath."
+    },
+    {
+      "type": "AI",
+      "content": "**Seek emergency care now.** Call your local emergency number or go to the nearest emergency department. Do not drive yourself."
+    }
+  ]
+};

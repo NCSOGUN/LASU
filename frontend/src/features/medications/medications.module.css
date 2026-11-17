@@ -1,0 +1,582 @@
+.page {
+  display: grid;
+  gap: 28px;
+  max-width: 920px;
+}
+
+.intro {
+  display: grid;
+  gap: 10px;
+  max-width: 680px;
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-geist), var(--font-inter), sans-serif;
+  font-size: clamp(1.75rem, 3vw, 2.25rem);
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+
+.subtitle {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.9375rem;
+  line-height: 1.6;
+}
+
+.panel {
+  display: grid;
+  gap: 20px;
+  padding: clamp(18px, 3vw, 24px);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+}
+
+.panelHeader {
+  display: grid;
+  gap: 6px;
+}
+
+.panelTitle {
+  margin: 0;
+  font-family: var(--font-geist), var(--font-inter), sans-serif;
+  font-size: 1.0625rem;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+.panelText {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  line-height: 1.55;
+}
+
+.form {
+  display: grid;
+  gap: 18px;
+}
+
+.stepActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding-top: 6px;
+}
+
+.stepActionsEnd {
+  margin-left: auto;
+}
+
+.hint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+.options {
+  display: grid;
+  gap: 12px;
+}
+
+.option {
+  display: grid;
+  gap: 6px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-muted);
+}
+
+.optionTitle {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 500;
+}
+
+.optionText {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.8438rem;
+  line-height: 1.55;
+}
+
+.drugs {
+  display: grid;
+  gap: 14px;
+}
+
+.drugCard {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: var(--surface-muted);
+}
+
+.drugHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.drugTitle {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.fieldGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.times {
+  display: grid;
+  gap: 10px;
+}
+
+.timeRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.timePicker {
+  flex: 1 1 160px;
+  min-width: 140px;
+}
+
+.pending {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-muted);
+}
+
+.pendingText {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--surface-raised);
+  font-size: 0.9rem;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.placeholder {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 12px;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+}
+
+.dots {
+  display: inline-flex;
+  gap: 3px;
+}
+
+.dots span {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+.dots span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.dots span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dots span {
+    animation: none;
+    opacity: 0.7;
+  }
+}
+
+.listSection {
+  display: grid;
+  gap: 14px;
+}
+
+.listHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.listTitle {
+  margin: 0;
+  font-family: var(--font-geist), var(--font-inter), sans-serif;
+  font-size: 1.125rem;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+.listCount {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+}
+
+.list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rowLink {
+  display: grid;
+  gap: 10px;
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  color: inherit;
+  text-decoration: none;
+  transition: border-color 160ms ease, background-color 160ms ease;
+}
+
+.rowLink:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-raised);
+}
+
+.rowTop {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.rowTitle {
+  margin: 0;
+  font-size: 0.9688rem;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.rowSummary {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  line-height: 1.55;
+}
+
+.rowMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.rowDate {
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+}
+
+.rowProgress {
+  flex: 1 1 220px;
+  min-width: 180px;
+}
+
+.skeletonWrap {
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.requestId {
+  display: block;
+  margin-top: 6px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  overflow-wrap: anywhere;
+}
+
+.stateActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.detailHeader {
+  display: grid;
+  gap: 16px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.detailTop {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.detailHeading {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.detailTitle {
+  margin: 0;
+  font-family: var(--font-geist), var(--font-inter), sans-serif;
+  font-size: clamp(1.5rem, 3vw, 1.875rem);
+  font-weight: 500;
+  letter-spacing: -0.025em;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.detailMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+}
+
+.summary {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.9375rem;
+  line-height: 1.6;
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: var(--surface-muted);
+}
+
+.metric {
+  display: grid;
+  gap: 6px;
+}
+
+.metricLabel {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.metricValue {
+  margin: 0;
+  font-family: var(--font-geist), var(--font-inter), sans-serif;
+  font-size: 1.25rem;
+  font-weight: 500;
+}
+
+.drugList {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.drugRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.drugCopy {
+  display: grid;
+  gap: 2px;
+}
+
+.drugName {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.drugDetail {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+}
+
+.dayGroups {
+  display: grid;
+  gap: 20px;
+}
+
+.dayGroup {
+  display: grid;
+  gap: 10px;
+}
+
+.dayTitle {
+  margin: 0;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border-subtle);
+  font-family: var(--font-geist), var(--font-inter), sans-serif;
+  font-size: 0.9375rem;
+  font-weight: 500;
+}
+
+.momentList {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.momentRow {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.momentTime {
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.momentCopy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.momentDrug {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.momentDetail {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.momentControl {
+  min-width: 220px;
+}
+
+.saving {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.statusLine {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+}
+
+.dialogBody {
+  display: grid;
+  gap: 16px;
+}
+
+.dialogActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+@media (max-width: 700px) {
+  .panel {
+    padding: 16px;
+  }
+
+  .fieldGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .momentRow {
+    grid-template-columns: 64px minmax(0, 1fr);
+  }
+
+  .momentControl {
+    grid-column: 1 / -1;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 440px) {
+  .rowLink {
+    padding: 14px;
+  }
+
+  .momentRow {
+    padding: 12px;
+    gap: 10px;
+  }
+}
