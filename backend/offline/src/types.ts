@@ -1,30 +1,13 @@
-export interface Service {
-  service_code: string;
-  label: string;
-}
+import type {
+  Area,
+  Facility,
+  RecordField,
+  Service,
+  SmsContext,
+  SmsReply,
+} from '@healthaccess/shared';
 
-export interface Area {
-  id: string;
-  name: string;
-  region?: string;
-  city?: string;
-}
-
-export interface Facility {
-  id: string;
-  name: string;
-  address: string;
-  phone: string | null;
-  distance_km: number | null;
-  service_code?: string;
-  is_demo?: boolean;
-}
-
-export interface RecordField {
-  key: string;
-  label: string;
-  value: string | string[];
-}
+export type { Area, Facility, RecordField, Service, SmsContext, SmsReply };
 
 export interface Projection {
   available: boolean;
@@ -42,28 +25,6 @@ export interface WebLead {
   source_reference: string;
   verification_status: 'unverified';
   service_label: string;
-}
-
-export type SmsReply =
-  | { kind: 'text'; text: string; allowAfterStop?: boolean }
-  | { kind: 'emergency'; codeDigest: string }
-  | {
-      kind: 'facility' | 'web_lead';
-      id: string;
-      serviceCode?: string;
-      areaId?: string | null;
-      radiusKm?: number;
-    };
-
-export interface SmsContext {
-  serviceCode?: string;
-  areaId?: string;
-  areaIds?: string[];
-  consentId?: string | null;
-  skipProfile?: boolean;
-  resultIds?: string[];
-  resultIndex?: number;
-  resultKind?: 'directory' | 'web';
 }
 
 export interface SmsConversation {

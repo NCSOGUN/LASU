@@ -1,0 +1,1142 @@
+// HealthAccess database schema. This file is the single source of truth.
+// Prisma owns the PostgreSQL public schema. Run `npm run db:migrate` after changes.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum AccountStatus {
+  ACTIVE
+  SUSPENDED
+  PENDING
+}
+
+enum AccountRoleType {
+  PATIENT
+  PRACTITIONER
+  DIRECTORY_ADMIN
+  ACCOUNT_ADMIN
+}
+
+enum AuthChallengePurpose {
+  PASSWORD_RESET
+  PHONE_VERIFICATION
+  PATIENT_CODE_ROTATE
+}
+
+enum FieldValueType {
+  STRING
+  NUMBER
+  BOOLEAN
+  OBJECT
+  STRING_ARRAY
+}
+
+enum FieldSource {
+  PATIENT
+  PRACTITIONER
+  IMPORT
+}
+
+enum GrantChannel {
+  WEB_PRACTITIONER
+  USSD
+}
+
+enum ConsentChannel {
+  SMS
+  USSD
+}
+
+enum ReadPurpose {
+  EMERGENCY
+  GRANT
+}
+
+enum ReadChannel {
+  WEB_PRACTITIONER
+  USSD
+}
+
+enum AuditChannel {
+  WEB
+  SMS
+  USSD
+  SYSTEM
+}
+
+enum AuditOutcome {
+  ALLOWED
+  DENIED
+  ERROR
+}
+
+enum AttemptChannel {
+  WEB
+  SMS
+  USSD
+}
+
+enum AttemptOutcome {
+  ALLOWED
+  DENIED
+  THROTTLED
+}
+
+enum UssdState {
+  MAIN
+  CARE_SERVICE
+  CARE_LOCATION
+  CARE_AREA_CHOICE
+  CARE_PROFILE_CONFIRM
+  CARE_RESULTS
+  CARE_NO_MATCH
+  EMERGENCY_CODE
+  GRANT_PATIENT_CODE
+  GRANT_ACCESS_CODE
+  RECORD_PAGE
+  END
+}
+
+enum InboxStatus {
+  QUEUED
+  PROCESSING
+  PROCESSED
+  FAILED
+  EXPIRED
+}
+
+enum OutboxKind {
+  TEXT
+  EMERGENCY
+  FACILITY
+  WEB_LEAD
+}
+
+enum OutboxStatus {
+  QUEUED
+  SENDING
+  ACCEPTED
+  DELIVERED
+  FAILED
+  UNKNOWN
+  EXPIRED
+  DEAD
+}
+
+enum FacilityStatus {
+  PENDING
+  APPROVED
+  INACTIVE
+  REJECTED
+}
+
+enum FacilityServiceVerification {
+  UNVERIFIED
+  APPROVED
+}
+
+enum PractitionerVerification {
+  PENDING
+  APPROVED
+  SUSPENDED
+  REJECTED
+}
+
+enum SourceKind {
+  MANUAL
+  OFFICIAL_REGISTER
+  PROVIDER_API
+  SERPER_WEB
+  SEED
+}
+
+enum TrustTier {
+  OFFICIAL
+  APPROVED
+  MANUAL
+  UNVERIFIED_WEB
+}
+
+enum WebLeadStatus {
+  UNVERIFIED
+  REVIEW_CANDIDATE
+  REJECTED
+}
+
+enum ContentStatus {
+  DRAFT
+  REVIEWED
+  PUBLISHED
+  RETIRED
+}
+
+enum ObservationStatus {
+  UNVERIFIED
+  REVIEW_CANDIDATE
+  REJECTED
+}
+
+enum ConversationStatus {
+  ACTIVE
+  CLOSED
+  EXPIRED
+}
+
+enum MessageRole {
+  USER
+  ASSISTANT
+  SYSTEM
+}
+
+enum Severity {
+  MILD
+  MODERATE
+  SEVERE
+}
+
+enum MedicationStatus {
+  PENDING
+  TAKEN
+  MISSED
+}
+
+enum NotificationPlatform {
+  IOS
+  ANDROID
+  WEB
+}
+
+// ---------------------------------------------------------------------------
+// Identity and sessions
+// ---------------------------------------------------------------------------
+
+model Account {
+  id                String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email             String        @unique
+  password_hash     String
+  display_name      String
+  status            AccountStatus @default(ACTIVE)
+  idp_subject       String?       @unique
+  avatar_key        String?
+  email_verified_at DateTime?     @db.Timestamptz(6)
+  phone_digest      String?       @db.VarChar(64)
+  phone_verified_at DateTime?     @db.Timestamptz(6)
+  created_at        DateTime      @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime      @updatedAt @db.Timestamptz(6)
+
+  roles                   AccountRole[]
+  patient_profile         PatientProfile?
+  practitioner_profile    PractitionerProfile?
+  auth_sessions           AuthSession[]
+  auth_challenges         AuthChallenge[]
+  field_value_updates     PatientFieldValue[]   @relation("FieldValueUpdatedBy")
+  grants_created          AccessGrant[]         @relation("GrantCreatedBy")
+  facilities_verified     Facility[]            @relation("FacilityVerifiedBy")
+  facility_services       FacilityService[]     @relation("FacilityServiceVerifiedBy")
+  practitioners_verified  PractitionerProfile[] @relation("PractitionerVerifiedBy")
+  record_read_sessions    RecordReadSession[]
+  audit_events            AuditEvent[]
+  conversations           Conversation[]
+  symptom_analyses        SymptomAnalysis[]
+  notification_tokens     NotificationToken[]
+  reviewed_contents       ReviewedHealthContent[]
+  web_observations        WebObservation[]
+
+  @@index([email])
+  @@map("accounts")
+}
+
+model AccountRole {
+  account_id String          @db.Uuid
+  role       AccountRoleType
+  created_at DateTime        @default(now()) @db.Timestamptz(6)
+  account    Account         @relation(fields: [account_id], references: [id], onDelete: Cascade)
+
+  @@id([account_id, role])
+  @@map("account_roles")
+}
+
+model AuthSession {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  account_id         String    @db.Uuid
+  refresh_token_hash String    @unique @db.VarChar(64)
+  user_agent         String?
+  ip_hash            String?
+  recent_auth_at     DateTime  @default(now()) @db.Timestamptz(6)
+  expires_at         DateTime  @db.Timestamptz(6)
+  revoked_at         DateTime? @db.Timestamptz(6)
+  last_seen_at       DateTime  @default(now()) @db.Timestamptz(6)
+  created_at         DateTime  @default(now()) @db.Timestamptz(6)
+
+  account            Account             @relation(fields: [account_id], references: [id], onDelete: Cascade)
+  record_read_sessions RecordReadSession[]
+
+  @@index([account_id, expires_at(sort: Desc)])
+  @@map("auth_sessions")
+}
+
+model AuthChallenge {
+  id                      String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  account_id              String?              @db.Uuid
+  purpose                 AuthChallengePurpose
+  token_digest            String               @db.VarChar(64)
+  delivery_target_envelope String?
+  phone_digest            String?              @db.VarChar(64)
+  attempts                Int                  @default(0)
+  expires_at              DateTime             @db.Timestamptz(6)
+  consumed_at             DateTime?            @db.Timestamptz(6)
+  created_at              DateTime             @default(now()) @db.Timestamptz(6)
+
+  account                 Account?             @relation(fields: [account_id], references: [id], onDelete: Cascade)
+
+  @@index([account_id, purpose, expires_at(sort: Desc)])
+  @@map("auth_challenges")
+}
+
+// ---------------------------------------------------------------------------
+// Patient profile and field projections
+// ---------------------------------------------------------------------------
+
+model FieldDefinition {
+  field_key          String          @id
+  label              String
+  value_schema       Json            @default("{}")
+  value_type         FieldValueType
+  emergency_eligible Boolean         @default(false)
+  sort_order         Int             @default(0)
+  active             Boolean         @default(true)
+  created_at         DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime        @updatedAt @db.Timestamptz(6)
+
+  patient_values     PatientFieldValue[]
+  emergency_fields   EmergencyField[]
+  grant_fields       AccessGrantField[]
+  consent_fields     ConsentField[]
+
+  @@map("field_definitions")
+}
+
+model PatientProfile {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  account_id         String   @unique @db.Uuid
+  preferred_language String   @default("en")
+  home_area_id       String?  @db.Uuid
+  version            Int      @default(1)
+  created_at         DateTime @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime @updatedAt @db.Timestamptz(6)
+
+  account            Account            @relation(fields: [account_id], references: [id], onDelete: Cascade)
+  home_area          Area?              @relation(fields: [home_area_id], references: [id], onDelete: SetNull)
+  field_values       PatientFieldValue[]
+  emergency_fields   EmergencyField[]
+  patient_code       PatientCode?
+  access_grants      AccessGrant[]
+  consents           ProfileUseConsent[]
+  channel_links      ChannelLink[]
+  record_read_sessions RecordReadSession[]
+  symptom_analyses   SymptomAnalysis[]
+  allergies          Allergy[]
+  medical_events     MedicalEvent[]
+  medication_schedules MedicationSchedule[]
+  referral_requests  ReferralRequest[]
+  audit_events       AuditEvent[]
+
+  @@map("patient_profiles")
+}
+
+model PractitionerProfile {
+  account_id                    String                   @id @db.Uuid
+  facility_id                   String?                  @db.Uuid
+  registration_reference_envelope String?
+  verification_status           PractitionerVerification @default(PENDING)
+  verified_by_account_id        String?                  @db.Uuid
+  verified_at                   DateTime?                @db.Timestamptz(6)
+  version                       Int                      @default(1)
+  created_at                    DateTime                 @default(now()) @db.Timestamptz(6)
+  updated_at                    DateTime                 @updatedAt @db.Timestamptz(6)
+
+  account                       Account                  @relation(fields: [account_id], references: [id], onDelete: Cascade)
+  facility                      Facility?                @relation(fields: [facility_id], references: [id], onDelete: SetNull)
+  verified_by                   Account?                 @relation("PractitionerVerifiedBy", fields: [verified_by_account_id], references: [id], onDelete: SetNull)
+
+  @@map("practitioner_profiles")
+}
+
+model PatientFieldValue {
+  patient_id            String       @db.Uuid
+  field_key             String
+  value                 Json
+  version               Int          @default(1)
+  source                FieldSource  @default(PATIENT)
+  updated_by_account_id String?      @db.Uuid
+  created_at            DateTime     @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime     @updatedAt @db.Timestamptz(6)
+
+  patient               PatientProfile @relation(fields: [patient_id], references: [id], onDelete: Cascade)
+  field                 FieldDefinition @relation(fields: [field_key], references: [field_key], onDelete: Restrict)
+  updated_by            Account?      @relation("FieldValueUpdatedBy", fields: [updated_by_account_id], references: [id], onDelete: SetNull)
+  emergency_fields      EmergencyField[]
+
+  @@id([patient_id, field_key])
+  @@map("patient_field_values")
+}
+
+model EmergencyField {
+  patient_id    String   @db.Uuid
+  field_key     String
+  display_order Int      @default(0)
+  created_at    DateTime @default(now()) @db.Timestamptz(6)
+
+  patient       PatientProfile    @relation(fields: [patient_id], references: [id], onDelete: Cascade)
+  field         FieldDefinition   @relation(fields: [field_key], references: [field_key], onDelete: Restrict)
+  value         PatientFieldValue @relation(fields: [patient_id, field_key], references: [patient_id, field_key], onDelete: Cascade)
+
+  @@id([patient_id, field_key])
+  @@map("emergency_fields")
+}
+
+model PatientCode {
+  patient_id      String   @id @db.Uuid
+  code_digest     String   @unique @db.VarChar(64)
+  code_ciphertext String
+  key_version     Int
+  code_version    Int      @default(1)
+  rotated_at      DateTime @default(now()) @db.Timestamptz(6)
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+
+  patient         PatientProfile @relation(fields: [patient_id], references: [id], onDelete: Cascade)
+
+  @@map("patient_codes")
+}
+
+// ---------------------------------------------------------------------------
+// Grants, consent and protected reads
+// ---------------------------------------------------------------------------
+
+model AccessGrant {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  patient_id           String    @db.Uuid
+  code_digest          String    @db.VarChar(64)
+  expires_at           DateTime  @db.Timestamptz(6)
+  revoked_at           DateTime? @db.Timestamptz(6)
+  created_by_account_id String   @db.Uuid
+  version              Int       @default(1)
+  created_at           DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime  @updatedAt @db.Timestamptz(6)
+
+  patient              PatientProfile @relation(fields: [patient_id], references: [id], onDelete: Cascade)
+  created_by           Account        @relation("GrantCreatedBy", fields: [created_by_account_id], references: [id], onDelete: Restrict)
+  fields               AccessGrantField[]
+  channels             AccessGrantChannel[]
+  read_sessions        RecordReadSession[]
+
+  @@unique([patient_id, code_digest])
+  @@index([patient_id, expires_at(sort: Desc)])
+  @@map("access_grants")
+}
+
+model AccessGrantField {
+  grant_id  String   @db.Uuid
+  field_key String
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  grant     AccessGrant     @relation(fields: [grant_id], references: [id], onDelete: Cascade)
+  field     FieldDefinition @relation(fields: [field_key], references: [field_key], onDelete: Restrict)
+
+  @@id([grant_id, field_key])
+  @@map("access_grant_fields")
+}
+
+model AccessGrantChannel {
+  grant_id  String       @db.Uuid
+  channel   GrantChannel
+  created_at DateTime    @default(now()) @db.Timestamptz(6)
+
+  grant     AccessGrant  @relation(fields: [grant_id], references: [id], onDelete: Cascade)
+
+  @@id([grant_id, channel])
+  @@map("access_grant_channels")
+}
+
+model ProfileUseConsent {
+  id            String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  patient_id    String        @db.Uuid
+  channel       ConsentChannel
+  phone_link_id String        @db.Uuid
+  expires_at    DateTime      @db.Timestamptz(6)
+  revoked_at    DateTime?     @db.Timestamptz(6)
+  version       Int           @default(1)
+  created_at    DateTime      @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime      @updatedAt @db.Timestamptz(6)
+
+  patient       PatientProfile @relation(fields: [patient_id], references: [id], onDelete: Cascade)
+  phone_link    ChannelLink    @relation(fields: [phone_link_id], references: [id], onDelete: Cascade)
+  fields        ConsentField[]
+  referral_requests ReferralRequest[]
+
+  @@unique([patient_id, channel])
+  @@map("profile_use_consents")
+}
+
+model ConsentField {
+  consent_id String   @db.Uuid
+  field_key  String
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  consent    ProfileUseConsent @relation(fields: [consent_id], references: [id], onDelete: Cascade)
+  field      FieldDefinition  @relation(fields: [field_key], references: [field_key], onDelete: Restrict)
+
+  @@id([consent_id, field_key])
+  @@map("consent_fields")
+}
+
+model ChannelLink {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  patient_id    String    @db.Uuid
+  phone_envelope String
+  phone_digest  String    @db.VarChar(64)
+  verified_at   DateTime  @default(now()) @db.Timestamptz(6)
+  expires_at    DateTime? @db.Timestamptz(6)
+  revoked_at    DateTime? @db.Timestamptz(6)
+  version       Int       @default(1)
+  created_at    DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime  @updatedAt @db.Timestamptz(6)
+
+  patient       PatientProfile      @relation(fields: [patient_id], references: [id], onDelete: Cascade)
+  consents      ProfileUseConsent[]
+
+  @@index([patient_id, phone_digest])
+  @@index([phone_digest])
+  @@map("channel_links")
+}
+
+model RecordReadSession {
+  id                String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  patient_id        String      @db.Uuid
+  grant_id          String?     @db.Uuid
+  purpose           ReadPurpose
+  channel           ReadChannel
+  account_id        String?     @db.Uuid
+  auth_session_id   String?     @db.Uuid
+  telecom_session_id String?    @db.Uuid
+  phone_digest      String?     @db.VarChar(64)
+  code_version      Int?
+  expires_at        DateTime    @db.Timestamptz(6)
+  revoked_at        DateTime?   @db.Timestamptz(6)
+  last_read_at      DateTime?   @db.Timestamptz(6)
+  version           Int         @default(1)
+  created_at        DateTime    @default(now()) @db.Timestamptz(6)
+
+  patient           PatientProfile @relation(fields: [patient_id], references: [id], onDelete: Cascade)
+  grant             AccessGrant?   @relation(fields: [grant_id], references: [id], onDelete: Cascade)
+  account           Account?       @relation(fields: [account_id], references: [id], onDelete: Cascade)
+  auth_session      AuthSession?   @relation(fields: [auth_session_id], references: [id], onDelete: Cascade)
+  telecom_session   UssdSession?   @relation(fields: [telecom_session_id], references: [id], onDelete: Cascade)
+  outbox            Outbox[]
+
+  @@index([telecom_session_id, expires_at(sort: Desc)])
+  @@index([account_id, auth_session_id, expires_at(sort: Desc)])
+  @@map("record_read_sessions")
+}
+
+// ---------------------------------------------------------------------------
+// Telecom queues and sessions
+// ---------------------------------------------------------------------------
+
+model ChannelPreference {
+  phone_digest String   @id @db.VarChar(64)
+  locale       String   @default("en")
+  opted_out    Boolean  @default(false)
+  updated_at   DateTime @updatedAt @db.Timestamptz(6)
+
+  @@map("channel_preferences")
+}
+
+model RateLimit {
+  scope        String
+  window_start DateTime @db.Timestamptz(6)
+  hits         Int      @default(1)
+
+  @@id([scope, window_start])
+  @@map("rate_limits")
+}
+
+model UssdSession {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  provider            String    @default("africastalking")
+  provider_session_id String?
+  phone_digest        String    @db.VarChar(64)
+  service_code        String?
+  state               UssdState @default(MAIN)
+  context             Json      @default("{}")
+  path_digest         String?   @db.VarChar(64)
+  path_depth          Int       @default(-1)
+  invalid_attempts    Int       @default(0)
+  version             Int       @default(1)
+  read_session_id     String?   @db.Uuid
+  expires_at          DateTime  @db.Timestamptz(6)
+  ended_at            DateTime? @db.Timestamptz(6)
+  created_at          DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime  @updatedAt @db.Timestamptz(6)
+
+  record_read_sessions RecordReadSession[]
+
+  @@unique([provider, provider_session_id])
+  @@index([phone_digest, expires_at(sort: Desc)])
+  @@map("ussd_sessions")
+}
+
+model SmsInbox {
+  id                  String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  provider            String      @default("africastalking")
+  provider_message_id String
+  phone_digest        String      @db.VarChar(64)
+  body_envelope       String
+  received_at         DateTime    @default(now()) @db.Timestamptz(6)
+  status              InboxStatus @default(QUEUED)
+  attempts            Int         @default(0)
+  next_attempt_at     DateTime    @default(now()) @db.Timestamptz(6)
+  lease_until         DateTime?   @db.Timestamptz(6)
+  claimed_by          String?
+  last_error_code     String?
+  processed_at        DateTime?   @db.Timestamptz(6)
+  expires_at          DateTime    @default(dbgenerated("now() + interval '7 days'")) @db.Timestamptz(6)
+  created_at          DateTime    @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime    @updatedAt @db.Timestamptz(6)
+
+  @@unique([provider, provider_message_id])
+  @@index([status, next_attempt_at, lease_until])
+  @@map("sms_inbox")
+}
+
+model SmsConversation {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  phone_digest      String   @unique @db.VarChar(64)
+  state             String   @default("idle")
+  context           Json     @default("{}")
+  last_input_digest String?  @db.VarChar(64)
+  version           Int      @default(1)
+  expires_at        DateTime @db.Timestamptz(6)
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime @updatedAt @db.Timestamptz(6)
+
+  @@map("sms_conversations")
+}
+
+model Outbox {
+  id                      String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  logical_key             String       @unique
+  kind                    OutboxKind
+  recipient_phone_envelope String
+  recipient_phone_digest  String?      @db.VarChar(64)
+  render_ref              Json         @default("{}")
+  payload_envelope        String?
+  read_session_id         String?      @db.Uuid
+  status                  OutboxStatus @default(QUEUED)
+  attempts                Int          @default(0)
+  next_attempt_at         DateTime     @default(now()) @db.Timestamptz(6)
+  lease_until             DateTime?    @db.Timestamptz(6)
+  claimed_by              String?
+  provider_message_id     String?
+  last_error_code         String?
+  accepted_at             DateTime?    @db.Timestamptz(6)
+  delivered_at            DateTime?    @db.Timestamptz(6)
+  expires_at              DateTime     @default(dbgenerated("now() + interval '1 day'")) @db.Timestamptz(6)
+  created_at              DateTime     @default(now()) @db.Timestamptz(6)
+  updated_at              DateTime     @updatedAt @db.Timestamptz(6)
+
+  read_session            RecordReadSession? @relation(fields: [read_session_id], references: [id], onDelete: SetNull)
+  delivery_events         DeliveryEvent[]
+
+  @@index([status, next_attempt_at, lease_until])
+  @@index([read_session_id])
+  @@map("outbox")
+}
+
+model DeliveryEvent {
+  id                  BigInt   @id @default(autoincrement())
+  provider            String   @default("africastalking")
+  provider_message_id String
+  status              String
+  event_fingerprint   String   @unique @db.VarChar(64)
+  outbox_id           String?  @db.Uuid
+  received_at         DateTime @default(now()) @db.Timestamptz(6)
+  created_at          DateTime @default(now()) @db.Timestamptz(6)
+
+  outbox              Outbox?  @relation(fields: [outbox_id], references: [id], onDelete: SetNull)
+
+  @@index([provider, provider_message_id, received_at(sort: Desc)])
+  @@map("delivery_events")
+}
+
+// ---------------------------------------------------------------------------
+// Audit and idempotency
+// ---------------------------------------------------------------------------
+
+model AuditEvent {
+  id              BigInt       @id @default(autoincrement())
+  occurred_at     DateTime     @default(now()) @db.Timestamptz(6)
+  request_id      String       @default("")
+  actor_account_id String?     @db.Uuid
+  patient_id      String?      @db.Uuid
+  channel         AuditChannel
+  action          String
+  resource_type   String?
+  resource_id     String?      @db.Uuid
+  outcome         AuditOutcome
+  reason_code     String?
+  field_keys      String[]     @default([])
+  actor_ref       String?
+  metadata        Json         @default("{}")
+
+  actor           Account?         @relation(fields: [actor_account_id], references: [id], onDelete: SetNull)
+  patient         PatientProfile?  @relation(fields: [patient_id], references: [id], onDelete: SetNull)
+
+  @@index([patient_id, occurred_at(sort: Desc)])
+  @@index([occurred_at(sort: Desc)])
+  @@map("audit_events")
+}
+
+model AccessAttempt {
+  id            BigInt         @id @default(autoincrement())
+  occurred_at   DateTime       @default(now()) @db.Timestamptz(6)
+  channel       AttemptChannel
+  action        String
+  outcome       AttemptOutcome
+  target_digest String?        @db.VarChar(64)
+  phone_digest  String?        @db.VarChar(64)
+  ip_hash       String?
+  request_id    String         @default("")
+  expires_at    DateTime       @default(dbgenerated("now() + interval '30 days'")) @db.Timestamptz(6)
+
+  @@index([action, target_digest, occurred_at(sort: Desc)])
+  @@index([action, phone_digest, occurred_at(sort: Desc)])
+  @@map("access_attempts")
+}
+
+model IdempotencyRecord {
+  actor_scope       String
+  idempotency_key   String
+  request_digest    String?
+  resource_type     String
+  resource_id       String?  @db.Uuid
+  response_envelope String?
+  expires_at        DateTime @default(dbgenerated("now() + interval '1 day'")) @db.Timestamptz(6)
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+
+  @@id([actor_scope, idempotency_key])
+  @@map("idempotency_records")
+}
+
+// ---------------------------------------------------------------------------
+// Online conversations
+// ---------------------------------------------------------------------------
+
+model Conversation {
+  id                       String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  owner_account_id         String?            @db.Uuid
+  anonymous_session_digest String?            @db.VarChar(64)
+  channel                  String             @default("web")
+  language                 String             @default("en")
+  status                   ConversationStatus @default(ACTIVE)
+  version                  Int                @default(1)
+  expires_at               DateTime           @db.Timestamptz(6)
+  created_at               DateTime           @default(now()) @db.Timestamptz(6)
+  updated_at               DateTime           @updatedAt @db.Timestamptz(6)
+
+  owner                    Account?           @relation(fields: [owner_account_id], references: [id], onDelete: Cascade)
+  messages                 ConversationMessage[]
+  referral_requests        ReferralRequest[]
+
+  @@index([owner_account_id, updated_at(sort: Desc)])
+  @@map("conversations")
+}
+
+model ConversationMessage {
+  id                   String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  conversation_id      String       @db.Uuid
+  role                 MessageRole
+  content_envelope     String
+  ui_payload           Json         @default("[]")
+  model_version        String?
+  reviewed_content_ids String[]     @default([])
+  created_at           DateTime     @default(now()) @db.Timestamptz(6)
+
+  conversation         Conversation @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+
+  @@index([conversation_id, created_at])
+  @@map("conversation_messages")
+}
+
+// ---------------------------------------------------------------------------
+// Directory
+// ---------------------------------------------------------------------------
+
+model Area {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  country_code     String   @default("NG") @db.VarChar(2)
+  region           String
+  city             String
+  name             String
+  center_latitude  Decimal? @db.Decimal(8, 6)
+  center_longitude Decimal? @db.Decimal(9, 6)
+  is_demo          Boolean  @default(false)
+  active           Boolean  @default(true)
+  created_at       DateTime @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime @updatedAt @db.Timestamptz(6)
+
+  aliases          AreaAlias[]
+  facilities       Facility[]
+  patient_profiles PatientProfile[]
+  referral_requests ReferralRequest[]
+
+  @@index([name, city, region])
+  @@map("areas")
+}
+
+model AreaAlias {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  area_id          String   @db.Uuid
+  alias_normalized String
+  created_at       DateTime @default(now()) @db.Timestamptz(6)
+
+  area             Area     @relation(fields: [area_id], references: [id], onDelete: Cascade)
+
+  @@unique([area_id, alias_normalized])
+  @@index([alias_normalized])
+  @@map("area_aliases")
+}
+
+model Service {
+  service_code String   @id
+  label        String
+  description  String?
+  sort_order   Int      @default(0)
+  active       Boolean  @default(true)
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime @updatedAt @db.Timestamptz(6)
+
+  facility_services FacilityService[]
+  referral_requests ReferralRequest[]
+
+  @@map("services")
+}
+
+model Source {
+  id             String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  source_kind    SourceKind
+  publisher      String?
+  canonical_url  String?    @unique
+  retrieved_at   DateTime   @default(now()) @db.Timestamptz(6)
+  query_text     String?
+  content_sha256 String?    @db.VarChar(64)
+  trust_tier     TrustTier
+  metadata       Json       @default("{}")
+  created_at     DateTime   @default(now()) @db.Timestamptz(6)
+
+  facilities     Facility[]
+  facility_services FacilityService[]
+  web_leads      WebLead[]
+  citations      ReviewedContentCitation[]
+  web_observations WebObservation[]
+
+  @@map("sources")
+}
+
+model Facility {
+  id                      String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                    String
+  address                 String
+  area_id                 String         @db.Uuid
+  latitude                Decimal?       @db.Decimal(8, 6)
+  longitude               Decimal?       @db.Decimal(9, 6)
+  phone                   String?
+  status                  FacilityStatus @default(PENDING)
+  source_id               String?        @db.Uuid
+  last_verified_at        DateTime?      @db.Timestamptz(6)
+  verified_by_account_id  String?        @db.Uuid
+  verified_at             DateTime?      @db.Timestamptz(6)
+  is_demo                 Boolean        @default(false)
+  version                 Int            @default(1)
+  created_at              DateTime       @default(now()) @db.Timestamptz(6)
+  updated_at              DateTime       @updatedAt @db.Timestamptz(6)
+
+  area                    Area           @relation(fields: [area_id], references: [id], onDelete: Restrict)
+  source                  Source?        @relation(fields: [source_id], references: [id], onDelete: SetNull)
+  verified_by             Account?       @relation("FacilityVerifiedBy", fields: [verified_by_account_id], references: [id], onDelete: SetNull)
+  facility_services       FacilityService[]
+  practitioner_profiles   PractitionerProfile[]
+  referral_results        ReferralResult[]
+
+  @@index([area_id, status])
+  @@map("facilities")
+}
+
+model FacilityService {
+  facility_id             String                    @db.Uuid
+  service_code            String
+  verification_status     FacilityServiceVerification @default(UNVERIFIED)
+  source_id               String?                   @db.Uuid
+  verified_at             DateTime?                 @db.Timestamptz(6)
+  verified_by_account_id  String?                   @db.Uuid
+  availability_note       String?
+  created_at              DateTime                  @default(now()) @db.Timestamptz(6)
+  updated_at              DateTime                  @updatedAt @db.Timestamptz(6)
+
+  facility                Facility                  @relation(fields: [facility_id], references: [id], onDelete: Cascade)
+  service                 Service                   @relation(fields: [service_code], references: [service_code], onDelete: Restrict)
+  source                  Source?                   @relation(fields: [source_id], references: [id], onDelete: SetNull)
+  verified_by             Account?                  @relation("FacilityServiceVerifiedBy", fields: [verified_by_account_id], references: [id], onDelete: SetNull)
+
+  @@id([facility_id, service_code])
+  @@index([service_code, facility_id])
+  @@map("facility_services")
+}
+
+model WebLead {
+  id                  String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  source_id           String        @db.Uuid
+  name                String
+  address             String
+  phone               String?
+  source_url          String
+  snippet             String?
+  observed_at         DateTime      @default(now()) @db.Timestamptz(6)
+  status              WebLeadStatus @default(UNVERIFIED)
+  content_fingerprint String        @db.VarChar(64)
+  created_at          DateTime      @default(now()) @db.Timestamptz(6)
+
+  source              Source        @relation(fields: [source_id], references: [id], onDelete: Cascade)
+
+  @@unique([source_url, content_fingerprint])
+  @@index([observed_at(sort: Desc), status])
+  @@map("web_leads")
+}
+
+model ReferralRequest {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  patient_id          String?   @db.Uuid
+  conversation_id     String?   @db.Uuid
+  channel             String
+  service_code        String
+  area_id             String?   @db.Uuid
+  requested_latitude  Decimal?  @db.Decimal(8, 6)
+  requested_longitude Decimal?  @db.Decimal(9, 6)
+  radius_km           Decimal   @default(25) @db.Decimal(6, 2)
+  status              String
+  applied_consent_id  String?   @db.Uuid
+  applied_field_keys  String[]  @default([])
+  request_id          String    @default("")
+  requested_at        DateTime  @default(now()) @db.Timestamptz(6)
+  expires_at          DateTime? @db.Timestamptz(6)
+
+  patient             PatientProfile?   @relation(fields: [patient_id], references: [id], onDelete: SetNull)
+  conversation        Conversation?     @relation(fields: [conversation_id], references: [id], onDelete: SetNull)
+  service             Service           @relation(fields: [service_code], references: [service_code], onDelete: Restrict)
+  area                Area?             @relation(fields: [area_id], references: [id], onDelete: SetNull)
+  applied_consent     ProfileUseConsent? @relation(fields: [applied_consent_id], references: [id], onDelete: SetNull)
+  results             ReferralResult[]
+
+  @@index([patient_id, requested_at(sort: Desc)])
+  @@map("referral_requests")
+}
+
+model ReferralResult {
+  referral_id       String   @db.Uuid
+  facility_id       String   @db.Uuid
+  rank              Int
+  distance_km       Decimal? @db.Decimal(8, 3)
+  distance_basis    String
+  reason            String
+  facility_snapshot Json     @default("{}")
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+
+  referral          ReferralRequest @relation(fields: [referral_id], references: [id], onDelete: Cascade)
+  facility          Facility        @relation(fields: [facility_id], references: [id], onDelete: Cascade)
+
+  @@id([referral_id, facility_id])
+  @@unique([referral_id, rank])
+  @@map("referral_results")
+}
+
+// ---------------------------------------------------------------------------
+// Reviewed content
+// ---------------------------------------------------------------------------
+
+model ReviewedHealthContent {
+  id                  String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  topic_code          String
+  language            String        @default("en")
+  version             Int
+  title               String
+  body                String
+  status              ContentStatus @default(DRAFT)
+  reviewer_account_id String?       @db.Uuid
+  reviewed_at         DateTime?     @db.Timestamptz(6)
+  published_at        DateTime?     @db.Timestamptz(6)
+  created_at          DateTime      @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime      @updatedAt @db.Timestamptz(6)
+
+  reviewer            Account?      @relation(fields: [reviewer_account_id], references: [id], onDelete: SetNull)
+  citations           ReviewedContentCitation[]
+
+  @@unique([topic_code, language, version])
+  @@index([status, topic_code])
+  @@map("reviewed_health_content")
+}
+
+model ReviewedContentCitation {
+  content_id      String   @db.Uuid
+  source_id       String   @db.Uuid
+  citation_label  String
+  locator         String?
+  supports_claim  String?
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+
+  content         ReviewedHealthContent @relation(fields: [content_id], references: [id], onDelete: Cascade)
+  source          Source                @relation(fields: [source_id], references: [id], onDelete: Restrict)
+
+  @@id([content_id, source_id, citation_label])
+  @@map("reviewed_content_citations")
+}
+
+model WebObservation {
+  id                  String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  source_id           String            @db.Uuid
+  query_text          String
+  title               String
+  snippet             String?
+  content_fingerprint String            @db.VarChar(64)
+  observed_at         DateTime          @default(now()) @db.Timestamptz(6)
+  status              ObservationStatus @default(UNVERIFIED)
+  reviewer_account_id String?           @db.Uuid
+  reviewed_at         DateTime?         @db.Timestamptz(6)
+  created_at          DateTime          @default(now()) @db.Timestamptz(6)
+
+  source              Source            @relation(fields: [source_id], references: [id], onDelete: Cascade)
+  reviewer            Account?          @relation(fields: [reviewer_account_id], references: [id], onDelete: SetNull)
+
+  @@unique([source_id, content_fingerprint])
+  @@map("web_observations")
+}
+
+// ---------------------------------------------------------------------------
+// Mediwise-derived features
+// ---------------------------------------------------------------------------
+
+model SymptomAnalysis {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  patient_id      String    @db.Uuid
+  account_id      String    @db.Uuid
+  name            String?
+  severity        Severity?
+  summary         String?
+  include_records Boolean   @default(true)
+  modify_history  Boolean   @default(true)
+  files           String[]  @default([])
+  thread_id       String?   @unique
+  model_version   String?
+  created_at      DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime  @updatedAt @db.Timestamptz(6)
+
+  patient         PatientProfile @relation(fields: [patient_id], references: [id], onDelete: Cascade)
+  account         Account        @relation(fields: [account_id], references: [id], onDelete: Cascade)
+
+  @@index([patient_id, created_at(sort: Desc)])
+  @@map("symptom_analyses")
+}
+
+model Allergy {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  patient_id     String   @db.Uuid
+  name           String
+  severity       Severity @default(MILD)
+  diagnosis_date DateTime? @db.Date
+  created_at     DateTime @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime @updatedAt @db.Timestamptz(6)
+
+  patient        PatientProfile @relation(fields: [patient_id], references: [id], onDelete: Cascade)
+
+  @@index([patient_id])
+  @@map("allergies")
+}
+
+model MedicalEvent {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  patient_id    String    @db.Uuid
+  name          String
+  recovery_time String?
+  occurred_on   DateTime? @db.Date
+  description   String?
+  created_at    DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime  @updatedAt @db.Timestamptz(6)
+
+  patient       PatientProfile @relation(fields: [patient_id], references: [id], onDelete: Cascade)
+
+  @@index([patient_id])
+  @@map("medical_events")
+}
+
+model MedicationSchedule {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  patient_id   String    @db.Uuid
+  title        String?
+  description  String?
+  medications  Json      @default("[]")
+  start_date   DateTime? @db.Date
+  end_date     DateTime? @db.Date
+  summary      String
+  progress     Decimal   @default(0) @db.Decimal(5, 2)
+  score        Decimal   @default(100) @db.Decimal(5, 2)
+  created_at   DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime  @updatedAt @db.Timestamptz(6)
+
+  patient      PatientProfile @relation(fields: [patient_id], references: [id], onDelete: Cascade)
+  moments      MedicationMoment[]
+
+  @@index([patient_id, created_at(sort: Desc)])
+  @@map("medication_schedules")
+}
+
+model MedicationMoment {
+  id                     String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  medication_schedule_id String           @db.Uuid
+  drug                   String?
+  dose                   String?
+  frequency              String?
+  status                 MedicationStatus @default(PENDING)
+  time                   DateTime         @db.Timestamptz(6)
+  notified_user          Boolean          @default(false)
+  notified_at            DateTime?        @db.Timestamptz(6)
+  created_at             DateTime         @default(now()) @db.Timestamptz(6)
+
+  schedule               MedicationSchedule @relation(fields: [medication_schedule_id], references: [id], onDelete: Cascade)
+
+  @@index([time, status])
+  @@index([medication_schedule_id])
+  @@map("medication_moments")
+}
+
+model NotificationToken {
+  id           String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  account_id   String               @db.Uuid
+  token        String               @unique
+  platform     NotificationPlatform
+  created_at   DateTime             @default(now()) @db.Timestamptz(6)
+  last_used_at DateTime?            @db.Timestamptz(6)
+
+  account      Account              @relation(fields: [account_id], references: [id], onDelete: Cascade)
+
+  @@index([account_id])
+  @@map("notification_tokens")
+}

@@ -1,8 +1,12 @@
 # Offline Access Backend
 
 Independent TypeScript SMS/USSD service for HealthAccess. It uses Africa's Talking,
-the shared PostgreSQL schema in `../database_structure.sql`, Vercel AI SDK with
-OpenRouter, and Serper. It never calls the online FastAPI project.
+the shared Prisma schema in `../online/prisma/schema.prisma` (migrations under
+`../online/prisma/migrations`), Vercel AI SDK with OpenRouter, and Serper. It never
+calls the online HTTP service.
+
+Project-wide architecture, database contract and current status are in
+[`../../docs/README.md`](../../docs/README.md).
 
 ## Run
 
@@ -22,25 +26,28 @@ and `npm run dev:worker`. The HTTP process only accepts callbacks and handles
 deterministic USSD; the worker processes SMS and sends queued replies.
 
 `.env.example` contains the essential settings. `CODE_DIGEST_KEY` must be the same
-in the future online backend; use a separate `DATA_ENCRYPTION_KEY`. Keep both
+as the online service; use a separate `DATA_ENCRYPTION_KEY`. Keep both
 keys backed up securely. Changing them is a data/key migration, not an ordinary
 configuration update. Do not commit `.env`.
 
-Apply the shared schema explicitly with an administrator connection:
+Apply the shared migrations with an administrator/owner connection:
 
 ```sh
-DATABASE_URL='postgresql://ADMIN:password@localhost/healthaccess' npm run db:apply
+DATABASE_URL='postgresql://ADMIN:password@localhost/healthaccess' npm run db:migrate
 ```
 
-Provision a separate login for runtime, then put its connection URL in `.env`:
+Provision a separate runtime login, then put its connection URL in `.env`:
 
 ```sql
 CREATE ROLE healthaccess_offline LOGIN PASSWORD 'replace-with-a-secret';
-GRANT healthaccess_telecom TO healthaccess_offline;
+GRANT USAGE ON SCHEMA public TO healthaccess_offline;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO healthaccess_offline;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO healthaccess_offline;
 ```
 
-Never use the administrator URL at runtime. The service checks its database role
-on startup. Remote database connections should use verified TLS, for example
+Granting on `ALL TABLES` must be repeated after a migration adds tables. Never use
+the administrator URL at runtime. The service verifies its Prisma connection on
+startup. Remote database connections should use verified TLS, for example
 `sslmode=verify-full`, with the CA in the system trust store or supplied through
 Node's `NODE_EXTRA_CA_CERTS`. Both subprojects share the schema, not a second copy
 of patient records.
@@ -53,12 +60,12 @@ Sandbox username is `sandbox`; live credentials and provisioning are separate.
 
 Configure these public HTTPS callbacks using your `CALLBACK_TOKEN`:
 
-| Callback | Path |
-| --- | --- |
-| Incoming SMS | `/callbacks/africastalking/<token>/sms/inbound` |
-| Delivery report | `/callbacks/africastalking/<token>/sms/delivery` |
-| USSD | `/callbacks/africastalking/<token>/ussd` |
-| USSD session event | `/callbacks/africastalking/<token>/ussd/events` |
+| Callback           | Path                                             |
+| ------------------ | ------------------------------------------------ |
+| Incoming SMS       | `/callbacks/africastalking/<token>/sms/inbound`  |
+| Delivery report    | `/callbacks/africastalking/<token>/sms/delivery` |
+| USSD               | `/callbacks/africastalking/<token>/ussd`         |
+| USSD session event | `/callbacks/africastalking/<token>/ussd/events`  |
 
 There is no assumed Africa's Talking HMAC header. In development and test,
 callbacks are accepted from any source at the secret callback path, so a sandbox
@@ -76,10 +83,10 @@ resubmitting them.
 
 ## Sandbox testing
 
-1. Install the schema and optional clearly labeled demo data:
+1. Apply migrations and optional clearly labeled demo data:
 
 ```sh
-DATABASE_URL='postgresql://ADMIN:password@localhost:5432/healthaccess' npm run db:apply
+DATABASE_URL='postgresql://ADMIN:password@localhost:5432/healthaccess' npm run db:migrate
 DATABASE_URL='postgresql://ADMIN:password@localhost:5432/healthaccess' npm run db:seed-demo
 ```
 
@@ -107,8 +114,8 @@ ngrok http 3001
 
 5. Open the Africa's Talking simulator at
    <https://simulator.africastalking.com:1517/>, register a test number, text the
-   configured shortcode (for this environment `55892`), or dial the configured
-   USSD code (for this environment `*384*145321#`). Sandbox interactions occur in
+   configured shortcode, or dial the configured
+   USSD code shown in `.env` for this environment. Sandbox interactions occur in
    the simulator, not on a handset.
 
 Suggested USSD path: dial, choose `1`, choose `2` for child health, enter `Ikeja`.
@@ -155,12 +162,14 @@ handling and consent before processing real patient messages.
 ```sh
 npm run typecheck
 npm test
-TEST_DATABASE_URL='postgresql://ADMIN:password@localhost/healthaccess_test' npm run test:db
+npm run test:db
 npm run build
 ```
 
-Database tests require a disposable database and administrator access to create
-isolated test roles/fixtures. Never point them at a live database. Logs omit
+`test:db` uses `TEST_DATABASE_URL` or `DATABASE_URL` from `.env`; it runs the
+shared Prisma migrations' public schema and removes its own fixtures. Use a
+disposable database that already has `npm run db:migrate` applied. Never point it
+at a live database. Logs omit
 callback bodies, medical values, access codes and credentials. Disable body/URL
 logging at proxies and tracing systems too.
 
@@ -170,6 +179,6 @@ real-SIM behavior (including Unicode medical fields) with mobile data disabled.
 Voice remains outside this release.
 
 Provider contracts were checked against the official [SMS notifications](https://developers.africastalking.com/docs/sms/notifications),
-[SMS sending](https://developers.africastalking.com/docs/sms/sending/bulk_(legacy)),
+[SMS sending](<https://developers.africastalking.com/docs/sms/sending/bulk_(legacy)>),
 [USSD sessions](https://developers.africastalking.com/docs/ussd/handle_sessions), and
 [USSD events](https://developers.africastalking.com/docs/ussd/notifications) documentation.

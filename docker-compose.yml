@@ -1,0 +1,130 @@
+# Local development infrastructure for HealthAccess.
+# This file is for local use only. It uses trust authentication and local-only
+# default credentials; never copy it to production or expose these ports
+# publicly. Application services are shown as commented examples because they
+# need a real .env and a built image. Do not put secrets in this file.
+name: healthaccess
+
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: healthaccess
+      POSTGRES_USER: healthaccess
+      # Local development only. Use a password/secret manager in production.
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U healthaccess -d healthaccess"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  redis:
+    image: redis:7
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-healthaccess}
+      # Local development only. Override or use a secret manager in production.
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-healthaccess-local-only}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9000/minio/health/live || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  # ---------------------------------------------------------------------------
+  # Application service examples. Uncomment after setting up backend/*/.env.
+  # Prefer building a small production image with the compiled dist output
+  # instead of installing dependencies and running tsx on every start.
+  # ---------------------------------------------------------------------------
+  #
+  # online:
+  #   image: node:24-bookworm-slim
+  #   working_dir: /app
+  #   command: >
+  #     sh -c "npm ci &&
+  #            npm run db:deploy --workspace @healthaccess/online &&
+  #            npm run start --workspace @healthaccess/online"
+  #   env_file:
+  #     - backend/online/.env
+  #   environment:
+  #     DATABASE_URL: postgresql://healthaccess@postgres:5432/healthaccess
+  #     REDIS_URL: redis://redis:6379
+  #     S3_ENDPOINT: http://minio:9000
+  #     S3_FORCE_PATH_STYLE: "true"
+  #     NODE_ENV: production
+  #     PORT: "3000"
+  #   ports:
+  #     - "3000:3000"
+  #   volumes:
+  #     - .:/app
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #     minio:
+  #       condition: service_healthy
+  #
+  # offline:
+  #   image: node:24-bookworm-slim
+  #   working_dir: /app
+  #   command: sh -c "npm ci && npm run dev:offline"
+  #   env_file:
+  #     - backend/offline/.env
+  #   environment:
+  #     DATABASE_URL: postgresql://healthaccess@postgres:5432/healthaccess
+  #   ports:
+  #     - "3001:3001"
+  #   volumes:
+  #     - .:/app
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #
+  # offline-worker:
+  #   image: node:24-bookworm-slim
+  #   working_dir: /app
+  #   command: sh -c "npm ci && npm run dev:worker"
+  #   env_file:
+  #     - backend/offline/.env
+  #   environment:
+  #     DATABASE_URL: postgresql://healthaccess@postgres:5432/healthaccess
+  #   volumes:
+  #     - .:/app
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:

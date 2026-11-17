@@ -1,0 +1,1111 @@
+{
+  "group": "Authentication and profile",
+  "order": 10,
+  "description": "Account registration, session tokens, the authenticated profile, phone verification and medical-record editing. All /me endpoints require a Bearer access token.",
+  "endpoints": [
+    {
+      "id": "auth-register",
+      "name": "Register a patient account",
+      "method": "POST",
+      "path": "/auth/register",
+      "summary": "Create a patient account and issue a token pair.",
+      "description": "Creates an ACTIVE account, assigns the PATIENT role, creates a patient profile and optionally stores date_of_birth as a field value. Email is trimmed and lower-cased. A duplicate email returns 409 email_taken.",
+      "auth": "none",
+      "roles": [],
+      "contentType": "application/json",
+      "bodyExample": {
+        "firstName": "Ada",
+        "lastName": "Okafor",
+        "email": "ada.okafor@example.test",
+        "password": "DemoPass123!",
+        "password_confirmation": "DemoPass123!",
+        "dob": "1990-05-12",
+        "phone": "+2348012345678"
+      },
+      "bodyFields": [
+        {
+          "name": "firstName",
+          "type": "string",
+          "required": true,
+          "description": "1-100 characters after trimming."
+        },
+        {
+          "name": "lastName",
+          "type": "string",
+          "required": true,
+          "description": "1-100 characters after trimming."
+        },
+        {
+          "name": "email",
+          "type": "string",
+          "required": true,
+          "description": "Valid email, max 320 characters. Stored lower-case."
+        },
+        {
+          "name": "password",
+          "type": "string",
+          "required": true,
+          "description": "8-128 characters."
+        },
+        {
+          "name": "password_confirmation",
+          "type": "string",
+          "required": true,
+          "description": "Must match password."
+        },
+        {
+          "name": "dob",
+          "type": "string",
+          "required": false,
+          "description": "ISO date; stored as a date_of_birth field value when the definition exists."
+        },
+        {
+          "name": "phone",
+          "type": "string",
+          "required": false,
+          "description": "E.164 phone, for example +2348012345678. Only the phone digest is stored."
+        }
+      ],
+      "responses": [
+        {
+          "status": 201,
+          "label": "Created",
+          "description": "Account, assigned roles and a fresh token pair.",
+          "headers": {
+            "content-type": "application/json; charset=utf-8"
+          },
+          "body": {
+            "account": {
+              "id": "d2e6b647-3603-4b55-80e7-cf6c67f5816b",
+              "email": "ada.okafor@example.test",
+              "display_name": "Ada Okafor",
+              "status": "ACTIVE",
+              "idp_subject": null,
+              "avatar_key": null,
+              "email_verified_at": null,
+              "phone_verified_at": null,
+              "created_at": "2026-11-17T16:19:13.699Z",
+              "updated_at": "2026-11-17T16:19:13.699Z"
+            },
+            "roles": [
+              "PATIENT"
+            ],
+            "tokens": {
+              "access_token": "<access-jwt>",
+              "refresh_token": "<refresh-token>",
+              "token_type": "Bearer",
+              "expires_in": 900,
+              "refresh_expires_in": 2591999
+            }
+          }
+        },
+        {
+          "status": 400,
+          "label": "Bad Request",
+          "description": "Zod validation issues, one entry per invalid field.",
+          "headers": {
+            "content-type": "application/json; charset=utf-8"
+          },
+          "body": {
+            "error": "validation_error",
+            "request_id": "52ad4de1-917b-4f0c-a43a-a463d201524e",
+            "issues": [
+              {
+                "path": "firstName",
+                "message": "String must contain at least 1 character(s)"
+              },
+              {
+                "path": "lastName",
+                "message": "String must contain at least 1 character(s)"
+              },
+              {
+                "path": "email",
+                "message": "Invalid email"
+              },
+              {
+                "path": "password",
+                "message": "String must contain at least 8 character(s)"
+              },
+              {
+                "path": "password_confirmation",
+                "message": "Passwords do not match"
+              }
+            ]
+          }
+        },
+        {
+          "status": 409,
+          "label": "Conflict",
+          "description": "The email is already registered.",
+          "headers": {
+            "content-type": "application/json; charset=utf-8"
+          },
+          "body": {
+            "error": "email_taken",
+            "message": "This email is already registered",
+            "request_id": "5018c51d-fe57-4354-b054-52f7d4207c7b"
+          }
+        }
+      ],
+      "curl": "curl -sS -X POST http://localhost:3000/v1/auth/register -H 'content-type: application/json' -d '{\"firstName\":\"Ada\",\"lastName\":\"Okafor\",\"email\":\"ada.okafor@example.test\",\"password\":\"DemoPass123!\",\"password_confirmation\":\"DemoPass123!\",\"dob\":\"1990-05-12\",\"phone\":\"+2348012345678\"}'",
+      "notes": [
+        "Access tokens expire in 900 seconds; refresh tokens expire in about 30 days.",
+        "The access token is a JWT whose roles are read from the database on every request."
+      ]
+    },
+    {
+      "id": "auth-login",
+      "name": "Log in",
+      "method": "POST",
+      "path": "/auth/login",
+      "summary": "Exchange email and password for a token pair.",
+      "description": "Looks up the account by lower-cased email, verifies the bcrypt password hash and issues a new session. Returns 401 invalid_credentials for an unknown email or bad password and 403 account_inactive for a non-ACTIVE account.",
+      "auth": "none",
+      "roles": [],
+      "contentType": "application/json",
+      "bodyExample": {
+        "email": "demo.patient@example.test",
+        "password": "DemoPass123!"
+      },
+      "bodyFields": [
+        {
+          "name": "email",
+          "type": "string",
+          "required": true,
+          "description": "Registered email; trimmed and lower-cased."
+        },
+        {
+          "name": "password",
+          "type": "string",
+          "required": true,
+          "description": "1-128 characters."
+        }
+      ],
+      "responses": [
+        {
+          "status": 200,
+          "label": "OK",
+          "description": "Account summary for the seeded demo patient, current roles and a new token pair. Tokens are placeholders.",
+          "headers": {
+            "content-type": "application/json; charset=utf-8"
+          },
+          "body": {
+            "account": {
+              "id": "20000000-0000-4000-8000-000000000004",
+              "email": "demo.patient@example.test",
+              "display_name": "Demo Patient",
+              "status": "ACTIVE",
+              "idp_subject": null,
+              "avatar_key": null,
+              "email_verified_at": null,
+              "phone_verified_at": null,
+              "created_at": "2026-11-17T15:43:52.132Z",
+              "updated_at": "2026-11-17T16:02:02.106Z"
+            },
+            "roles": [
+              "PATIENT"
+            ],
+            "tokens": {
+              "access_token": "<access-jwt>",
+              "refresh_token": "<refresh-token>",
+              "token_type": "Bearer",
+              "expires_in": 900,
+              "refresh_expires_in": 2591999
+            }
+          }
+        },
+        {
+          "status": 401,
+          "label": "Unauthorized",
+          "description": "Unknown email or wrong password; the message is intentionally identical for both.",
+          "headers": {
+            "content-type": "application/json; charset=utf-8"
+          },
+          "body": {
+            "error": "invalid_credentials",
+            "message": "Invalid email or password",
+            "request_id": "e3582fea-334b-4688-a9ca-a6e6f7553b87"
+          }
+        }
+      ],
+      "curl": "curl -sS -X POST http://localhost:3000/v1/auth/login -H 'content-type: application/json' -d '{\"email\":\"demo.patient@example.test\",\"password\":\"DemoPass123!\"}'",
+      "notes": [
+        "Uses the seeded demo patient (demo.patient@example.test). Run npm run db:seed if the account is missing.",
+        "Roles in the access token are the roles returned by this call.",
+        "The 200 example shows the demo account; captured access and refresh tokens are replaced with placeholders."
+      ]
+    },
+    {
+      "id": "auth-refresh",
+      "name": "Rotate a refresh token",
+      "method": "POST",
+      "path": "/auth/refresh",
+      "summary": "Exchange a refresh token for a new token pair.",
+      "description": "Refresh tokens are single-use: a successful call replaces the stored hash, so the submitted refresh token can no longer be used. Returns 401 invalid_refresh_token when the token is unknown, revoked, expired or the account is not ACTIVE.",
+      "auth": "none",
+      "roles": [],
+      "contentType": "application/json",
+      "bodyExample": {
+        "refresh_token": "<refresh-token>"
+      },
+      "bodyFields": [
+        {
+          "name": "refresh_token",
+          "type": "string",
+          "required": true,
+          "description": "Opaque refresh token from register/login/refresh."
+        }
+      ],
+      "responses": [
+        {
+          "status": 200,
+          "label": "OK",
+          "description": "A new token pair; the previous refresh token is invalidated.",
+          "headers": {
+            "content-type": "application/json; charset=utf-8"
+          },
+          "body": {
+            "tokens": {
+              "access_token": "<access-jwt>",
+              "refresh_token": "<refresh-token>",
+              "token_type": "Bearer",
+              "expires_in": 900,
+              "refresh_expires_in": 2591999
+            }
+          }
+        }
+      ],
+      "curl": "curl -sS -X POST http://localhost:3000/v1/auth/refresh -H 'content-type: application/json' -d '{\"refresh_token\":\"<refresh-token>\"}'",
+      "notes": [
+        "Persist the returned refresh_token immediately; the submitted one stops working."
+      ]
+    },
+    {
+      "id": "auth-logout",
+      "name": "Log out",
+      "method": "POST",
+      "path": "/auth/logout",
+      "summary": "Revoke a refresh token and its session.",
+      "description": "Marks the session matching the refresh token as revoked. The call returns 204 whether or not a matching active session existed. Access tokens for the revoked session stop passing requireAuth immediately because the session is checked on every request.",
+      "auth": "none",
+      "roles": [],
+      "contentType": "application/json",
+      "bodyExample": {
+        "refresh_token": "<refresh-token>"
+      },
+      "bodyFields": [
+        {
+          "name": "refresh_token",
+          "type": "string",
+          "required": true,
+          "description": "Refresh token to revoke."
+        }
+      ],
+      "responses": [
+        {
+          "status": 204,
+          "label": "No Content",
+          "description": "Session revoked; the response has no body.",
+          "headers": {},
+          "body": null
+        }
+      ],
+      "curl": "curl -sS -X POST http://localhost:3000/v1/auth/logout -H 'content-type: application/json' -d '{\"refresh_token\":\"<refresh-token>\"}'",
+      "notes": [
+        "Drop both tokens client-side after this call."
+      ]
+    },
+    {
+      "id": "users-me-get",
+      "name": "Get the current profile",
+      "method": "GET",
+      "path": "/me",
+      "summary": "Return account, roles, patient profile and stored field values.",
+      "description": "Loads the account summary, roles, patient profile metadata, flattened field_values, the field list with labels and value types, allergy records, medical events and a presigned avatar_url when storage is configured.",
+      "auth": "bearer",
+      "roles": [],
+      "contentType": "application/json",
+      "responses": [
+        {
+          "status": 200,
+          "label": "OK",
+          "description": "Current account, profile and medical data.",
+          "headers": {
+            "content-type": "application/json; charset=utf-8"
+          },
+          "body": {
+            "account": {
+              "id": "d2e6b647-3603-4b55-80e7-cf6c67f5816b",
+              "email": "ada.okafor@example.test",
+              "display_name": "Ada Okafor",
+              "status": "ACTIVE",
+              "idp_subject": null,
+              "avatar_key": null,
+              "email_verified_at": null,
+              "phone_verified_at": null,
+              "created_at": "2026-11-17T16:19:13.699Z",
+              "updated_at": "2026-11-17T16:19:13.699Z"
+            },
+            "roles": [
+              "PATIENT"
+            ],
+            "profile": {
+              "id": "6b7acfa2-c66d-4c22-a0e9-11e496d12080",
+              "preferred_language": "en",
+              "home_area_id": null,
+              "version": 1,
+              "created_at": "2026-11-17T16:19:13.701Z",
+              "updated_at": "2026-11-17T16:19:13.701Z"
+            },
+            "fields": [
+              {
+                "key": "date_of_birth",
+                "label": "Date of birth",
+                "value_type": "STRING",
+                "value": "1990-05-12",
+                "updated_at": "2026-11-17T16:19:13.704Z"
+              }
+            ],
+            "field_values": {
+              "date_of_birth": "1990-05-12"
+            },
+            "allergies": [],
+            "medical_events": [],
+            "avatar_url": null
+          }
+        }
+      ],
+      "curl": "curl -sS -X GET http://localhost:3000/v1/me -H 'authorization: Bearer <access-jwt>'",
+      "notes": [
+        "field_values is a convenience map of field key to stored JSON value; fields carries labels and types.",
+        "avatar_url is null when no avatar is stored or S3 is not configured."
+      ]
+    },
+    {
+      "id": "users-me-patch",
+      "name": "Update the current profile",
+      "method": "PATCH",
+      "path": "/me",
+      "summary": "Partially update account and patient fields.",
+      "description": "Updates the account display name from firstName/lastName, email, phone digest, password and any provided patient fields. Only field keys present in field_definitions are written, so city/state/country are silently skipped when no definition exists. Returns the full profile payload.",
+      "auth": "bearer",
+      "roles": [],
+      "contentType": "application/json",
+      "bodyExample": {
+        "firstName": "Ada",
+        "lastName": "Okafor",
+        "city": "Ikeja",
+        "state": "Lagos",
+        "country": "Nigeria"
+      },
+      "bodyFields": [
+        {
+          "name": "firstName",
+          "type": "string",
+          "required": false,
+          "description": "Updates display_name and full_name."
+        },
+        {
+          "name": "lastName",
+          "type": "string",
+          "required": false,
+          "description": "Updates display_name and full_name."
+        },
+        {
+          "name": "email",
+          "type": "string",
+          "required": false,
+          "description": "New unique email; clears email_verified_at when changed."
+        },
+        {
+          "name": "phone",
+          "type": "string",
+          "required": false,
+          "description": "E.164 phone; clears phone_verified_at when the digest changes."
+        },
+        {
+          "name": "dob",
+          "type": "string",
+          "required": false,
+          "description": "ISO date stored as date_of_birth."
+        },
+        {
+          "name": "city",
+          "type": "string",
+          "required": false,
+          "description": "Stored only when a matching field definition exists."
+        },
+        {
+          "name": "state",
+          "type": "string",
+          "required": false,
+          "description": "Stored only when a matching field definition exists."
+        },
+        {
+          "name": "country",
+          "type": "string",
+          "required": false,
+          "description": "Stored only when a matching field definition exists."
+        },
+        {
+          "name": "password",
+          "type": "string",
+          "required": false,
+          "description": "8-128 characters; rehashed with bcrypt."
+        }
+      ],
+      "responses": [
+        {
+          "status": 200,
+          "label": "OK",
+          "description": "The full profile payload after the patch.",
+          "headers": {
+            "content-type": "application/json; charset=utf-8"
+          },
+          "body": {
+            "account": {
+              "id": "d2e6b647-3603-4b55-80e7-cf6c67f5816b",
+              "email": "ada.okafor@example.test",
+              "display_name": "Ada Okafor",
+              "status": "ACTIVE",
+              "idp_subject": null,
+              "avatar_key": null,
+              "email_verified_at": null,
+              "phone_verified_at": null,
+              "created_at": "2026-11-17T16:19:13.699Z",
+              "updated_at": "2026-11-17T16:19:13.699Z"
+            },
+            "roles": [
+              "PATIENT"
+            ],
+            "profile": {
+              "id": "6b7acfa2-c66d-4c22-a0e9-11e496d12080",
+              "preferred_language": "en",
+              "home_area_id": null,
+              "version": 1,
+              "created_at": "2026-11-17T16:19:13.701Z",
+              "updated_at": "2026-11-17T16:19:13.701Z"
+            },
+            "fields": [
+              {
+                "key": "date_of_birth",
+                "label": "Date of birth",
+                "value_type": "STRING",
+                "value": "1990-05-12",
+                "updated_at": "2026-11-17T16:19:13.704Z"
+              },
+              {
+                "key": "full_name",
+                "label": "Name",
+                "value_type": "STRING",
+                "value": "Ada Okafor",
+                "updated_at": "2026-11-17T16:19:14.280Z"
+              }
+            ],
+            "field_values": {
+              "date_of_birth": "1990-05-12",
+              "full_name": "Ada Okafor"
+            },
+            "allergies": [],
+            "medical_events": [],
+            "avatar_url": null
+          }
+        }
+      ],
+      "curl": "curl -sS -X PATCH http://localhost:3000/v1/me -H 'authorization: Bearer <access-jwt>' -H 'content-type: application/json' -d '{\"firstName\":\"Ada\",\"lastName\":\"Okafor\",\"city\":\"Ikeja\",\"state\":\"Lagos\",\"country\":\"Nigeria\"}'",
+      "notes": [
+        "Returns 409 email_taken when the new email belongs to another account."
+      ]
+    },
+    {
+      "id": "users-me-medical-put",
+      "name": "Replace medical details",
+      "method": "PUT",
+      "path": "/me/medical",
+      "summary": "Upsert medical fields and replace allergies and medical events.",
+      "description": "Writes height, weight, gender, blood type, genotype, blood pressure, conditions, medications and emergency contacts as field values. When allergies or medicalEvents are arrays they replace all existing rows for the patient. Severity is normalised to MILD, MODERATE or SEVERE. Returns the full profile payload.",
+      "auth": "bearer",
+      "roles": [],
+      "contentType": "application/json",
+      "bodyExample": {
+        "height": 170,
+        "weight": 68,
+        "gender": "Female",
+        "bloodType": "O+",
+        "genoType": "AA",
+        "bloodPressure": "118/76",
+        "existingMedicalConditions": [
+          "Hypertension"
+        ],
+        "existingMedications": [
+          "Amlodipine 5mg daily"
+        ],
+        "emergencyContactName": "Ngozi Okafor",
+        "emergencyContactPhone": "+2348012345679",
+        "allergies": [
+          {
+            "name": "Penicillin",
+            "severity": "severe",
+            "diagnosisDate": "2015-06-01"
+          },
+          {
+            "name": "Peanuts",
+            "severity": "MILD"
+          }
+        ],
+        "medicalEvents": [
+          {
+            "name": "Appendectomy",
+            "recoveryTime": "2 weeks",
+            "occurredOn": "2019-03-14",
+            "description": "Laparoscopic appendectomy, no complications."
+          },
+          {
+            "name": "Malaria",
+            "recoveryTime": "5 days",
+            "occurredOn": "2022-08-02",
+            "description": "Treated with artemether-lumefantrine."
+          }
+        ]
+      },
+      "bodyFields": [
+        {
+          "name": "height",
+          "type": "string | number",
+          "required": false,
+          "description": "Stored as the height field value."
+        },
+        {
+          "name": "weight",
+          "type": "string | number",
+          "required": false,
+          "description": "Stored as the weight field value."
+        },
+        {
+          "name": "gender",
+          "type": "string",
+          "required": false,
+          "description": "Max 200 characters."
+        },
+        {
+          "name": "bloodType",
+          "type": "string",
+          "required": false,
+          "description": "Stored under the blood_group field key."
+        },
+        {
+          "name": "genoType",
+          "type": "string",
+          "required": false,
+          "description": "Stored under the genotype field key."
+        },
+        {
+          "name": "bloodPressure",
+          "type": "string",
+          "required": false,
+          "description": "Stored under blood_pressure."
+        },
+        {
+          "name": "existingMedicalConditions",
+          "type": "string | string[]",
+          "required": false,
+          "description": "Stored under conditions."
+        },
+        {
+          "name": "existingMedications",
+          "type": "string | string[]",
+          "required": false,
+          "description": "Stored under current_medications."
+        },
+        {
+          "name": "emergencyContactName",
+          "type": "string",
+          "required": false,
+          "description": "Max 200 characters."
+        },
+        {
+          "name": "emergencyContactPhone",
+          "type": "string",
+          "required": false,
+          "description": "Max 200 characters."
+        },
+        {
+          "name": "allergies",
+          "type": "object[]",
+          "required": false,
+          "description": "Array of {name, severity?, diagnosisDate?}; replaces all allergy rows."
+        },
+        {
+          "name": "medicalEvents",
+          "type": "object[]",
+          "required": false,
+          "description": "Array of {name, recoveryTime?, occurredOn?|date?, description?}; replaces all event rows."
+        }
+      ],
+      "responses": [
+        {
+          "status": 200,
+          "label": "OK",
+          "description": "The full profile payload with the new allergies and medical events.",
+          "headers": {
+            "content-type": "application/json; charset=utf-8"
+          },
+          "body": {
+            "account": {
+              "id": "d2e6b647-3603-4b55-80e7-cf6c67f5816b",
+              "email": "ada.okafor@example.test",
+              "display_name": "Ada Okafor",
+              "status": "ACTIVE",
+              "idp_subject": null,
+              "avatar_key": null,
+              "email_verified_at": null,
+              "phone_verified_at": null,
+              "created_at": "2026-11-17T16:19:13.699Z",
+              "updated_at": "2026-11-17T16:19:13.699Z"
+            },
+            "roles": [
+              "PATIENT"
+            ],
+            "profile": {
+              "id": "6b7acfa2-c66d-4c22-a0e9-11e496d12080",
+              "preferred_language": "en",
+              "home_area_id": null,
+              "version": 1,
+              "created_at": "2026-11-17T16:19:13.701Z",
+              "updated_at": "2026-11-17T16:19:13.701Z"
+            },
+            "fields": [
+              {
+                "key": "blood_group",
+                "label": "Blood group",
+                "value_type": "STRING",
+                "value": "O+",
+                "updated_at": "2026-11-17T16:19:14.301Z"
+              },
+              {
+                "key": "blood_pressure",
+                "label": "Blood pressure",
+                "value_type": "STRING",
+                "value": "118/76",
+                "updated_at": "2026-11-17T16:19:14.300Z"
+              },
+              {
+                "key": "conditions",
+                "label": "Conditions",
+                "value_type": "STRING_ARRAY",
+                "value": [
+                  "Hypertension"
+                ],
+                "updated_at": "2026-11-17T16:19:14.303Z"
+              },
+              {
+                "key": "current_medications",
+                "label": "Medications",
+                "value_type": "STRING_ARRAY",
+                "value": [
+                  "Amlodipine 5mg daily"
+                ],
+                "updated_at": "2026-11-17T16:19:14.303Z"
+              },
+              {
+                "key": "date_of_birth",
+                "label": "Date of birth",
+                "value_type": "STRING",
+                "value": "1990-05-12",
+                "updated_at": "2026-11-17T16:19:13.704Z"
+              },
+              {
+                "key": "emergency_contact_name",
+                "label": "Contact name",
+                "value_type": "STRING",
+                "value": "Ngozi Okafor",
+                "updated_at": "2026-11-17T16:19:14.304Z"
+              },
+              {
+                "key": "emergency_contact_phone",
+                "label": "Contact phone",
+                "value_type": "STRING",
+                "value": "+2348012345679",
+                "updated_at": "2026-11-17T16:19:14.305Z"
+              },
+              {
+                "key": "full_name",
+                "label": "Name",
+                "value_type": "STRING",
+                "value": "Ada Okafor",
+                "updated_at": "2026-11-17T16:19:14.280Z"
+              },
+              {
+                "key": "gender",
+                "label": "Gender",
+                "value_type": "STRING",
+                "value": "Female",
+                "updated_at": "2026-11-17T16:19:14.299Z"
+              },
+              {
+                "key": "genotype",
+                "label": "Genotype",
+                "value_type": "STRING",
+                "value": "AA",
+                "updated_at": "2026-11-17T16:19:14.302Z"
+              },
+              {
+                "key": "height",
+                "label": "Height",
+                "value_type": "STRING",
+                "value": "170",
+                "updated_at": "2026-11-17T16:19:14.296Z"
+              },
+              {
+                "key": "weight",
+                "label": "Weight",
+                "value_type": "STRING",
+                "value": "68",
+                "updated_at": "2026-11-17T16:19:14.298Z"
+              }
+            ],
+            "field_values": {
+              "blood_group": "O+",
+              "blood_pressure": "118/76",
+              "conditions": [
+                "Hypertension"
+              ],
+              "current_medications": [
+                "Amlodipine 5mg daily"
+              ],
+              "date_of_birth": "1990-05-12",
+              "emergency_contact_name": "Ngozi Okafor",
+              "emergency_contact_phone": "+2348012345679",
+              "full_name": "Ada Okafor",
+              "gender": "Female",
+              "genotype": "AA",
+              "height": "170",
+              "weight": "68"
+            },
+            "allergies": [
+              {
+                "id": "38e93aa3-a734-4745-98a4-ac35eed0d6eb",
+                "name": "Penicillin",
+                "severity": "SEVERE",
+                "diagnosis_date": "2015-06-01T00:00:00.000Z",
+                "created_at": "2026-11-17T16:19:14.306Z",
+                "updated_at": "2026-11-17T16:19:14.306Z"
+              },
+              {
+                "id": "b8f89fbe-42c0-4019-866b-52b24d174e48",
+                "name": "Peanuts",
+                "severity": "MILD",
+                "diagnosis_date": null,
+                "created_at": "2026-11-17T16:19:14.306Z",
+                "updated_at": "2026-11-17T16:19:14.306Z"
+              }
+            ],
+            "medical_events": [
+              {
+                "id": "f65c5648-6f40-4307-bd06-21e4a8174137",
+                "name": "Appendectomy",
+                "recovery_time": "2 weeks",
+                "occurred_on": "2019-03-14T00:00:00.000Z",
+                "description": "Laparoscopic appendectomy, no complications.",
+                "created_at": "2026-11-17T16:19:14.308Z",
+                "updated_at": "2026-11-17T16:19:14.308Z"
+              },
+              {
+                "id": "3009a37c-753d-4251-8ab6-e4eacbce35f5",
+                "name": "Malaria",
+                "recovery_time": "5 days",
+                "occurred_on": "2022-08-02T00:00:00.000Z",
+                "description": "Treated with artemether-lumefantrine.",
+                "created_at": "2026-11-17T16:19:14.308Z",
+                "updated_at": "2026-11-17T16:19:14.308Z"
+              }
+            ],
+            "avatar_url": null
+          }
+        }
+      ],
+      "curl": "curl -sS -X PUT http://localhost:3000/v1/me/medical -H 'authorization: Bearer <access-jwt>' -H 'content-type: application/json' -d '{\"height\":170,\"weight\":68,\"gender\":\"Female\",\"bloodType\":\"O+\",\"genoType\":\"AA\",\"bloodPressure\":\"118/76\",\"existingMedicalConditions\":[\"Hypertension\"],\"existingMedications\":[\"Amlodipine 5mg daily\"],\"emergencyContactName\":\"Ngozi Okafor\",\"emergencyContactPhone\":\"+2348012345679\",\"allergies\":[{\"name\":\"Penicillin\",\"severity\":\"severe\",\"diagnosisDate\":\"2015-06-01\"},{\"name\":\"Peanuts\",\"severity\":\"MILD\"}],\"medicalEvents\":[{\"name\":\"Appendectomy\",\"recoveryTime\":\"2 weeks\",\"occurredOn\":\"2019-03-14\",\"description\":\"Laparoscopic appendectomy, no complications.\"},{\"name\":\"Malaria\",\"recoveryTime\":\"5 days\",\"occurredOn\":\"2022-08-02\",\"description\":\"Treated with artemether-lumefantrine.\"}]}'",
+      "notes": [
+        "Omitted arrays leave existing allergy/event rows untouched; empty arrays delete them."
+      ]
+    },
+    {
+      "id": "users-me-avatar",
+      "name": "Upload an avatar",
+      "method": "POST",
+      "path": "/me/avatar",
+      "summary": "Upload a profile image as multipart/form-data.",
+      "description": "Accepts one image field, resizes it to 500px wide WebP and stores it in S3. This environment has no S3 credentials configured, so the endpoint returns 503 storage_unavailable before reading the file. A missing file returns 400 image_required when storage is configured.",
+      "auth": "bearer",
+      "roles": [],
+      "contentType": "multipart/form-data",
+      "bodyFields": [
+        {
+          "name": "image",
+          "type": "file",
+          "required": true,
+          "description": "Image file up to 5 MB."
+        }
+      ],
+      "responses": [
+        {
+          "status": 503,
+          "label": "Service Unavailable",
+          "description": "Object storage is not configured in this environment.",
+          "headers": {
+            "content-type": "application/json; charset=utf-8"
+          },
+          "body": {
+            "error": "storage_unavailable",
+            "message": "File storage is not configured",
+            "request_id": "234280c0-1b4e-42b1-9802-c978d7f7d132"
+          }
+        }
+      ],
+      "curl": "curl -sS -X POST http://localhost:3000/v1/me/avatar -H 'authorization: Bearer <access-jwt>' -F 'image=@avatar.png'",
+      "notes": [
+        "Success response when storage is configured: { \"avatar_key\": \"avatars/<account-id>.webp\", \"avatar_url\": \"<presigned-url>\" }.",
+        "Multer errors are reported as 400 invalid_upload."
+      ]
+    },
+    {
+      "id": "users-me-allergy-delete",
+      "name": "Delete an allergy",
+      "method": "DELETE",
+      "path": "/me/allergies/{id}",
+      "summary": "Remove one allergy record owned by the current patient.",
+      "description": "Deletes the allergy only when it belongs to the current patient. Returns 404 not_found otherwise.",
+      "auth": "bearer",
+      "roles": [],
+      "pathParams": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "description": "Allergy id from GET /me or PUT /me/medical."
+        }
+      ],
+      "responses": [
+        {
+          "status": 204,
+          "label": "No Content",
+          "description": "Allergy removed; no body.",
+          "headers": {},
+          "body": null
+        }
+      ],
+      "curl": "curl -sS -X DELETE http://localhost:3000/v1/me/allergies/38e93aa3-a734-4745-98a4-ac35eed0d6eb -H 'authorization: Bearer <access-jwt>'",
+      "notes": [
+        "Use the allergy id captured from the preceding GET /me response."
+      ]
+    },
+    {
+      "id": "users-me-medical-event-delete",
+      "name": "Delete a medical event",
+      "method": "DELETE",
+      "path": "/me/medical-events/{id}",
+      "summary": "Remove one medical event owned by the current patient.",
+      "description": "Deletes the event only when it belongs to the current patient. Returns 404 not_found otherwise.",
+      "auth": "bearer",
+      "roles": [],
+      "pathParams": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "description": "Medical event id from GET /me or PUT /me/medical."
+        }
+      ],
+      "responses": [
+        {
+          "status": 204,
+          "label": "No Content",
+          "description": "Medical event removed; no body.",
+          "headers": {},
+          "body": null
+        }
+      ],
+      "curl": "curl -sS -X DELETE http://localhost:3000/v1/me/medical-events/3009a37c-753d-4251-8ab6-e4eacbce35f5 -H 'authorization: Bearer <access-jwt>'",
+      "notes": [
+        "Use the event id captured from the preceding GET /me response."
+      ]
+    },
+    {
+      "id": "users-me-medical-event-patch",
+      "name": "Update a medical event",
+      "method": "PATCH",
+      "path": "/me/medical-events/{id}",
+      "summary": "Partially update one medical event.",
+      "description": "Updates name, recoveryTime, occurredOn/date and description on an event owned by the current patient. An empty patch returns 400 no_changes. Returns { event } with the updated row.",
+      "auth": "bearer",
+      "roles": [],
+      "contentType": "application/json",
+      "pathParams": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "description": "Medical event id."
+        }
+      ],
+      "bodyExample": {
+        "name": "Appendectomy (updated)",
+        "recoveryTime": "3 weeks",
+        "description": "Laparoscopic appendectomy; extended recovery recorded during capture."
+      },
+      "bodyFields": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": false,
+          "description": "1-100 characters."
+        },
+        {
+          "name": "recoveryTime",
+          "type": "string",
+          "required": false,
+          "description": "Max 200 characters; null clears it."
+        },
+        {
+          "name": "occurredOn",
+          "type": "string",
+          "required": false,
+          "description": "ISO date; alias date is also accepted."
+        },
+        {
+          "name": "description",
+          "type": "string",
+          "required": false,
+          "description": "Max 4000 characters; null clears it."
+        }
+      ],
+      "responses": [
+        {
+          "status": 200,
+          "label": "OK",
+          "description": "The updated medical event.",
+          "headers": {
+            "content-type": "application/json; charset=utf-8"
+          },
+          "body": {
+            "event": {
+              "id": "f65c5648-6f40-4307-bd06-21e4a8174137",
+              "patient_id": "6b7acfa2-c66d-4c22-a0e9-11e496d12080",
+              "name": "Appendectomy (updated)",
+              "recovery_time": "3 weeks",
+              "occurred_on": "2019-03-14T00:00:00.000Z",
+              "description": "Laparoscopic appendectomy; extended recovery recorded during capture.",
+              "created_at": "2026-11-17T16:19:14.308Z",
+              "updated_at": "2026-11-17T16:19:14.341Z"
+            }
+          }
+        }
+      ],
+      "curl": "curl -sS -X PATCH http://localhost:3000/v1/me/medical-events/f65c5648-6f40-4307-bd06-21e4a8174137 -H 'authorization: Bearer <access-jwt>' -H 'content-type: application/json' -d '{\"name\":\"Appendectomy (updated)\",\"recoveryTime\":\"3 weeks\",\"description\":\"Laparoscopic appendectomy; extended recovery recorded during capture.\"}'",
+      "notes": [
+        "An empty object returns 400 no_changes."
+      ]
+    },
+    {
+      "id": "auth-phone-begin",
+      "name": "Begin phone verification",
+      "method": "POST",
+      "path": "/auth/phone/begin",
+      "summary": "Queue a six-digit SMS verification code.",
+      "description": "Consumes any previous unconsumed PHONE_VERIFICATION challenge for the account, creates a new challenge with a 10-minute expiry and queues the SMS through the outbox. The code is never returned by the API.",
+      "auth": "bearer",
+      "roles": [],
+      "contentType": "application/json",
+      "bodyExample": {
+        "phone": "+2348012345678"
+      },
+      "bodyFields": [
+        {
+          "name": "phone",
+          "type": "string",
+          "required": true,
+          "description": "E.164 phone, 8-15 digits after the plus."
+        }
+      ],
+      "responses": [
+        {
+          "status": 200,
+          "label": "OK",
+          "description": "Code queued; expires_in is 600 seconds.",
+          "headers": {
+            "content-type": "application/json; charset=utf-8"
+          },
+          "body": {
+            "status": "sent",
+            "expires_in": 600
+          }
+        }
+      ],
+      "curl": "curl -sS -X POST http://localhost:3000/v1/auth/phone/begin -H 'authorization: Bearer <access-jwt>' -H 'content-type: application/json' -d '{\"phone\":\"+2348012345678\"}'",
+      "notes": [
+        "Returns 503 sms_unavailable if the outbox write fails."
+      ]
+    },
+    {
+      "id": "auth-phone-confirm",
+      "name": "Confirm phone verification",
+      "method": "POST",
+      "path": "/auth/phone/confirm",
+      "summary": "Verify the SMS code and activate a channel link.",
+      "description": "Checks the latest unconsumed challenge for the phone digest. A correct code marks the account phone as verified and creates or reactivates a ChannelLink for the patient. A wrong code increments attempts and returns 400 invalid_code; after five attempts the challenge is unusable.",
+      "auth": "bearer",
+      "roles": [],
+      "contentType": "application/json",
+      "bodyExample": {
+        "phone": "+2348012345678",
+        "code": "<otp-code>"
+      },
+      "bodyFields": [
+        {
+          "name": "phone",
+          "type": "string",
+          "required": true,
+          "description": "Same E.164 phone used in /auth/phone/begin."
+        },
+        {
+          "name": "code",
+          "type": "string",
+          "required": true,
+          "description": "Six digits from the queued SMS."
+        }
+      ],
+      "responses": [
+        {
+          "status": 200,
+          "label": "OK",
+          "description": "Phone verified and channel link created.",
+          "headers": {
+            "content-type": "application/json; charset=utf-8"
+          },
+          "body": {
+            "verified": true,
+            "phone_verified_at": "2026-11-17T16:19:14.390Z"
+          }
+        },
+        {
+          "status": 400,
+          "label": "Bad Request",
+          "description": "Wrong, expired or exhausted verification code.",
+          "headers": {
+            "content-type": "application/json; charset=utf-8"
+          },
+          "body": {
+            "error": "invalid_code",
+            "message": "Invalid or expired verification code",
+            "request_id": "22d9449b-5ca4-4e4e-802b-cd61d64aaf0a"
+          }
+        }
+      ],
+      "curl": "curl -sS -X POST http://localhost:3000/v1/auth/phone/confirm -H 'authorization: Bearer <access-jwt>' -H 'content-type: application/json' -d '{\"phone\":\"+2348012345678\",\"code\":\"<otp-code>\"}'",
+      "notes": [
+        "OTP values are only available in the SMS outbox and must never be returned to clients.",
+        "A verified phone is required before SMS/USSD consent endpoints can create a consent."
+      ]
+    }
+  ]
+}
