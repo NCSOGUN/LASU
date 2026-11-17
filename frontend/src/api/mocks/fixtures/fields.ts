@@ -1,4 +1,6 @@
-export const fieldsResponse = {
+import type { EmergencyFieldsResponse, FieldsResponse } from "@/api/schemas";
+
+export const fieldsResponse: FieldsResponse = {
   "version": 2,
   "fields": [
     {
@@ -145,7 +147,7 @@ export const fieldsResponse = {
   ]
 };
 
-export const emergencyFieldsResponse = {
+export const emergencyFieldsResponse: EmergencyFieldsResponse = {
   "version": 3,
   "field_keys": [
     "full_name",
@@ -154,4 +156,27 @@ export const emergencyFieldsResponse = {
     "blood_group",
     "emergency_contact_name"
   ]
+};
+
+export const fieldsEmpty = {
+  "version": 1,
+  "fields": []
+};
+
+export const fieldsConflict = {
+  "error": "version_conflict",
+  "message": "The record changed since it was loaded",
+  "request_id": "7dd3ba7b-61d5-4a64-a70c-3d2b21e7c4e2"
+};
+
+export const emergencySummaryEmpty = {
+  "available": false,
+  "version": 2,
+  "field_keys": [],
+  "fields": []
+};
+
+export const emergencyFieldsCleared = {
+  "version": 4,
+  "field_keys": []
 };

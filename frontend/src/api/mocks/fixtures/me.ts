@@ -226,3 +226,20 @@ export const medicalEventUpdated = {
     "updated_at": "2026-11-17T16:19:14.341Z"
   }
 };
+
+export const meWithoutMedicalHistory: MeResponse = {
+  ...meMedicalResponse,
+  "allergies": [],
+  "medical_events": []
+};
+
+export const avatarUnavailable = {
+  "error": "storage_unavailable",
+  "message": "File storage is not configured",
+  "request_id": "234280c0-1b4e-42b1-9802-c978d7f7d132"
+};
+
+export const avatarUploaded = {
+  "avatar_key": "avatars/20000000-0000-4000-8000-000000000004.webp",
+  "avatar_url": "https://storage.example.test/avatars/20000000-0000-4000-8000-000000000004.webp"
+};
