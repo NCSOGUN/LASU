@@ -11,6 +11,7 @@
   let demoStep = 0;
   let resizeFrame = 0;
   let lastDialogTrigger = null;
+  let activeScreen = 'overview';
 
   const ussdSteps = [
     {
@@ -137,6 +138,43 @@
     updateNotes();
     scheduleFit();
   }
+
+  function selectScreen(key) {
+    activeScreen = key;
+    document.querySelectorAll('.showcase-tab').forEach(tab => {
+      const selected = tab.dataset.screen === key;
+      tab.classList.toggle('is-selected', selected);
+      tab.setAttribute('aria-selected', String(selected));
+      tab.tabIndex = selected ? 0 : -1;
+      document.getElementById(tab.getAttribute('aria-controls')).hidden = !selected;
+    });
+  }
+
+  document.querySelectorAll('.showcase-tab').forEach((tab, index, tabs) => {
+    tab.addEventListener('click', () => selectScreen(tab.dataset.screen));
+    tab.addEventListener('keydown', event => {
+      if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      let target = index;
+      if (['ArrowUp', 'ArrowLeft'].includes(event.key)) target = (index + tabs.length - 1) % tabs.length;
+      if (['ArrowDown', 'ArrowRight'].includes(event.key)) target = (index + 1) % tabs.length;
+      if (event.key === 'Home') target = 0;
+      if (event.key === 'End') target = tabs.length - 1;
+      selectScreen(tabs[target].dataset.screen);
+      tabs[target].focus();
+    });
+  });
+
+  document.querySelectorAll('[data-screenshot]').forEach(button => {
+    button.addEventListener('click', () => {
+      const original = button.querySelector('img');
+      $('#screenshot-title').textContent = button.dataset.title;
+      $('#screenshot-image').src = original.currentSrc || original.src;
+      $('#screenshot-image').alt = original.alt;
+      openDialog($('#screenshot-dialog'), button);
+    });
+  });
 
   async function toggleFullscreen() {
     try {
@@ -313,12 +351,13 @@
   // Printing exposes all slides to assistive output and resets the demo to its opening state.
   let savedDemo;
   window.addEventListener('beforeprint', () => {
-    savedDemo = { channel, demoStep };
+    savedDemo = { channel, demoStep, activeScreen };
+    selectScreen('overview');
     channel = 'ussd'; demoStep = 0; renderDemo();
     slides.forEach((slide) => { slide.inert = false; slide.removeAttribute('aria-hidden'); });
   });
   window.addEventListener('afterprint', () => {
-    if (savedDemo) { ({ channel, demoStep } = savedDemo); renderDemo(); }
+    if (savedDemo) { ({ channel, demoStep } = savedDemo); renderDemo(); selectScreen(savedDemo.activeScreen); }
     showSlide(current);
   });
 

@@ -42,6 +42,9 @@ function httpLogBodies(env: Environment, mode: string): 'off' | 'redacted' | 'fu
   if (value !== 'off' && value !== 'redacted' && value !== 'full') {
     throw new Error('LOG_HTTP_BODIES must be off, redacted or full');
   }
+  if (mode === 'production' && value === 'full') {
+    throw new Error('LOG_HTTP_BODIES=full is not allowed in production');
+  }
   return value;
 }
 
