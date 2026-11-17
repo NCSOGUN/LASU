@@ -1,0 +1,20 @@
+export const qk = {
+  session: ["session"] as const,
+  me: ["me"] as const,
+  fields: ["fields"] as const,
+  emergency: ["emergency"] as const,
+  patientCode: ["patient-code"] as const,
+  grants: ["grants"] as const,
+  accessEvents: ["access-events"] as const,
+  services: ["directory", "services"] as const,
+  areas: (q: string) => ["directory", "areas", q] as const,
+  facilities: (params: { service: string; areaId: string; radius: number; limit?: number }) =>
+    ["directory", "facilities", params] as const,
+  facility: (id: string) => ["directory", "facility", id] as const,
+  symptoms: (page: number) => ["symptoms", page] as const,
+  symptom: (id: string) => ["symptom", id] as const,
+  medications: (page: number) => ["medications", page] as const,
+  medication: (id: string) => ["medication", id] as const,
+  consents: (channel: string) => ["consents", channel] as const,
+  readSession: (id: string) => ["read-session", id] as const,
+};
