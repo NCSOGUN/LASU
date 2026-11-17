@@ -55,8 +55,9 @@ screenshots.
 | --- | --- |
 | Authentication and profile | register, login, refresh, logout, phone begin/confirm, me, medical, avatar, allergy/event edits |
 | Patient portal and protected records | fields, emergency summary, patient code, grants, consents, access events, emergency/grant reads |
-| Directory | services, areas, facilities, facility detail |
-| Symptom analysis | create, list, get, follow-up, update, delete |
+| Directory | services, areas, approved/non-demo facilities plus live Serper leads, facility/web-lead detail |
+| Emergency | request live emergency search, list history, get one request |
+| Symptom analysis | create, list, get, SSE stream, follow-up (+stream), update, delete |
 | Medications and reminders | structured and AI creates, list, get, moments, add/remove, device registration, delete |
 
 Error examples cover the validation, auth, role, ownership, conflict and

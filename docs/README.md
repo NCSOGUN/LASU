@@ -42,7 +42,7 @@ Phase labels are based on code present in the repository on 17 November 2026.
 | Portal + directory            | Implemented | portal service, grants/consents/record reads; approved non-demo facilities plus live Serper leads; directory/emergency suites pass |
 | Symptom chat + AI             | Implemented | symptom routes, attachment upload, SSE token/step streaming, AI agents/tools, audited reads/writes; 18 symptom tests pass |
 | Medications + reminders       | Implemented | HTTP routes, domain, reminder job, FCM service, 22 medication/reminder tests pass; live FCM delivery not configured      |
-| Offline SMS/USSD              | Implemented | Prisma repository, `db:migrate`/`db:seed-demo`, no `pg` or routines; 71 unit + 20 DB integration tests pass              |
+| Offline SMS/USSD              | Implemented | Prisma repository, live Serper care/emergency fallback, no `pg` or routines; 85 unit + 20 DB integration tests pass        |
 | Docs / DevOps                 | Implemented | READMEs, Dockerfiles, `docker-compose.yml` with PostgreSQL and Redis, API reference, CI; secret management, monitoring and alerting are not included |
 | Patient/frontend UI           | Not present | `frontend/` contains only a placeholder README                                                                           |
 | Voice channel                 | Pending     | Not implemented                                                                                                          |
@@ -209,9 +209,9 @@ npm run test --workspace @healthaccess/offline
 ```
 
 The online workspace tests (`schema`, `auth`, `users`, `portal`, `directory`,
-`symptom`, `medications`, `reminders`) use PostgreSQL and currently pass 79 tests.
-They are DB integration tests, so CI does not run them. Run the ones you need
-against a disposable database:
+`emergency`, `symptom`, `medications`, `reminders`) use PostgreSQL and currently
+pass 108 tests. They are DB integration tests, so CI does not run them. Run the
+ones you need against a disposable database:
 
 ```sh
 cd backend/online
@@ -219,7 +219,7 @@ node --env-file-if-exists=.env --test --import tsx tests/*.test.ts
 ```
 
 The offline DB suite uses the same Prisma schema and a disposable database. It
-currently passes 20 tests alongside 71 unit tests:
+currently passes 20 tests alongside 85 unit tests:
 
 ```sh
 cd backend/offline
@@ -251,8 +251,8 @@ Priority order:
    monitoring) and verify live FCM/S3/provider credentials.
 3. Add online unit tests that do not require PostgreSQL; the current online suite
    is DB integration only.
-4. Replace demo fixtures with an approved directory and clinically reviewed
-   content, and provision real two-way SMS/USSD channels.
+4. Operate an approved directory and clinically reviewed content alongside the
+   live Serper fallback, and provision real two-way SMS/USSD channels.
 5. Add an admin workflow for facility/service/content approval. Tables exist, but
    there is no admin UI or route.
 6. Decide whether to implement voice; it remains out of scope for this release.

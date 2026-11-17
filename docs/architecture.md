@@ -82,6 +82,10 @@ An independent SMS/USSD service with two processes:
   callbacks.
 
 The HTTP process and worker share PostgreSQL and the same `.env`. Both must run.
+The HTTP process logs one structured `http_request` line per request with method,
+URL, status, duration and (subject to `LOG_HTTP_BODIES`) the callback body. The
+callback token path segment is always redacted; production defaults to redacted
+bodies because SMS/USSD bodies contain phone numbers and health text.
 
 Current implementation status: `src/repository.ts` uses the generated Prisma
 client and `src/db.ts`, applies the shared policy helpers, and uses
@@ -268,9 +272,10 @@ keeps the same external behavior.
    acceptance succeeds.
 3. The worker claims one inbox job at a time per phone, decrypts the body, loads
    `sms_conversations` and processes the command.
-4. Deterministic commands (`HELP`, `FIND`, `LOOKUP`, `MORE`, `CANCEL`, `STOP`) do
-   not require AI. Natural-language classification and `ASK` may call OpenRouter
-   and Serper.
+4. Deterministic commands (`HELP`, `FIND`, `EMERGENCY`, `LOOKUP`, `MORE`,
+   `CANCEL`, `STOP`) do not require AI. Natural-language classification and `ASK`
+   may call OpenRouter and Serper. Care and emergency searches fall back to live
+   Serper Maps leads when the approved non-demo directory has no result.
 5. The final transaction rechecks ownership and conversation version, stores
    state and queues one or more `outbox` rows.
 6. The worker claims each outbox job, re-resolves the current authorized
@@ -295,7 +300,8 @@ SMS commands:
 | Input                         | Behavior                                              |
 | ----------------------------- | ----------------------------------------------------- |
 | `HELP`                        | Brief commands and channel notice                     |
-| `FIND <care> near <area>`     | Service/location resolution then directory search     |
+| `FIND <care> near <area>`     | Service/location resolution then directory/live search |
+| `EMERGENCY [near] <area>`     | Live emergency hospital/ambulance search, 112 guidance |
 | Natural-language care request | AI classification into the same care flow             |
 | `ASK <question>`              | Reviewed content first, else labeled web information  |
 | `LOOKUP <12-digit code>`      | Emergency summary only; no AI                         |
@@ -308,8 +314,10 @@ new request rather than interpreting a reply against stale health context.
 
 ## Offline USSD flow
 
-USSD is deterministic and never calls a model or web search. It uses approved
-directory data and the shared access policy only.
+USSD is deterministic and never calls a model. It uses approved non-demo
+directory data, the shared access policy, and a bounded Serper Maps fallback
+inside the callback process when the directory has no result. The fallback and
+emergency search are labelled unverified and never fabricated.
 
 Root menu:
 
@@ -318,8 +326,16 @@ HealthAccess
 1. Find nearby care
 2. Emergency summary
 3. View shared details
+4. Emergency help
 0. Exit
 ```
+
+Emergency help prompts for an area, searches `emergency hospital` and
+`ambulance service` in parallel, shows the nearest live name/address/phone with
+112 guidance, pages through up to eight leads, and records the request in
+`emergency_requests` on a best-effort basis. State is stored as `CARE_LOCATION`
+or `CARE_RESULTS` with `context.kind = emergency_area|emergency_results`; the
+Prisma `UssdState` enum stays unchanged.
 
 States persisted in `ussd_sessions.state`:
 

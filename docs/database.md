@@ -52,7 +52,7 @@ Run these from the repository root unless noted.
 ```sh
 npm run db:generate                 # prisma generate
 npm run db:migrate                  # prisma migrate dev (development)
-npm run db:seed                     # reference data + demo fixtures
+npm run db:seed                     # reference data + sandbox patient
 
 cd backend/online
 npx prisma migrate deploy           # production-style migration

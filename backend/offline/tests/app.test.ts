@@ -45,7 +45,9 @@ async function serve(
     logger: {
       error() {},
       info(entry: unknown) {
-        if (entry && typeof entry === 'object') {
+        if (typeof entry === 'string') {
+          logs.push(JSON.parse(entry) as Record<string, unknown>);
+        } else if (entry && typeof entry === 'object') {
           logs.push(entry as Record<string, unknown>);
         }
       },

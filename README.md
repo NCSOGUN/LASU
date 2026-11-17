@@ -19,14 +19,17 @@ the source of truth. The old SQL schemas, routines and FastAPI plan are retired.
 ## Status
 
 The backend feature phases are implemented and verified: the Prisma schema and
-both migrations exist, the online API boots with health checks, and the seed
-creates reference data plus clearly labeled demo fixtures. The online API covers
-auth/users, portal/grants, directory, symptom chat/AI and medications with
-reminders; the offline SMS/USSD service is Prisma-backed. Workspace typecheck is
-clean, the shared suite passes 4/4, offline unit tests 71/71, offline Prisma
-integration 20/20, and the online DB suite 79/79. Live FCM delivery, real
-Africa's Talking provisioning and production monitoring remain unverified. There
-is no frontend application yet. See [`docs/README.md`](docs/README.md).
+three migrations exist, the online API boots with health checks, and the seed
+creates reference data plus an optional sandbox patient (no demo facilities). The
+online API covers auth/users, portal/grants, approved plus live Serper directory
+results, emergency requests, symptom chat/AI with SSE streaming and medications
+with reminders; the offline SMS/USSD service is Prisma-backed and uses live
+Serper emergency/care search when the directory has no approved non-demo result.
+Workspace typecheck is clean, the shared suite passes 4/4, offline unit tests
+85/85, offline Prisma integration 20/20, and the online DB suite 108/108. Live
+FCM delivery, real Africa's Talking provisioning and production monitoring remain
+unverified. There is no frontend application yet. See
+[`docs/README.md`](docs/README.md).
 
 ## Repository map
 
@@ -179,6 +182,8 @@ SERPER_API_KEY=
 
 NODE_ENV=development
 PORT=3001
+# off | redacted | full. Full logs callback bodies; local debugging only.
+LOG_HTTP_BODIES=full
 ```
 
 Shared rules:
@@ -248,7 +253,7 @@ credentials (`AT_USERNAME` not `sandbox`, `AT_API_KEY`), the provisioned
 
 ```sh
 docker compose up -d --build
-docker compose run --rm online npm run db:seed   # optional demo fixtures
+docker compose run --rm online npm run db:seed   # optional seed and sandbox patient
 docker compose ps
 docker compose logs -f online
 ```
@@ -336,25 +341,25 @@ build the images on a larger machine and push them to a registry.
 For keys, environment details, sandbox callbacks and troubleshooting, read
 [`docs/operations.md`](docs/operations.md).
 
-## Demo fixtures
+## Seed and sandbox data
 
-`npm run db:seed` is idempotent and creates reference data plus clearly labeled
-demo fixtures:
+`npm run db:seed` is idempotent and creates reference data plus an optional
+sandbox patient:
 
 - 15 field definitions, including emergency-eligible name, date of birth,
   allergies, current medications, conditions, blood group and emergency contact.
 - 3 services: `general`, `pediatrics`, `maternity`.
-- Demo area `Ikeja`, demo facilities `Demo Community Hospital` and `Demo Child
-  Health Clinic` (both approved and `is_demo`), with `general` and `pediatrics`
-  facility services.
-- Demo patient `demo.patient@example.test` with demo password `DemoPass123!`,
+- Real area `Ikeja, Lagos` with `is_demo = false`.
+- Sandbox patient `demo.patient@example.test` with password `DemoPass123!`,
   patient code `123456789012`, five profile values and emergency fields for
   allergies and emergency contact.
+- No demo facilities. The seed removes legacy demo facility rows. Directory and
+  care-search results come from approved non-demo facilities plus live Serper
+  Maps leads; live leads are labelled unverified and never presented as approved.
 
-The demo credentials are fixtures, not production credentials. Demo facilities
-are `is_demo` and renderers label them `DEMO`. Do not present them as an approved
-real directory. `backend/offline/scripts/seed-demo.ts` writes the same Prisma
-fixtures for offline sandbox testing; the online seed is the canonical step.
+The sandbox credentials are fixtures, not production credentials.
+`backend/offline/scripts/seed-demo.ts` writes the same reference area and sandbox
+patient for offline testing; the online seed is the canonical step.
 
 ## Tests
 
@@ -367,11 +372,11 @@ npm run test --workspace @healthaccess/shared
 npm run test --workspace @healthaccess/offline
 ```
 
-Current results: typecheck clean, shared 4/4, offline unit 71/71. The offline
+Current results: typecheck clean, shared 4/4, offline unit 85/85. The offline
 Prisma integration suite passes 20/20 against a disposable database. `npm test`
-at the root runs every workspace, including the online DB integration suite, so
-it needs a configured database; use the two workspace commands above for a
-database-free run.
+at the root runs every workspace, including the online DB integration suite
+(108/108), so it needs a configured database; use the two workspace commands
+above for a database-free run.
 
 The online tests under `backend/online/tests/` exercise PostgreSQL and are DB
 integration tests, so CI does not run them. Run them locally against a

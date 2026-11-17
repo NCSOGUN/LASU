@@ -23,7 +23,7 @@ documentation use [README.md](README.md), [architecture.md](architecture.md) and
 
 1. `backend/online/prisma/schema.prisma` is the only schema definition. Do not add raw table DDL outside `prisma/migrations`.
 2. Every Prisma query is scoped by the authenticated account or patient. Controllers never accept a patient id from the request body; resolve it from `req.auth`.
-3. Secrets stay in `.env`. Never log message bodies, codes, phone numbers, tokens or clinical values.
+3. Secrets stay in `.env`. Never log message bodies, codes, phone numbers, tokens or clinical values in production. The offline `LOG_HTTP_BODIES=full` mode is a local debugging exception; production defaults to `redacted` and must not enable `full`.
 4. Patient/grant codes are HMAC digests. SMS/USSD payloads remain AES-256-GCM envelopes. Reuse `backend/shared`.
 5. The offline process must start and serve callbacks without the online process running.
 6. Timestamps are `timestamptz`. Money/measurements use `Decimal`. UUIDs are DB-generated.

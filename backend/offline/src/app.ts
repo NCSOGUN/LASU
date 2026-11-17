@@ -140,7 +140,7 @@ export function createApp({
         entry.body =
           config.httpLogBodies === 'full' ? (body ?? null) : (redactBody(body) ?? null);
       }
-      logger.info(entry);
+      logger.info(JSON.stringify(entry));
     });
     next();
   });

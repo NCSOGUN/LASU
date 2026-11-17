@@ -168,6 +168,25 @@ model/search context. Free-text users can still volunteer identifying informatio
 this is not a guarantee of automatic de-identification. Review provider data
 handling and consent before processing real patient messages.
 
+## HTTP request logs
+
+Every request writes one JSON line through `logger.info`:
+
+```json
+{"event":"http_request","requestId":"...","method":"POST","url":"/callbacks/africastalking/[token]/sms/inbound","status":200,"duration_ms":12,"body":{"id":"AT1","from":"+2348000000000","to":"1234","text":"HELP"}}
+```
+
+- The callback token path segment is always redacted; query-string token/key/secret
+  values are redacted too.
+- `LOG_HTTP_BODIES` controls the body: `off`, `redacted` or `full`.
+- Development defaults to `full`; production defaults to `redacted` when unset.
+- `redacted` masks phone numbers (`***1234`), replaces SMS/USSD text with
+  `[redacted N chars]` and shortens session ids.
+- `full` includes phone numbers and health text. Use it only for local debugging
+  and never in production or a shared log pipeline. `backend/offline/.env.example`
+  sets `full` for local runs.
+- Health checks are logged too; filter on `event: "http_request"` and `url`.
+
 ## Verification
 
 ```sh
@@ -180,9 +199,9 @@ npm run build
 `test:db` uses `TEST_DATABASE_URL` or `DATABASE_URL` from `.env`; it runs the
 shared Prisma migrations' public schema and removes its own fixtures. Use a
 disposable database that already has `npm run db:migrate` applied. Never point it
-at a live database. Logs omit
-callback bodies, medical values, access codes and credentials. Disable body/URL
-logging at proxies and tracing systems too.
+at a live database. Keep `LOG_HTTP_BODIES=redacted` or `off` in production; full
+bodies contain phone numbers and health text. Disable body/URL logging at proxies
+and tracing systems too.
 
 Before a real pilot, verify the provisioned callback fixtures, provider IP controls,
 operator menu/deadline limits, directory/clinical content, delivery reports and

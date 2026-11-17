@@ -76,6 +76,7 @@ names without values.
 | `SERPER_API_KEY`       | no              | Enables live emergency/care search and unverified facility leads.                                   |
 | `NODE_ENV`             | yes             | `development`, `test` or `production`.                                                               |
 | `PORT`                 | no              | HTTP port; default `3001`.                                                                           |
+| `LOG_HTTP_BODIES`      | no              | Request body logging: `off`, `redacted` or `full`. Development default `full`; production default `redacted`. |
 | `CALLBACK_ALLOWED_IPS` | production      | Comma-separated provider egress CIDRs.                                                               |
 | `HOST`                 | no              | Listen address; loopback by default in development, `0.0.0.0` in production.                         |
 
@@ -185,7 +186,7 @@ with PostgreSQL 16 and Redis 7 included. S3/MinIO is not included.
 
 ```sh
 docker compose up -d --build
-docker compose run --rm online npm run db:seed   # optional demo fixtures
+docker compose run --rm online npm run db:seed   # optional seed and sandbox patient
 docker compose ps
 docker compose logs -f online
 ```
@@ -330,7 +331,7 @@ npm run test --workspace @healthaccess/offline
 ```
 
 Current results: workspace typecheck is clean, shared tests pass 4/4 and the
-offline unit suite passes 71/71.
+offline unit suite passes 85/85.
 
 Online feature tests are DB integration tests. They use PostgreSQL and the
 Prisma client, so CI excludes them:
@@ -340,8 +341,9 @@ cd backend/online
 node --env-file-if-exists=.env --test --import tsx tests/*.test.ts
 ```
 
-The online suite covers schema, auth, users, portal, directory, symptom,
-medications and reminders and currently passes 79 tests in the local database.
+The online suite covers schema, auth, users, portal, directory, emergency,
+symptom, medications and reminders and currently passes 108 tests in the local
+database.
 
 The offline DB suite uses the Prisma schema and needs a disposable database:
 
