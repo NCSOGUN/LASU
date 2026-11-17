@@ -13,7 +13,8 @@
     "test:e2e": "playwright test",
     "test:live": "node tests/live/smoke.mjs",
     "test:coverage": "vitest run --coverage",
-    "lighthouse": "node scripts/lighthouse.mjs"
+    "lighthouse": "node scripts/lighthouse.mjs",
+    "security": "node scripts/security-sweep.mjs"
   },
   "dependencies": {
     "@radix-ui/react-checkbox": "^1.4.1",
