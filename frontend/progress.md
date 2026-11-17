@@ -45,6 +45,7 @@ Next: review step 1 after the lanes merge, then M2 integration.
 - **M1 merge log:**
   - Lane F Landing copy merged (`7fea4af`, merge `b00775b`). Applied its two requests in shared components (`f025449`): third hero CTA, nav link on desktop and in the disclosure, linked final-card title. Added a copy test for every §7.11 string. Typecheck, lint, unit/component and e2e green after the merge.
   - After the server restart: restored the known-good auth e2e, removed the corrupted null-byte overview e2e/support files, and fixed the BFF so the Bearer-authenticated `/auth/phone/begin` and `/auth/phone/confirm` routes pass through the generic proxy while token routes stay blocked (`39fcd76`). Pushed `feat/m0-foundation` at `3a37186`.
+  - Lane C Care merged (`0f2c0e9`, merge `e0c9755`). Public find-care, results, detail, debounce and empty/wider-radius flows. Integration: typecheck, lint, 148 unit/component tests and 10 e2e tests green.
 - Reviewer has asked the lead to continue through the remaining gates without waiting for permission. Gate reports will still be written at step 1 and step 2.
 
 ## Next
