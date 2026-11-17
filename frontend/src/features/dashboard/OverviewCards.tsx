@@ -9,7 +9,7 @@ import { EmptyState } from "@/components/arc/empty-state/empty-state";
 import { MetricCard } from "@/components/arc/metric-card/metric-card";
 import { Skeleton } from "@/components/arc/skeleton/skeleton";
 import { formatDate, formatTime } from "@/lib/format";
-import type { MedicationMoment, SymptomRecord } from "@/api/schemas";
+import type { SymptomRecord } from "@/api/schemas";
 import styles from "./overview-cards.module.css";
 
 export type RegionState = "loading" | "error" | "empty" | "ready";
@@ -146,7 +146,7 @@ export function DosesCard({
   requestId,
 }: {
   state: RegionState;
-  moments: MedicationMoment[];
+  moments: Array<{ id: string; drug: string; dose?: string | null; time: string }>;
   onMark: (momentId: string, status: "TAKEN" | "MISSED") => void;
   pendingId?: string | null;
   onRetry?: () => void;
