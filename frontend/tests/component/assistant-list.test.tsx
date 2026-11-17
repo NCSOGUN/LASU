@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { act, fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, configure, fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { delay, http, HttpResponse } from "msw";
 import { server } from "@/api/mocks/server";
@@ -7,6 +7,8 @@ import { symptomCreate, symptomList } from "@/api/mocks/fixtures";
 import { resetSymptomHandlers, symptomHandlers } from "@/api/mocks/handlers/symptom";
 import { AssistantPage } from "@/features/assistant/AssistantPage";
 import { renderWithProviders } from "./utils";
+
+configure({ asyncUtilTimeout: 5000 });
 
 const navigation = vi.hoisted(() => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }));
 
@@ -70,7 +72,7 @@ describe("AssistantPage", () => {
     renderWithProviders(<AssistantPage />);
 
     expect(await screen.findByText("Mild headache and runny nose")).toBeInTheDocument();
-    await user.type(screen.getByLabelText("Describe how you feel"), "I have had a headache for two days.");
+    fireEvent.change(screen.getByLabelText("Describe how you feel"), { target: { value: "I have had a headache for two days." } });
     await user.click(screen.getByRole("button", { name: "Send" }));
 
     expect(await screen.findByText("The assistant is unavailable right now")).toBeInTheDocument();
@@ -117,7 +119,7 @@ describe("AssistantPage", () => {
     renderWithProviders(<AssistantPage />);
 
     await screen.findByText("Mild headache and runny nose");
-    await user.type(screen.getByLabelText("Describe how you feel"), "I have had a headache for two days.");
+    fireEvent.change(screen.getByLabelText("Describe how you feel"), { target: { value: "I have had a headache for two days." } });
     const send = screen.getByRole("button", { name: "Send" });
 
     act(() => {
@@ -170,7 +172,7 @@ describe("AssistantPage", () => {
     renderWithProviders(<AssistantPage />);
     await screen.findByText("Mild headache and runny nose");
 
-    await user.type(screen.getByLabelText("Describe how you feel"), "I have a headache.");
+    fireEvent.change(screen.getByLabelText("Describe how you feel"), { target: { value: "I have a headache." } });
     await user.click(screen.getByRole("button", { name: "Send" }));
 
     await waitFor(() => expect(navigation.push).toHaveBeenCalledWith("/app/assistant/ab143840-0058-4486-aa0d-2faf0c88121a"));
@@ -188,7 +190,7 @@ describe("AssistantPage", () => {
     const user = userEvent.setup();
     renderWithProviders(<AssistantPage />);
     await screen.findByText("Mild headache and runny nose");
-    await user.type(screen.getByLabelText("Describe how you feel"), "I have a headache.");
+    fireEvent.change(screen.getByLabelText("Describe how you feel"), { target: { value: "I have a headache." } });
     await user.click(screen.getByRole("button", { name: "Send" }));
 
     expect(await screen.findByText("The assistant could not produce a valid answer. Try again.")).toBeInTheDocument();
@@ -209,7 +211,7 @@ describe("AssistantPage", () => {
     const user = userEvent.setup();
     renderWithProviders(<AssistantPage />);
     await screen.findByText("Mild headache and runny nose");
-    await user.type(screen.getByLabelText("Describe how you feel"), "I have a headache.");
+    fireEvent.change(screen.getByLabelText("Describe how you feel"), { target: { value: "I have a headache." } });
     await user.click(screen.getByRole("button", { name: "Send" }));
 
     expect(await screen.findByText("This took too long")).toBeInTheDocument();

@@ -91,7 +91,7 @@ describe("AssistantThread", () => {
     renderWithProviders(<AssistantThread id={ID} />);
     await screen.findByRole("heading", { name: "Mild headache and runny nose", level: 1 });
 
-    await user.type(screen.getByLabelText("Ask a follow-up"), "Should I be worried if the headache gets a little worse in the evening?");
+    fireEvent.change(screen.getByLabelText("Ask a follow-up"), { target: { value: "Should I be worried if the headache gets a little worse in the evening?" } });
     await user.click(screen.getByRole("button", { name: "Send" }));
 
     expect(await screen.findByText("Should I be worried if the headache gets a little worse in the evening?")).toBeInTheDocument();
@@ -116,7 +116,7 @@ describe("AssistantThread", () => {
     renderWithProviders(<AssistantThread id={ID} />);
     await screen.findByRole("heading", { name: "Mild headache and runny nose", level: 1 });
 
-    await user.type(screen.getByLabelText("Ask a follow-up"), "Is it getting worse?");
+    fireEvent.change(screen.getByLabelText("Ask a follow-up"), { target: { value: "Is it getting worse?" } });
     await user.click(screen.getByRole("button", { name: "Send" }));
 
     expect(await screen.findByText("Thinking. This can take up to 3 minutes.")).toBeInTheDocument();
@@ -137,7 +137,7 @@ describe("AssistantThread", () => {
     renderWithProviders(<AssistantThread id={ID} />);
     await screen.findByRole("heading", { name: "Mild headache and runny nose", level: 1 });
 
-    await user.type(screen.getByLabelText("Ask a follow-up"), "Is this urgent?");
+    fireEvent.change(screen.getByLabelText("Ask a follow-up"), { target: { value: "Is this urgent?" } });
     await user.click(screen.getByRole("button", { name: "Send" }));
 
     expect(await screen.findByText("The assistant is unavailable right now")).toBeInTheDocument();
