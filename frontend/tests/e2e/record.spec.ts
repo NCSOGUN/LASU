@@ -38,6 +38,9 @@ async function mockRecordApi(page: Page, options: MockRecordOptions = {}) {
   let keys = [...(options.keys ?? emergencyKeys)];
   const me = structuredClone(options.me ?? meMedicalResponse);
 
+  // Registered first so the specific mocks below win; anything else never reaches the live API (a 401 there signs the test out).
+  await page.route("**/api/v1/**", (route) => json(route, { error: "not_found" }, 404));
+
   await page.route("**/api/v1/me/fields", async (route) => {
     if (route.request().method() === "PUT") {
       const body = route.request().postDataJSON() as {
