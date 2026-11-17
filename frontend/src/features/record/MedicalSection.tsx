@@ -82,6 +82,8 @@ export function MedicalSection({ me }: { me: MeResponse }) {
   const [formError, setFormError] = useState<unknown>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [dialog, setDialog] = useState<DialogState>(null);
+  // A failed confirm closes the dialog so the error is visible, and keeps the action for "Try again".
+  const [failedAction, setFailedAction] = useState<DialogState>(null);
 
   const pending = putMedical.isPending || deleteAllergy.isPending || patchEvent.isPending || deleteEvent.isPending;
   const healthFields = me.fields.filter((field) => {
@@ -95,6 +97,12 @@ export function MedicalSection({ me }: { me: MeResponse }) {
     setStatus(null);
     setFormError(null);
     setErrors({});
+  }
+
+  function openDialog(next: Exclude<DialogState, null>) {
+    clearFeedback();
+    setFailedAction(null);
+    setDialog(next);
   }
 
   function changeAllergy(key: keyof AllergyForm, value: string) {
@@ -222,17 +230,18 @@ export function MedicalSection({ me }: { me: MeResponse }) {
     }
   }
 
-  async function confirmDialog() {
-    if (!dialog) return;
+  async function confirmDialog(action: DialogState = dialog) {
+    if (!action) return;
     clearFeedback();
+    setFailedAction(null);
     try {
-      if (dialog.kind === "allergy") {
-        await deleteAllergy.mutateAsync(dialog.id);
+      if (action.kind === "allergy") {
+        await deleteAllergy.mutateAsync(action.id);
         setStatus("Allergy removed from your private history.");
-      } else if (dialog.kind === "event") {
-        await deleteEvent.mutateAsync(dialog.id);
+      } else if (action.kind === "event") {
+        await deleteEvent.mutateAsync(action.id);
         setStatus("Medical event removed.");
-      } else if (dialog.kind === "all-allergies") {
+      } else if (action.kind === "all-allergies") {
         await putMedical.mutateAsync({ allergies: [] });
         setStatus("Allergy history cleared.");
       } else {
@@ -241,6 +250,8 @@ export function MedicalSection({ me }: { me: MeResponse }) {
       }
       setDialog(null);
     } catch (error) {
+      setDialog(null);
+      setFailedAction(action);
       setFormError(error);
     }
   }
@@ -292,7 +303,7 @@ export function MedicalSection({ me }: { me: MeResponse }) {
         </Link>
       </div>
 
-      {formError ? <FormError error={formError} onRetry={dialog ? () => void confirmDialog() : undefined} /> : null}
+      {formError ? <FormError error={formError} onRetry={failedAction ? () => void confirmDialog(failedAction) : undefined} /> : null}
 
       {healthFields.length ? (
         <div className={styles.subSection}>
@@ -313,7 +324,11 @@ export function MedicalSection({ me }: { me: MeResponse }) {
           <div className={styles.sectionCopy}>
             <h3 className={styles.subTitle}>Allergy history (private)</h3>
             <p className={styles.note}>
-              These records stay private. The allergies field shared in an emergency is edited on My record.
+              These records stay private. To share allergies in an emergency, add them to the allergies field on{" "}
+              <Link className={styles.link} href="/app/record">
+                My record
+              </Link>
+              .
             </p>
           </div>
           <Button variant="secondary" size="sm" onClick={() => setAllergyOpen((open) => !open)}>
@@ -353,7 +368,7 @@ export function MedicalSection({ me }: { me: MeResponse }) {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => setDialog({ kind: "allergy", id: allergy.id, name: allergy.name })}
+                    onClick={() => openDialog({ kind: "allergy", id: allergy.id, name: allergy.name })}
                   >
                     Remove
                   </Button>
@@ -365,7 +380,7 @@ export function MedicalSection({ me }: { me: MeResponse }) {
 
         {allergies.length > 0 ? (
           <div className={styles.actions}>
-            <Button variant="ghost" size="sm" onClick={() => setDialog({ kind: "all-allergies" })}>
+            <Button variant="ghost" size="sm" onClick={() => openDialog({ kind: "all-allergies" })}>
               Remove all allergy history
             </Button>
           </div>
@@ -380,6 +395,7 @@ export function MedicalSection({ me }: { me: MeResponse }) {
                 value={allergyForm.name}
                 onChange={(event) => changeAllergy("name", event.target.value)}
                 error={errors.name || undefined}
+                maxLength={200}
                 required
               />
               <Select
@@ -457,6 +473,7 @@ export function MedicalSection({ me }: { me: MeResponse }) {
                         label="Recovery time (optional)"
                         value={editForm.recoveryTime}
                         onChange={(event) => changeEdit("recoveryTime", event.target.value)}
+                        maxLength={200}
                       />
                     </div>
                     <Textarea
@@ -496,7 +513,7 @@ export function MedicalSection({ me }: { me: MeResponse }) {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => setDialog({ kind: "event", id: item.id, name: item.name })}
+                        onClick={() => openDialog({ kind: "event", id: item.id, name: item.name })}
                       >
                         Remove
                       </Button>
@@ -510,7 +527,7 @@ export function MedicalSection({ me }: { me: MeResponse }) {
 
         {events.length > 0 ? (
           <div className={styles.actions}>
-            <Button variant="ghost" size="sm" onClick={() => setDialog({ kind: "all-events" })}>
+            <Button variant="ghost" size="sm" onClick={() => openDialog({ kind: "all-events" })}>
               Remove all medical events
             </Button>
           </div>
@@ -524,6 +541,7 @@ export function MedicalSection({ me }: { me: MeResponse }) {
               value={eventForm.name}
               onChange={(event) => changeEvent("name", event.target.value)}
               error={errors.name || undefined}
+              maxLength={100}
               required
             />
             <div className={styles.row}>
@@ -537,6 +555,7 @@ export function MedicalSection({ me }: { me: MeResponse }) {
                 label="Recovery time (optional)"
                 value={eventForm.recoveryTime}
                 onChange={(event) => changeEvent("recoveryTime", event.target.value)}
+                maxLength={200}
                 placeholder="For example 2 weeks"
               />
             </div>

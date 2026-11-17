@@ -205,4 +205,36 @@ describe("RecordScreen", () => {
     expect(name).toHaveValue("Server Name");
     expect(screen.queryByText("This record changed since you opened it")).not.toBeInTheDocument();
   });
+
+  it("keeps the draft and never shows saved when a save fails, then retries", async () => {
+    const user = userEvent.setup();
+    let puts = 0;
+    server.use(
+      http.put("/api/v1/me/fields", () => {
+        puts += 1;
+        if (puts === 1) {
+          return HttpResponse.json(
+            { error: "internal_error", message: "Something went wrong", request_id: "req-save" },
+            { status: 500 },
+          );
+        }
+        return HttpResponse.json(fieldsWith({ full_name: "Ada Okafor" }, 3));
+      }),
+    );
+
+    renderWithProviders(<RecordScreen />);
+    const name = await screen.findByLabelText("Name");
+    await user.clear(name);
+    await user.type(name, "Ada Okafor");
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+
+    expect(await screen.findByText("Could not save your changes")).toBeInTheDocument();
+    expect(screen.getByText("Request ID req-save")).toBeInTheDocument();
+    expect(screen.getByLabelText("Name")).toHaveValue("Ada Okafor");
+    expect(screen.queryByText("Record saved.")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByText("Record saved.")).toBeInTheDocument();
+    expect(puts).toBe(2);
+  });
 });

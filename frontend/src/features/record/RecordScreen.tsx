@@ -21,7 +21,6 @@ import {
   isVersionConflict,
   issueMessages,
   valueForDraft,
-  type FieldChange,
   type FieldDraft,
 } from "./helpers";
 import { OfflineBanner } from "./OfflineBanner";
@@ -32,7 +31,6 @@ const fieldDomId = (key: string) => `record-field-${key}`;
 
 type Conflict = {
   version: number;
-  changes: FieldChange[];
 };
 
 export function RecordScreen() {
@@ -51,6 +49,13 @@ export function RecordScreen() {
   function changeValue(key: string, value: string | string[]) {
     setSaved(null);
     setClientError(null);
+    setFormError(null);
+    setFieldErrors((current) => {
+      if (!current[key]) return current;
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
     setDraftState((current) => ({ ...(current ?? draftFor(fields)), [key]: value }));
   }
 
@@ -79,10 +84,13 @@ export function RecordScreen() {
       if (isVersionConflict(error)) {
         const refreshed = await fieldsQuery.refetch();
         if (refreshed.data) {
-          setConflict({
-            version: refreshed.data.version,
-            changes: conflictChanges(draft, refreshed.data.fields),
-          });
+          const changes = conflictChanges(draft, refreshed.data.fields);
+          if (changes.length) {
+            setConflict({ version: refreshed.data.version });
+          } else {
+            setDraftState(draftFor(refreshed.data.fields));
+            setSaved("The latest saved values already match your draft.");
+          }
         } else {
           setFormError(error);
         }
@@ -106,6 +114,8 @@ export function RecordScreen() {
     setSaved("Your draft was discarded. The latest saved values are shown.");
     setFieldErrors({});
   }
+
+  const conflictRows = conflict ? conflictChanges(draft, fields) : [];
 
   if (fieldsQuery.isPending) {
     return (
@@ -202,7 +212,7 @@ export function RecordScreen() {
           {conflict ? (
             <div className={styles.conflict}>
               <div className={styles.conflictGrid}>
-                {conflict.changes.map((change) => (
+                {conflictRows.map((change) => (
                   <div key={change.key} className={styles.conflictColumn}>
                     <p className={styles.conflictHeading}>{change.label}</p>
                     <p className={styles.conflictValue}>
@@ -219,7 +229,7 @@ export function RecordScreen() {
                   type="button"
                   loading={updateFields.isPending}
                   disabled={updateFields.isPending}
-                  onClick={() => void submit(conflict.version, conflict.changes.map((change) => change.key))}
+                  onClick={() => void submit(conflict.version, conflictRows.map((change) => change.key))}
                 >
                   Use my changes
                 </Button>

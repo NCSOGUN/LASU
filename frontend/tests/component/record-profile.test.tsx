@@ -246,4 +246,85 @@ describe("ProfileScreen", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("Request ID 234280c0-1b4e-42b1-9802-c978d7f7d132")).toBeInTheDocument();
   });
+
+  it("keeps the account draft and never shows saved when the save fails", async () => {
+    const user = userEvent.setup();
+    server.use(
+      http.patch("/api/v1/me", () =>
+        HttpResponse.json(
+          { error: "internal_error", message: "Something went wrong", request_id: "req-patch" },
+          { status: 500 },
+        ),
+      ),
+    );
+
+    renderWithProviders(<ProfileScreen />);
+    const first = await screen.findByLabelText("First name");
+    await user.clear(first);
+    await user.type(first, "Ada");
+    await user.click(screen.getByRole("button", { name: "Save account details" }));
+
+    expect(await screen.findByText("Could not save your changes")).toBeInTheDocument();
+    expect(screen.getByLabelText("First name")).toHaveValue("Ada");
+    expect(screen.queryByText("Account details saved.")).not.toBeInTheDocument();
+  });
+
+  it("shows a failed allergy removal outside the dialog and retries it", async () => {
+    const user = userEvent.setup();
+    let calls = 0;
+    server.use(
+      http.delete("/api/v1/me/allergies/:id", () => {
+        calls += 1;
+        if (calls === 1) {
+          return HttpResponse.json(
+            { error: "internal_error", message: "Something went wrong", request_id: "req-del" },
+            { status: 500 },
+          );
+        }
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+
+    renderWithProviders(<ProfileScreen />);
+    const list = await screen.findByRole("list", { name: "Allergy history" });
+    await user.click(within(list).getAllByRole("button", { name: "Remove" })[0]!);
+    await user.click(screen.getByRole("button", { name: "Remove allergy" }));
+
+    expect(await screen.findByText("Could not save your changes")).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(screen.getByText("Penicillin")).toBeInTheDocument();
+    expect(screen.queryByText("Allergy removed from your private history.")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByText("Allergy removed from your private history.")).toBeInTheDocument();
+    expect(screen.queryByText("Penicillin")).not.toBeInTheDocument();
+  });
+
+  it("links the private allergy history to My record for sharing", async () => {
+    renderWithProviders(<ProfileScreen />);
+    expect(await screen.findByText("Allergy history (private)")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "My record" })).toHaveAttribute("href", "/app/record");
+  });
+
+  it("hides the avatar upload unless the flag is on", async () => {
+    vi.stubEnv("NEXT_PUBLIC_AVATAR_UPLOAD", "0");
+    renderWithProviders(<ProfileScreen />);
+    await screen.findByLabelText("First name");
+    expect(screen.queryByText("Profile photo")).not.toBeInTheDocument();
+  });
+
+  it("uploads a profile photo when storage is available", async () => {
+    vi.stubEnv("NEXT_PUBLIC_AVATAR_UPLOAD", "1");
+    server.use(...createRecordHandlers({ avatarUnavailable: false }));
+    const user = userEvent.setup();
+    const { container } = renderWithProviders(<ProfileScreen />);
+
+    expect(await screen.findByText("No photo yet. Your initials are shown.")).toBeInTheDocument();
+    const input = container.querySelector<HTMLInputElement>('input[type="file"]');
+    await user.upload(input!, new File(["image-bytes"], "profile.png", { type: "image/png" }));
+    await user.click(screen.getByRole("button", { name: "Upload photo" }));
+
+    expect(await screen.findByText("Profile photo updated.")).toBeInTheDocument();
+    expect(screen.getByText("Current photo")).toBeInTheDocument();
+  });
 });

@@ -235,4 +235,36 @@ describe("EmergencySummaryScreen", () => {
     expect(screen.getByText("One of these fields cannot be edited.")).toBeInTheDocument();
     expect(screen.getByText("Request ID req-field")).toBeInTheDocument();
   });
+
+  it("keeps the selection and never shows saved when a save fails, then retries", async () => {
+    const user = userEvent.setup();
+    let puts = 0;
+    server.use(
+      http.put("/api/v1/me/emergency-fields", async ({ request }) => {
+        puts += 1;
+        const body = (await request.json()) as { field_keys: string[] };
+        if (puts === 1) {
+          return HttpResponse.json(
+            { error: "internal_error", message: "Something went wrong", request_id: "req-em" },
+            { status: 500 },
+          );
+        }
+        return HttpResponse.json({ version: 4, field_keys: body.field_keys });
+      }),
+    );
+
+    renderWithProviders(<EmergencySummaryScreen />);
+    const allergies = await screen.findByRole("checkbox", { name: "Allergies" });
+    await user.click(allergies);
+    await user.click(screen.getByRole("button", { name: "Save emergency summary" }));
+
+    expect(await screen.findByText("Could not save your changes")).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Allergies" })).not.toBeChecked();
+    expect(screen.getByText("Unsaved selection")).toBeInTheDocument();
+    expect(screen.queryByText(/Emergency summary updated/)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByText(/Emergency summary updated/)).toBeInTheDocument();
+    expect(puts).toBe(2);
+  });
 });

@@ -112,6 +112,7 @@ export function AccountSection({ me }: { me: MeResponse }) {
     setForm((current) => ({ ...current, [key]: value }));
     setSaved(null);
     setClientError(null);
+    setFormError(null);
     setErrors((current) => (current[key] ? { ...current, [key]: "" } : current));
   }
 
@@ -137,6 +138,10 @@ export function AccountSection({ me }: { me: MeResponse }) {
 
     if (initial.dob && !parsed.data.dob) {
       setErrors({ dob: "Enter your date of birth. It cannot be cleared here." });
+      return;
+    }
+    if (initial.phone && !parsed.data.phone) {
+      setErrors({ phone: "Enter a phone number. A saved number cannot be cleared here." });
       return;
     }
 
@@ -212,6 +217,7 @@ export function AccountSection({ me }: { me: MeResponse }) {
             value={form.firstName}
             onChange={(event) => update("firstName", event.target.value)}
             error={errors.firstName || undefined}
+            maxLength={100}
             required
           />
           <Input
@@ -222,6 +228,7 @@ export function AccountSection({ me }: { me: MeResponse }) {
             value={form.lastName}
             onChange={(event) => update("lastName", event.target.value)}
             error={errors.lastName || undefined}
+            maxLength={100}
             required
           />
         </div>
@@ -237,6 +244,7 @@ export function AccountSection({ me }: { me: MeResponse }) {
           onChange={(event) => update("email", event.target.value)}
           description="Changing your email resets email verification."
           error={errors.email || undefined}
+          maxLength={320}
           required
         />
 
@@ -253,6 +261,7 @@ export function AccountSection({ me }: { me: MeResponse }) {
             onChange={(event) => update("phone", event.target.value)}
             description="Leave blank to keep the saved number. Changing it resets phone verification."
             error={errors.phone || undefined}
+            maxLength={16}
           />
           <Input
             id="profile-dob"
@@ -278,10 +287,12 @@ export function AccountSection({ me }: { me: MeResponse }) {
             value={form.password}
             onChange={(event) => update("password", event.target.value)}
             description="At least 8 characters."
+            maxLength={128}
             aria-invalid={errors.password ? true : undefined}
+            aria-describedby={errors.password ? "profile-password-error" : undefined}
           />
           {errors.password ? (
-            <p className={styles.fieldError} role="alert">
+            <p id="profile-password-error" className={styles.fieldError} role="alert">
               {errors.password}
             </p>
           ) : null}
@@ -292,10 +303,12 @@ export function AccountSection({ me }: { me: MeResponse }) {
             autoComplete="new-password"
             value={form.confirmPassword}
             onChange={(event) => update("confirmPassword", event.target.value)}
+            maxLength={128}
             aria-invalid={errors.confirmPassword ? true : undefined}
+            aria-describedby={errors.confirmPassword ? "profile-confirm-password-error" : undefined}
           />
           {errors.confirmPassword ? (
-            <p className={styles.fieldError} role="alert">
+            <p id="profile-confirm-password-error" className={styles.fieldError} role="alert">
               {errors.confirmPassword}
             </p>
           ) : null}

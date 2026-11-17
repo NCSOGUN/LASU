@@ -66,7 +66,7 @@ export function EmergencySummaryScreen() {
     (fieldsQuery.isError && !fieldsQuery.data) || (summaryQuery.isError && !summaryQuery.data)
       ? (fieldsQuery.error ?? summaryQuery.error)
       : null;
-  const confirmed = !dirty && !summaryQuery.isFetching && Boolean(summaryQuery.data?.available);
+  const confirmed = !dirty && summaryQuery.data?.available === true;
   const serverPreview = summaryQuery.data?.fields ?? [];
   const localPreview = selectedFields.map((field) => ({
     key: field.key,
@@ -83,6 +83,7 @@ export function EmergencySummaryScreen() {
   function changeSelection(next: string[]) {
     setSaved(null);
     setClientError(null);
+    setFormError(null);
     setSelectedState(next);
   }
 
@@ -252,41 +253,41 @@ export function EmergencySummaryScreen() {
         ) : null}
 
         {fields.some((field) => !isEligible(field)) ? (
-        <div className={styles.subSection}>
-          <h3 className={styles.subTitle}>Not available</h3>
-          <p className={styles.note}>
-            These fields cannot be shared in an emergency. Fields without a value need one first.
-          </p>
-          <ul className={styles.checklist}>
-            {fields
-              .filter((field) => !isEligible(field))
-              .map((field) => {
-                const missingValue = field.value === null || field.value === undefined;
-                return (
-                  <li key={field.key} className={styles.checkRow}>
-                    <div className={styles.checkMain}>
-                      <Checkbox
-                        label={field.label}
-                        description={
-                          missingValue && field.emergency_eligible
-                            ? "Add a value first"
-                            : "Not shareable in an emergency"
-                        }
-                        checked={false}
-                        disabled
-                        onCheckedChange={() => undefined}
-                      />
-                      {missingValue && field.emergency_eligible ? (
-                        <Link className={styles.checkReasonLink} href="/app/record">
-                          Add a value on My record
-                        </Link>
-                      ) : null}
-                    </div>
-                  </li>
-                );
-              })}
-          </ul>
-        </div>
+          <div className={styles.subSection}>
+            <h3 className={styles.subTitle}>Not available</h3>
+            <p className={styles.note}>
+              These fields cannot be shared in an emergency. Fields without a value need one first.
+            </p>
+            <ul className={styles.checklist}>
+              {fields
+                .filter((field) => !isEligible(field))
+                .map((field) => {
+                  const missingValue = field.value === null || field.value === undefined;
+                  return (
+                    <li key={field.key} className={styles.checkRow}>
+                      <div className={styles.checkMain}>
+                        <Checkbox
+                          label={field.label}
+                          description={
+                            missingValue && field.emergency_eligible
+                              ? "Add a value first"
+                              : "Not shareable in an emergency"
+                          }
+                          checked={false}
+                          disabled
+                          onCheckedChange={() => undefined}
+                        />
+                        {missingValue && field.emergency_eligible ? (
+                          <Link className={styles.checkReasonLink} href="/app/record">
+                            Add a value on My record
+                          </Link>
+                        ) : null}
+                      </div>
+                    </li>
+                  );
+                })}
+            </ul>
+          </div>
         ) : null}
 
         {conflict ? (

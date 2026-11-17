@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Alert } from "@/components/arc/alert/alert";
 import { Avatar } from "@/components/arc/avatar/avatar";
 import { Button } from "@/components/arc/button/button";
 import { FileDropzone } from "@/components/arc/file-dropzone/file-dropzone";
@@ -83,10 +84,12 @@ export function AvatarSection({ me }: { me: MeResponse }) {
       {formError ? <FormError error={formError} onRetry={() => void submit()} /> : null}
 
       {storageError ? (
-        <span className={styles.fieldError} role="alert">
-          {storageError}
-          <RequestId id={storageRequestId} />
-        </span>
+        <Alert tone="danger" title="Could not upload this photo">
+          <span>
+            {storageError}
+            <RequestId id={storageRequestId} />
+          </span>
+        </Alert>
       ) : null}
 
       <FileDropzone
@@ -102,7 +105,7 @@ export function AvatarSection({ me }: { me: MeResponse }) {
         }}
         label="Choose a profile photo"
         description="Drop an image here or choose from your device"
-        note="JPG, PNG or WebP up to 5 MB"
+        note="Image file up to 5 MB"
       />
 
       <div className={styles.actions}>
