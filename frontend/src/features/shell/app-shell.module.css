@@ -23,6 +23,10 @@
 }
 
 .sidebar {
+  position: sticky;
+  top: 0;
+  height: 100dvh;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 28px;
@@ -138,7 +142,29 @@
   display: none;
 }
 
+.pageTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  color: var(--foreground);
+  font-family: var(--font-geist), var(--font-inter), sans-serif;
+  font-size: 0.9375rem;
+  font-weight: 500;
+}
+
+.pageIcon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: var(--accent-subtle);
+  color: var(--accent-strong);
+}
+
 .mobileBrand {
+  display: none;
   color: var(--foreground);
   font-family: var(--font-geist), var(--font-inter), sans-serif;
   font-size: 1rem;
@@ -158,8 +184,6 @@
 
 .main {
   width: 100%;
-  max-width: 1200px;
-  margin-inline: auto;
   padding: 32px clamp(16px, 3vw, 32px) 64px;
 }
 
@@ -178,6 +202,14 @@
 
   .mobileMenu {
     display: block;
+  }
+
+  .pageTitle {
+    display: none;
+  }
+
+  .mobileBrand {
+    display: inline;
   }
 
   .topbar {

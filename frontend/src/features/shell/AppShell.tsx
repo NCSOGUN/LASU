@@ -100,6 +100,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const name = session?.account.display_name ?? session?.account.email ?? "Your account";
   const email = session?.account.email ?? "";
+  const current = navItems.find((item) => isActive(pathname, item.href));
   const isPractitioner = session?.roles.includes("PRACTITIONER") ?? false;
 
   return (
@@ -148,6 +149,14 @@ export function AppShell({ children }: { children: ReactNode }) {
                 </DrawerContent>
               </Drawer>
             </div>
+            {current ? (
+              <p className={styles.pageTitle}>
+                <span className={styles.pageIcon} aria-hidden="true">
+                  <current.icon size={16} strokeWidth={1.75} />
+                </span>
+                {current.label}
+              </p>
+            ) : null}
             <Link className={styles.mobileBrand} href="/app">
               HealthAccess
             </Link>
