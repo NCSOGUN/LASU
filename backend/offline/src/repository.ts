@@ -1,7 +1,17 @@
-import { randomUUID } from 'node:crypto';
-import pg from 'pg';
+import { createHash, randomUUID } from 'node:crypto';
+import { Prisma, PrismaClient } from '@prisma/client';
+import {
+  buildProjection,
+  deniedProjection,
+  isConsentLive,
+  isGrantLive,
+  type ConsentScope,
+  type GrantScope,
+  type RecordField,
+} from '@healthaccess/shared';
 import type { Config } from './config.js';
 import type { Crypto } from './security/crypto.js';
+import { prisma as sharedPrisma, prismaFor } from './db.js';
 import type { InboundSms, UssdCallback, UssdEvent } from './app.js';
 import type {
   Area,
@@ -13,9 +23,97 @@ import type {
   WebLead,
 } from './types.js';
 import type { SmsRepository } from './channels/sms.js';
-import type { UssdRepository, UssdSession, UssdResult } from './channels/ussd.js';
+import type { UssdContext, UssdRepository, UssdSession, UssdResult } from './channels/ussd.js';
 
-type Database = pg.Pool | pg.PoolClient;
+type Db = Prisma.TransactionClient;
+
+interface Actor {
+  phone_digest: string;
+  request_id: string;
+  session_id?: string;
+}
+
+export interface InboxJob {
+  id: string;
+  phone_digest: string;
+  body_envelope: string;
+  attempts: number;
+  claimed_by: string;
+}
+
+export interface OutboxJob {
+  id: string;
+  kind: SmsReply['kind'];
+  recipient_phone_envelope: string;
+  render_ref: SmsReply | { envelope: string; allowAfterStop?: boolean };
+  attempts: number;
+  claimed_by: string;
+}
+
+export type StoredUssdSession = UssdSession & {
+  inputDepth: number;
+  inputFingerprint: string | null;
+};
+
+export type SessionRepository = UssdRepository &
+  SmsRepository & {
+    saveSession(result: UssdResult & { inputDepth: number; inputFingerprint: string }): Promise<void>;
+  };
+
+interface UssdSessionRow {
+  id: string;
+  phone_digest: string;
+  service_code: string | null;
+  state: string;
+  context: UssdContext;
+  expires_at: Date;
+  read_session_id: string | null;
+  path_depth: number;
+  path_digest: string | null;
+  ended_at: Date | null;
+}
+
+interface FacilityRow {
+  id: string;
+  name: string;
+  address: string;
+  phone: string | null;
+  distance_km: number | null;
+  is_demo: boolean;
+  service_code: string;
+}
+
+interface ProjectionRow {
+  key: string;
+  label: string;
+  value: unknown;
+}
+
+interface AreaRow {
+  id: string;
+  name: string;
+  region: string;
+  city: string;
+}
+
+const OUTBOX_KIND = {
+  text: 'TEXT',
+  emergency: 'EMERGENCY',
+  facility: 'FACILITY',
+  web_lead: 'WEB_LEAD',
+} as const;
+
+const OUTBOX_STATUS = {
+  queued: 'QUEUED',
+  sending: 'SENDING',
+  accepted: 'ACCEPTED',
+  delivered: 'DELIVERED',
+  failed: 'FAILED',
+  unknown: 'UNKNOWN',
+  expired: 'EXPIRED',
+} as const;
+
+type OutboxStatusValue = (typeof OUTBOX_STATUS)[keyof typeof OUTBOX_STATUS];
 
 function deliveryStatus(raw: string): string {
   const status = raw.toLowerCase();
@@ -26,160 +124,125 @@ function deliveryStatus(raw: string): string {
   return 'unknown';
 }
 
-interface Actor {
-  phone_digest: string;
-  request_id: string;
-  session_id?: string;
+function validDigest(value: string | null | undefined): value is string {
+  return typeof value === 'string' && /^[0-9a-f]{64}$/.test(value);
 }
-export interface InboxJob {
-  id: string;
-  phone_digest: string;
-  body_envelope: string;
-  attempts: number;
-  claimed_by: string;
+
+function distanceKm(
+  lat1: number | null,
+  lon1: number | null,
+  lat2: number | null,
+  lon2: number | null,
+): number | null {
+  if (lat1 === null || lon1 === null || lat2 === null || lon2 === null) return null;
+  const radians = (degrees: number) => (degrees * Math.PI) / 180;
+  const value =
+    6371 *
+    2 *
+    Math.asin(
+      Math.sqrt(
+        Math.sin(radians(lat2 - lat1) / 2) ** 2 +
+          Math.cos(radians(lat1)) *
+            Math.cos(radians(lat2)) *
+            Math.sin(radians(lon2 - lon1) / 2) ** 2,
+      ),
+    );
+  return Math.round(value * 1000) / 1000;
 }
-export interface OutboxJob {
-  id: string;
-  kind: SmsReply['kind'];
-  recipient_phone_envelope: string;
-  render_ref: SmsReply | { envelope: string; allowAfterStop?: boolean };
-  attempts: number;
-  claimed_by: string;
+
+function isUniqueViolation(error: unknown): boolean {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
 }
-export type StoredUssdSession = UssdSession & {
-  inputDepth: number;
-  inputFingerprint: string | null;
-};
-export type SessionRepository = UssdRepository & {
-  saveSession(result: UssdResult & { inputDepth: number; inputFingerprint: string }): Promise<void>;
-};
 
 export class Repository {
-  readonly pool: pg.Pool;
+  readonly prisma: PrismaClient;
+  private readonly ownsPrisma: boolean;
 
   constructor(
     private config: Config,
     private crypto: Crypto,
-    pool?: pg.Pool,
+    client?: PrismaClient,
   ) {
-    this.pool =
-      pool ||
-      new pg.Pool({
-        connectionString: config.databaseUrl,
-        max: config.databasePoolSize,
-        connectionTimeoutMillis: 2000,
-        statement_timeout: config.databaseTimeoutMs,
-        idle_in_transaction_session_timeout: 60000,
-      });
-    // Prevent an idle client error from terminating the worker or leaking SQL.
-    this.pool.on('error', () => console.error({ event: 'database_connection_error' }));
+    this.prisma = client ?? prismaFor(config.databaseUrl);
+    this.ownsPrisma = !client && this.prisma !== sharedPrisma;
   }
 
   async ready(): Promise<void> {
-    const result = await this.pool.query<{ safe: boolean }>(`SELECT
-      pg_has_role(session_user, 'healthaccess_telecom', 'member')
-      AND NOT pg_has_role(session_user, 'healthaccess_web', 'member')
-      AND NOT pg_has_role(session_user, 'healthaccess_owner', 'member')
-      AND NOT (SELECT rolsuper FROM pg_roles WHERE rolname = session_user) AS safe`);
-    if (!result.rows[0]?.safe) throw new Error('Use a restricted telecom database login');
+    await this.prisma.$queryRaw`SELECT 1`;
   }
 
   async close(): Promise<void> {
-    await this.pool.end();
+    if (this.ownsPrisma) await this.prisma.$disconnect();
   }
 
-  private async transaction<T>(work: (client: pg.PoolClient) => Promise<T>): Promise<T> {
-    const client = await this.pool.connect();
-    try {
-      await client.query('BEGIN');
-      const result = await work(client);
-      await client.query('COMMIT');
-      return result;
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
-    }
-  }
-
-  private async call<T>(
-    name: string,
-    args: unknown[] = [],
-    database: Database = this.pool,
-  ): Promise<T> {
-    // Names are internal constants, never supplied by a callback or model.
-    if (!/^[a-z_]+$/.test(name)) throw new Error('Invalid routine name');
-    const placeholders = args.map((_, index) => `$${index + 1}`).join(',');
-    const result = await database.query<{ data: T }>(
-      `SELECT healthaccess_api.${name}(${placeholders}) AS data`,
-      args,
-    );
-    return result.rows[0].data;
+  private async transaction<T>(work: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
+    return this.prisma.$transaction(work);
   }
 
   async takeRateLimit(
     scope: string,
     limit: number,
     seconds: number,
-    database: Database = this.pool,
+    database: Db = this.prisma,
   ): Promise<boolean> {
-    const result = await database.query<{ hits: number }>(
-      `INSERT INTO telecom.rate_limits(scope, window_start, hits)
-      VALUES ($1, to_timestamp(floor(extract(epoch FROM clock_timestamp()) / $2) * $2), 1)
-      ON CONFLICT (scope, window_start) DO UPDATE SET hits = telecom.rate_limits.hits + 1
-      RETURNING hits`,
-      [scope, seconds],
+    const rows = await database.$queryRaw<Array<{ hits: number }>>(
+      Prisma.sql`INSERT INTO "rate_limits" ("scope", "window_start", "hits")
+      VALUES (${scope}, to_timestamp(floor(extract(epoch FROM clock_timestamp()) / ${seconds}::int) * ${seconds}::int), 1)
+      ON CONFLICT ("scope", "window_start") DO UPDATE SET "hits" = "rate_limits"."hits" + 1
+      RETURNING "hits"`,
     );
-    return result.rows[0].hits <= limit;
+    return (rows[0]?.hits ?? 0) <= limit;
   }
 
   async acceptSms(body: InboundSms, requestId: string): Promise<void> {
-    await this.pool.query(
-      `INSERT INTO telecom.sms_inbox
-      (id, provider, provider_message_id, phone_digest, body_envelope, status, expires_at)
-      VALUES ($1, 'africastalking', $2, $3, $4, 'queued', now() + interval '1 day')
-      ON CONFLICT (provider, provider_message_id) DO NOTHING`,
-      [
-        randomUUID(),
-        body.id,
-        this.crypto.digestPhone(body.from),
-        this.crypto.encrypt({ ...body, requestId }, 'sms-inbox'),
+    await this.prisma.smsInbox.createMany({
+      data: [
+        {
+          provider: 'africastalking',
+          provider_message_id: body.id,
+          phone_digest: this.crypto.digestPhone(body.from),
+          body_envelope: this.crypto.encrypt({ ...body, requestId }, 'sms-inbox'),
+          status: 'QUEUED',
+          expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        },
       ],
-    );
-  }
-
-  async acceptDelivery(body: { id: string; status: string }): Promise<void> {
-    await this.transaction(async (client) => {
-      await client.query(
-        `INSERT INTO telecom.delivery_events(provider_message_id, status, event_fingerprint)
-        VALUES ($1, $2, $3) ON CONFLICT (event_fingerprint) DO NOTHING`,
-        [
-          body.id,
-          deliveryStatus(body.status),
-          this.crypto.fingerprint(JSON.stringify([body.id, body.status])),
-        ],
-      );
-      await this.reconcileDelivery(client);
+      skipDuplicates: true,
     });
   }
 
-  private async reconcileDelivery(database: Database): Promise<void> {
-    await database.query(`UPDATE telecom.outbox AS job SET status = 'delivered'
-      WHERE job.status <> 'delivered' AND EXISTS (SELECT 1 FROM telecom.delivery_events AS event
-        WHERE event.provider_message_id = job.provider_message_id AND event.status = 'delivered')`);
-    await database.query(`UPDATE telecom.outbox AS job SET status = 'failed'
-      WHERE job.status IN ('accepted', 'unknown', 'sending') AND EXISTS (
-        SELECT 1 FROM telecom.delivery_events AS event WHERE event.provider_message_id = job.provider_message_id
-        AND event.status = 'failed')`);
-    await database.query(`UPDATE telecom.outbox AS job SET status = 'unknown'
-      WHERE job.status='accepted' AND EXISTS (SELECT 1 FROM telecom.delivery_events AS event
-        WHERE event.provider_message_id=job.provider_message_id AND event.status IN ('unknown','expired'))`);
+  async acceptDelivery(body: { id: string; status: string }): Promise<void> {
+    await this.transaction(async (tx) => {
+      await tx.deliveryEvent.createMany({
+        data: [
+          {
+            provider: 'africastalking',
+            provider_message_id: body.id,
+            status: deliveryStatus(body.status),
+            event_fingerprint: this.crypto.fingerprint(JSON.stringify([body.id, body.status])),
+          },
+        ],
+        skipDuplicates: true,
+      });
+      await this.reconcileDelivery(tx);
+    });
+  }
+
+  private async reconcileDelivery(database: Db): Promise<void> {
+    await database.$executeRaw`UPDATE "outbox" AS job SET status = 'DELIVERED'
+      WHERE job.status <> 'DELIVERED' AND EXISTS (SELECT 1 FROM "delivery_events" AS event
+        WHERE event.provider_message_id = job.provider_message_id AND event.status = 'delivered')`;
+    await database.$executeRaw`UPDATE "outbox" AS job SET status = 'FAILED'
+      WHERE job.status IN ('ACCEPTED', 'UNKNOWN', 'SENDING') AND EXISTS (
+        SELECT 1 FROM "delivery_events" AS event WHERE event.provider_message_id = job.provider_message_id
+        AND event.status = 'failed')`;
+    await database.$executeRaw`UPDATE "outbox" AS job SET status = 'UNKNOWN'
+      WHERE job.status = 'ACCEPTED' AND EXISTS (SELECT 1 FROM "delivery_events" AS event
+        WHERE event.provider_message_id = job.provider_message_id AND event.status IN ('unknown','expired'))`;
   }
 
   private actorRepository(
     actor: Actor,
-    database: Database,
+    database: Db,
     currentPhone?: string,
     careContext?: { serviceCode?: string; areaId?: string; radiusKm?: number },
   ): SmsRepository & UssdRepository {
@@ -191,25 +254,27 @@ export class Repository {
         60,
         database,
       );
-      const targetAllowed = await this.takeRateLimit(`lookup-target:${digest}`, 60, 60, database);
-      if (!allowed || !targetAllowed) return { available: false };
-      return this.call(
-        actor.session_id ? 'ussd_read_emergency_summary' : 'sms_read_emergency_summary',
-        [digest, actor],
+      const targetAllowed = await this.takeRateLimit(
+        `lookup-target:${digest}`,
+        60,
+        60,
+        database,
+      );
+      if (!allowed || !targetAllowed) return { available: false, fields: [] };
+      return this.readEmergencySummary(
+        digest,
+        actor,
+        actor.session_id ? 'ussd' : 'sms',
         database,
       );
     };
     return {
-      listServices: () => this.call<Service[]>('list_services', [], database),
-      findAreas: (query) => this.call<Area[]>('find_areas', [query, 5], database),
+      listServices: () => this.listServices(database),
+      findAreas: (query) => this.findAreas(query, 5, database),
       findFacilities: (service, areaId, radius) =>
-        this.call<Facility[]>('find_facilities', [service, areaId, radius, 3], database),
+        this.findFacilities(service, areaId, radius, 3, database),
       getFacility: async (id, serviceCode, areaId, radiusKm) => {
-        const current = await this.call<Facility[]>(
-          'find_facilities',
-          [serviceCode, areaId, radiusKm, 10],
-          database,
-        );
+        const current = await this.findFacilities(serviceCode, areaId, radiusKm, 10, database);
         return current.find((facility) => facility.id === id) || null;
       },
       readEmergency,
@@ -222,64 +287,42 @@ export class Repository {
             database,
           ))
         )
-          return { available: false };
-        return this.call<Projection>(
-          'ussd_open_granted_record',
-          [patientDigest, grantDigest, actor],
-          database,
-        );
+          return { available: false, fields: [] };
+        return this.openGrantedRecord(patientDigest, grantDigest, actor, database);
       },
-      readGrant: (id) => this.call<Projection>('ussd_read_granted_record', [id, actor], database),
-      closeReadSession: async (id) => {
-        await this.call('ussd_close_granted_record', [id, actor], database);
-      },
-      findProfileConsent: () =>
-        this.call<{ id: string } | null>('telecom_find_profile_consent', [actor], database),
-      readMatchingContext: (id) =>
-        this.call<{ available: boolean }>('telecom_read_profile_context', [id, actor], database),
+      readGrant: (id) => this.readGrantedRecord(id, actor, database),
+      closeReadSession: (id) => this.closeGrantedRecord(id, actor, database),
+      findProfileConsent: () => this.findProfileConsent(actor, database),
+      readMatchingContext: (id) => this.readProfileContext(id, actor, database),
       setOptOut: (optedOut) => this.setOptOut(database, actor.phone_digest, optedOut),
-      storeWebLeads: async (leads) =>
-        (
-          await this.call<{ available: boolean; ids: string[] }>(
-            'sms_store_web_leads',
-            [JSON.stringify(leads), actor],
-            database,
-          )
-        ).ids || [],
-      recordReferral: async (referral) => {
-        await this.call(
-          'telecom_record_referral',
-          [
-            referral.serviceCode,
-            referral.areaId,
-            referral.facilities.map((f) => f.id),
-            referral.consentId,
-            actor,
-          ],
-          database,
-        );
-      },
+      storeWebLeads: (leads) => this.storeWebLeads(leads, database),
+      recordReferral: (referral) => this.recordReferral(referral, actor, database),
       queueFacilitySms: async (facilityId) => {
         if (!actor.session_id || !currentPhone) return false;
         if (!careContext?.serviceCode || !careContext.areaId) return false;
         const baseKey = `ussd:${actor.session_id}:facility:${facilityId}`;
-        const previous = await database.query<{ status: string; logical_key: string }>(
-          `SELECT status, logical_key FROM telecom.outbox
-          WHERE logical_key=$1 OR logical_key LIKE $2 ORDER BY created_at`,
-          [baseKey, `${baseKey}:retry:%`],
-        );
-        const statuses = previous.rows.map((row) => row.status);
+        const previous = await database.outbox.findMany({
+          where: {
+            OR: [
+              { logical_key: baseKey },
+              { logical_key: { startsWith: `${baseKey}:retry:` } },
+            ],
+          },
+          select: { status: true, logical_key: true },
+          orderBy: { created_at: 'asc' },
+        });
+        const statuses = previous.map((row) => row.status.toLowerCase());
         if (
           statuses.some((status) => ['queued', 'sending', 'accepted', 'delivered'].includes(status))
         )
           return true;
         // An unknown send may already have reached the phone. Do not resend it automatically.
         if (statuses.includes('unknown')) return false;
-        const retries = previous.rows.filter((row) =>
+        const retries = previous.filter((row) =>
           row.logical_key.startsWith(`${baseKey}:retry:`),
         ).length;
         if (retries >= 3) return false;
-        const logicalKey = previous.rows.length ? `${baseKey}:retry:${retries + 1}` : baseKey;
+        const logicalKey = previous.length ? `${baseKey}:retry:${retries + 1}` : baseKey;
         return this.queueReply(database, logicalKey, currentPhone, {
           kind: 'facility',
           id: facilityId,
@@ -296,34 +339,35 @@ export class Repository {
     requestId: string,
     work: (session: StoredUssdSession | null, scoped: SessionRepository) => Promise<string>,
   ): Promise<string> {
-    return this.transaction(async (client) => {
-      await client.query(
-        `INSERT INTO telecom.ussd_sessions(id, provider, provider_session_id, phone_digest,
-        service_code, state, context, path_depth, expires_at)
-        VALUES ($1,'africastalking',$2,$3,$4,'MAIN','{}',-1, now() + $5 * interval '1 second')
-        ON CONFLICT (provider, provider_session_id) DO NOTHING`,
-        [
-          randomUUID(),
-          body.sessionId,
-          this.crypto.digestPhone(body.phoneNumber),
-          body.serviceCode,
-          this.config.ussdSessionTtlSeconds,
+    return this.transaction(async (tx) => {
+      await tx.ussdSession.createMany({
+        data: [
+          {
+            provider: 'africastalking',
+            provider_session_id: body.sessionId,
+            phone_digest: this.crypto.digestPhone(body.phoneNumber),
+            service_code: body.serviceCode,
+            state: 'MAIN',
+            context: {},
+            path_depth: -1,
+            expires_at: new Date(Date.now() + this.config.ussdSessionTtlSeconds * 1000),
+          },
         ],
+        skipDuplicates: true,
+      });
+      const rows = await tx.$queryRaw<UssdSessionRow[]>(
+        Prisma.sql`SELECT * FROM "ussd_sessions" WHERE provider = 'africastalking'
+        AND provider_session_id = ${body.sessionId} FOR UPDATE`,
       );
-      const result = await client.query(
-        `SELECT * FROM telecom.ussd_sessions WHERE provider = 'africastalking'
-        AND provider_session_id = $1 FOR UPDATE`,
-        [body.sessionId],
-      );
-      const row = result.rows[0];
+      const row = rows[0];
       if (!row || row.ended_at) return 'END Session ended. Please redial.';
       const session: StoredUssdSession = {
         id: row.id,
         providerSessionId: body.sessionId,
         phoneDigest: row.phone_digest,
-        serviceCode: row.service_code,
-        state: row.state,
-        context: row.context,
+        serviceCode: row.service_code ?? '',
+        state: row.state as UssdSession['state'],
+        context: row.context ?? {},
         expiresAt: row.expires_at,
         readSessionId: row.read_session_id,
         inputDepth: row.path_depth,
@@ -331,20 +375,19 @@ export class Repository {
       };
       const actor = { session_id: row.id, phone_digest: row.phone_digest, request_id: requestId };
       const scoped: SessionRepository = {
-        ...this.actorRepository(actor, client, body.phoneNumber, row.context),
+        ...this.actorRepository(actor, tx, body.phoneNumber, row.context),
         saveSession: async (next) => {
-          await client.query(
-            `UPDATE telecom.ussd_sessions SET state=$2, context=$3, path_depth=$4,
-            path_digest=$5, read_session_id=$6, version=version+1, updated_at=now() WHERE id=$1`,
-            [
-              row.id,
-              next.state,
-              JSON.stringify(next.context),
-              next.inputDepth,
-              next.inputFingerprint,
-              next.readSessionId || null,
-            ],
-          );
+          await tx.ussdSession.update({
+            where: { id: row.id },
+            data: {
+              state: next.state,
+              context: next.context as Prisma.InputJsonValue,
+              path_depth: next.inputDepth,
+              path_digest: next.inputFingerprint,
+              read_session_id: next.readSessionId || null,
+              version: { increment: 1 },
+            },
+          });
         },
       };
       return work(session, scoped);
@@ -352,26 +395,28 @@ export class Repository {
   }
 
   async endUssdSession(body: UssdEvent): Promise<void> {
-    await this.pool.query(
-      `UPDATE telecom.ussd_sessions SET ended_at=now(), state='END', context='{}',
-      read_session_id=NULL WHERE provider='africastalking' AND provider_session_id=$1
-      AND ($2::text IS NULL OR phone_digest=$2)`,
-      [body.sessionId, body.phoneNumber ? this.crypto.digestPhone(body.phoneNumber) : null],
-    );
+    await this.prisma.ussdSession.updateMany({
+      where: {
+        provider: 'africastalking',
+        provider_session_id: body.sessionId,
+        ...(body.phoneNumber ? { phone_digest: this.crypto.digestPhone(body.phoneNumber) } : {}),
+      },
+      data: { ended_at: new Date(), state: 'END', context: {}, read_session_id: null },
+    });
   }
 
   async claimInbox(workerId: string): Promise<InboxJob | null> {
-    const result = await this.pool.query<InboxJob>(
-      `UPDATE telecom.sms_inbox SET status='processing',
-      claimed_by=$1, lease_until=now()+$2 * interval '1 second', attempts=attempts+1
-      WHERE id=(SELECT id FROM telecom.sms_inbox AS candidate WHERE expires_at>now() AND attempts<$3
-        AND ((status='queued' AND next_attempt_at<=now()) OR (status='processing' AND lease_until<now()))
-        AND NOT EXISTS (SELECT 1 FROM telecom.sms_inbox AS earlier WHERE earlier.phone_digest=candidate.phone_digest
-          AND earlier.status IN ('queued','processing') AND (earlier.created_at,earlier.id)<(candidate.created_at,candidate.id))
+    const rows = await this.prisma.$queryRaw<InboxJob[]>(
+      Prisma.sql`UPDATE "sms_inbox" SET status = 'PROCESSING',
+      claimed_by = ${workerId}, lease_until = now() + ${this.config.workerLeaseSeconds}::int * interval '1 second',
+      attempts = attempts + 1
+      WHERE id = (SELECT id FROM "sms_inbox" AS candidate WHERE expires_at > now() AND attempts < ${this.config.workerMaxAttempts}::int
+        AND ((status = 'QUEUED' AND next_attempt_at <= now()) OR (status = 'PROCESSING' AND lease_until < now()))
+        AND NOT EXISTS (SELECT 1 FROM "sms_inbox" AS earlier WHERE earlier.phone_digest = candidate.phone_digest
+          AND earlier.status IN ('QUEUED','PROCESSING') AND (earlier.created_at, earlier.id) < (candidate.created_at, candidate.id))
         ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 1) RETURNING *`,
-      [workerId, this.config.workerLeaseSeconds, this.config.workerMaxAttempts],
     );
-    return result.rows[0] || null;
+    return rows[0] || null;
   }
 
   async processInbox(
@@ -382,30 +427,32 @@ export class Repository {
       conversation: { state: string; context: SmsContext },
     ) => Promise<{ state: string; context: SmsContext; replies: SmsReply[] }>,
   ): Promise<void> {
-    const ownership = await this.pool.query(
-      `SELECT id FROM telecom.sms_inbox WHERE id=$1 AND claimed_by=$2 AND status='processing' AND lease_until>now()`,
-      [job.id, job.claimed_by],
-    );
-    if (!ownership.rowCount) return;
+    const ownership = await this.prisma.smsInbox.findFirst({
+      where: {
+        id: job.id,
+        claimed_by: job.claimed_by,
+        status: 'PROCESSING',
+        lease_until: { gt: new Date() },
+      },
+      select: { id: true },
+    });
+    if (!ownership) return;
     const body = this.crypto.decrypt<InboundSms & { requestId: string }>(
       job.body_envelope,
       'sms-inbox',
     );
-    const found = await this.pool.query<{
-      state: string;
-      context: SmsContext;
-      expires_at: Date;
-      version: number;
-    }>(
-      `SELECT state,context,expires_at,version FROM telecom.sms_conversations WHERE phone_digest=$1`,
-      [job.phone_digest],
-    );
-    const existing = found.rows[0];
+    const found = await this.prisma.smsConversation.findUnique({
+      where: { phone_digest: job.phone_digest },
+      select: { state: true, context: true, expires_at: true, version: true },
+    });
+    const existing = found ?? null;
     const conversation =
-      existing && existing.expires_at > new Date() ? existing : { state: 'idle', context: {} };
+      existing && existing.expires_at > new Date()
+        ? { state: existing.state, context: existing.context as SmsContext }
+        : { state: 'idle', context: {} };
     const scoped = this.actorRepository(
       { phone_digest: job.phone_digest, request_id: body.requestId },
-      this.pool,
+      this.prisma,
     );
     let optOut: boolean | undefined;
     scoped.setOptOut = async (value) => {
@@ -432,59 +479,60 @@ export class Repository {
           ],
         };
 
-    await this.transaction(async (client) => {
-      const currentJob = await client.query(
-        `SELECT id FROM telecom.sms_inbox WHERE id=$1 AND claimed_by=$2 AND status='processing' AND lease_until>now() FOR UPDATE`,
-        [job.id, job.claimed_by],
+    await this.transaction(async (tx) => {
+      const currentJob = await tx.$queryRaw<Array<{ id: string }>>(
+        Prisma.sql`SELECT id FROM "sms_inbox" WHERE id = ${job.id}::uuid AND claimed_by = ${job.claimed_by}
+        AND status = 'PROCESSING' AND lease_until > now() FOR UPDATE`,
       );
-      if (!currentJob.rowCount) return;
-      const current = await client.query<{ version: number }>(
-        'SELECT version FROM telecom.sms_conversations WHERE phone_digest=$1 FOR UPDATE',
-        [job.phone_digest],
+      if (!currentJob.length) return;
+      const current = await tx.$queryRaw<Array<{ version: number }>>(
+        Prisma.sql`SELECT version FROM "sms_conversations" WHERE phone_digest = ${job.phone_digest} FOR UPDATE`,
       );
-      if (current.rows[0]?.version !== existing?.version)
+      if (current[0]?.version !== existing?.version) {
         throw new Error('Conversation changed while processing');
-      if (optOut !== undefined) await this.setOptOut(client, job.phone_digest, optOut);
-      await client.query(
-        `INSERT INTO telecom.sms_conversations(phone_digest,state,context,expires_at)
-        VALUES($1,$2,$3,now()+$4*interval '1 second') ON CONFLICT(phone_digest) DO UPDATE
-        SET state=$2,context=$3,expires_at=excluded.expires_at,version=telecom.sms_conversations.version+1,updated_at=now()`,
-        [
-          job.phone_digest,
-          result.state,
-          JSON.stringify(result.context),
-          this.config.smsConversationTtlSeconds,
-        ],
-      );
-      for (const [index, reply] of result.replies.entries())
-        await this.queueReply(client, `sms:${job.id}:${index}`, body.from, reply);
-      await client.query(
-        `UPDATE telecom.sms_inbox SET status='processed',lease_until=NULL WHERE id=$1`,
-        [job.id],
-      );
+      }
+      if (optOut !== undefined) await this.setOptOut(tx, job.phone_digest, optOut);
+      await tx.smsConversation.upsert({
+        where: { phone_digest: job.phone_digest },
+        create: {
+          phone_digest: job.phone_digest,
+          state: result.state,
+          context: result.context as Prisma.InputJsonValue,
+          expires_at: new Date(Date.now() + this.config.smsConversationTtlSeconds * 1000),
+        },
+        update: {
+          state: result.state,
+          context: result.context as Prisma.InputJsonValue,
+          expires_at: new Date(Date.now() + this.config.smsConversationTtlSeconds * 1000),
+          version: { increment: 1 },
+        },
+      });
+      for (const [index, reply] of result.replies.entries()) {
+        await this.queueReply(tx, `sms:${job.id}:${index}`, body.from, reply);
+      }
+      await tx.smsInbox.updateMany({
+        where: { id: job.id, claimed_by: job.claimed_by, status: 'PROCESSING' },
+        data: { status: 'PROCESSED', lease_until: null },
+      });
     });
   }
 
-  private async setOptOut(
-    database: Database,
-    phoneDigest: string,
-    optedOut: boolean,
-  ): Promise<void> {
-    await database.query(
-      `INSERT INTO telecom.channel_preferences(phone_digest, opted_out) VALUES ($1, $2)
-      ON CONFLICT (phone_digest) DO UPDATE SET opted_out=$2,updated_at=now()`,
-      [phoneDigest, optedOut],
-    );
-    if (optedOut)
-      await database.query(
-        `UPDATE telecom.outbox SET status='expired'
-      WHERE status='queued' AND recipient_phone_digest=$1`,
-        [phoneDigest],
-      );
+  private async setOptOut(database: Db, phoneDigest: string, optedOut: boolean): Promise<void> {
+    await database.channelPreference.upsert({
+      where: { phone_digest: phoneDigest },
+      create: { phone_digest: phoneDigest, opted_out: optedOut },
+      update: { opted_out: optedOut },
+    });
+    if (optedOut) {
+      await database.outbox.updateMany({
+        where: { status: 'QUEUED', recipient_phone_digest: phoneDigest },
+        data: { status: 'EXPIRED' },
+      });
+    }
   }
 
   private async queueReply(
-    client: Database,
+    client: Db,
     logicalKey: string,
     phone: string,
     reply: SmsReply,
@@ -496,45 +544,62 @@ export class Repository {
             allowAfterStop: !!reply.allowAfterStop,
           }
         : reply;
-    const saved = await client.query(
-      `INSERT INTO telecom.outbox(id,logical_key,kind,recipient_phone_envelope,render_ref,status,expires_at,recipient_phone_digest)
-      VALUES($1,$2,$3,$4,$5,'queued',now()+$6*interval '1 second',$7) ON CONFLICT(logical_key) DO NOTHING RETURNING id`,
-      [
-        randomUUID(),
-        logicalKey,
-        reply.kind,
-        this.crypto.encrypt(phone, 'sms-recipient'),
-        JSON.stringify(reference),
-        this.config.smsReplyTtlSeconds,
-        this.crypto.digestPhone(phone),
-      ],
+    try {
+      await client.outbox.create({
+        data: {
+          logical_key: logicalKey,
+          kind: OUTBOX_KIND[reply.kind],
+          recipient_phone_envelope: this.crypto.encrypt(phone, 'sms-recipient'),
+          render_ref: reference as Prisma.InputJsonValue,
+          status: 'QUEUED',
+          expires_at: new Date(Date.now() + this.config.smsReplyTtlSeconds * 1000),
+          recipient_phone_digest: this.crypto.digestPhone(phone),
+        },
+      });
+      return true;
+    } catch (error) {
+      if (!isUniqueViolation(error)) throw error;
+    }
+    const existing = await client.outbox.findUnique({
+      where: { logical_key: logicalKey },
+      select: { status: true },
+    });
+    return ['queued', 'sending', 'accepted', 'delivered'].includes(
+      existing?.status?.toLowerCase() || '',
     );
-    if (saved.rowCount) return true;
-    const existing = await client.query<{ status: string }>(
-      'SELECT status FROM telecom.outbox WHERE logical_key=$1',
-      [logicalKey],
-    );
-    return ['queued', 'sending', 'accepted', 'delivered'].includes(existing.rows[0]?.status || '');
   }
 
   async failInbox(job: InboxJob): Promise<void> {
-    await this.pool.query(
-      `UPDATE telecom.sms_inbox SET status=CASE WHEN attempts >= $3 THEN 'failed' ELSE 'queued' END,
-      next_attempt_at=now()+least(300,power(2,attempts)) * interval '1 second',lease_until=NULL
-      WHERE id=$1 AND claimed_by=$2 AND status='processing'`,
-      [job.id, job.claimed_by, this.config.workerMaxAttempts],
-    );
+    await this.prisma.$executeRaw`UPDATE "sms_inbox"
+      SET status = CASE WHEN attempts >= ${this.config.workerMaxAttempts}::int THEN 'FAILED' ELSE 'QUEUED' END,
+      next_attempt_at = now() + least(300, power(2, attempts)) * interval '1 second',
+      lease_until = NULL
+      WHERE id = ${job.id}::uuid AND claimed_by = ${job.claimed_by} AND status = 'PROCESSING'`;
   }
 
   async claimOutbox(workerId: string): Promise<OutboxJob | null> {
-    const result = await this.pool.query<OutboxJob>(
-      `UPDATE telecom.outbox SET status='sending',claimed_by=$1,
-      lease_until=now()+$2*interval '1 second',attempts=attempts+1 WHERE id=(SELECT id FROM telecom.outbox
-      WHERE status='queued' AND next_attempt_at<=now() AND expires_at>now() AND attempts<$3
+    const rows = await this.prisma.$queryRaw<
+      Array<{
+        id: string;
+        kind: string;
+        recipient_phone_envelope: string;
+        render_ref: OutboxJob['render_ref'];
+        attempts: number;
+        claimed_by: string;
+      }>
+    >(
+      Prisma.sql`UPDATE "outbox" SET status = 'SENDING', claimed_by = ${workerId},
+      lease_until = now() + ${this.config.workerLeaseSeconds}::int * interval '1 second',
+      attempts = attempts + 1 WHERE id = (SELECT id FROM "outbox"
+      WHERE status = 'QUEUED' AND next_attempt_at <= now() AND expires_at > now() AND attempts < ${this.config.workerMaxAttempts}::int
       ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 1) RETURNING *`,
-      [workerId, this.config.workerLeaseSeconds, this.config.workerMaxAttempts],
     );
-    return result.rows[0] || null;
+    const row = rows[0];
+    if (!row) return null;
+    return {
+      ...row,
+      kind: row.kind.toLowerCase() as SmsReply['kind'],
+    };
   }
 
   async renderOutbox(job: OutboxJob): Promise<{
@@ -555,27 +620,29 @@ export class Repository {
           }
         : (job.render_ref as SmsReply);
     const actor = { phone_digest: this.crypto.digestPhone(phone), request_id: job.id };
-    const preference = await this.pool.query<{ opted_out: boolean }>(
-      'SELECT opted_out FROM telecom.channel_preferences WHERE phone_digest=$1',
-      [actor.phone_digest],
-    );
-    if (preference.rows[0]?.opted_out && !(reply.kind === 'text' && reply.allowAfterStop))
+    const preference = await this.prisma.channelPreference.findUnique({
+      where: { phone_digest: actor.phone_digest },
+      select: { opted_out: true },
+    });
+    if (preference?.opted_out && !(reply.kind === 'text' && reply.allowAfterStop)) {
       return { phone, reply, suppressed: true };
-    if (reply.kind === 'emergency')
+    }
+    if (reply.kind === 'emergency') {
       return {
         phone,
         reply,
-        projection: await this.call('sms_read_emergency_summary', [reply.codeDigest, actor]),
+        projection: await this.readEmergencySummary(reply.codeDigest, actor, 'sms'),
       };
+    }
     if (reply.kind === 'facility') {
       const current =
         reply.serviceCode && reply.areaId
-          ? await this.call<Facility[]>('find_facilities', [
+          ? await this.findFacilities(
               reply.serviceCode,
               reply.areaId,
               reply.radiusKm || this.config.searchRadiusKm,
               10,
-            ])
+            )
           : [];
       return {
         phone,
@@ -583,8 +650,9 @@ export class Repository {
         facility: current.find((facility) => facility.id === reply.id) || null,
       };
     }
-    if (reply.kind === 'web_lead')
-      return { phone, reply, lead: await this.call('get_web_lead', [reply.id]) };
+    if (reply.kind === 'web_lead') {
+      return { phone, reply, lead: await this.getWebLead(reply.id) };
+    }
     return { phone, reply };
   }
 
@@ -592,65 +660,1321 @@ export class Repository {
     job: OutboxJob,
     result: { state: string; providerMessageId: string | null; retryable: boolean },
   ): Promise<void> {
-    const status =
-      result.retryable && job.attempts < this.config.workerMaxAttempts ? 'queued' : result.state;
-    await this.transaction(async (client) => {
-      await client.query(
-        `UPDATE telecom.outbox SET status=$3,provider_message_id=COALESCE($4,provider_message_id),lease_until=NULL,
-        next_attempt_at=now()+least(300,power(2,attempts))*interval '1 second' WHERE id=$1 AND claimed_by=$2 AND status='sending'`,
-        [job.id, job.claimed_by, status, result.providerMessageId],
-      );
-      await this.reconcileDelivery(client);
+    const status: OutboxStatusValue =
+      result.retryable && job.attempts < this.config.workerMaxAttempts
+        ? OUTBOX_STATUS.queued
+        : OUTBOX_STATUS[result.state as keyof typeof OUTBOX_STATUS] || OUTBOX_STATUS.failed;
+    await this.transaction(async (tx) => {
+      await tx.$executeRaw`UPDATE "outbox" SET status = ${status}::"OutboxStatus",
+        provider_message_id = COALESCE(${result.providerMessageId}::text, provider_message_id),
+        lease_until = NULL,
+        next_attempt_at = now() + least(300, power(2, attempts)) * interval '1 second'
+        WHERE id = ${job.id}::uuid AND claimed_by = ${job.claimed_by} AND status = 'SENDING'`;
+      await this.reconcileDelivery(tx);
     });
   }
 
   async findReviewedContent(query: string): Promise<unknown[]> {
-    return this.call('find_reviewed_content', [query, 3]);
+    const value = (query || '').trim().toLowerCase();
+    if (!value) return [];
+    const rows = await this.prisma.reviewedHealthContent.findMany({
+      where: {
+        status: 'PUBLISHED',
+        reviewed_at: { not: null },
+        OR: [
+          { topic_code: { contains: value, mode: 'insensitive' } },
+          { title: { contains: value, mode: 'insensitive' } },
+          { body: { contains: value, mode: 'insensitive' } },
+        ],
+      },
+      include: { reviewer: { select: { display_name: true } } },
+      orderBy: [{ topic_code: 'asc' }, { version: 'desc' }],
+      take: 3,
+    });
+    return rows.map((row) => ({
+      id: row.id,
+      topic: row.topic_code,
+      language: row.language,
+      version: row.version,
+      body: row.body,
+      reviewer: row.reviewer?.display_name ?? '',
+      reviewed_at: row.reviewed_at,
+    }));
+  }
+
+  private async listServices(database: Db = this.prisma): Promise<Service[]> {
+    return database.service.findMany({
+      where: { active: true },
+      orderBy: [{ sort_order: 'asc' }, { service_code: 'asc' }],
+      select: { service_code: true, label: true, description: true },
+    });
+  }
+
+  private async findAreas(
+    query: string,
+    limit: number,
+    database: Db = this.prisma,
+  ): Promise<Area[]> {
+    const value = (query || '').trim().toLowerCase();
+    const rows = await database.area.findMany({
+      where: {
+        active: true,
+        country_code: 'NG',
+        ...(value
+          ? {
+              OR: [
+                { name: { startsWith: value, mode: 'insensitive' as const } },
+                { city: { startsWith: value, mode: 'insensitive' as const } },
+                { region: { startsWith: value, mode: 'insensitive' as const } },
+                {
+                  aliases: {
+                    some: { alias_normalized: { startsWith: value } },
+                  },
+                },
+              ],
+            }
+          : {}),
+      },
+      include: { aliases: { select: { alias_normalized: true } } },
+    });
+    const ranked = rows
+      .map((row) => ({
+        row,
+        rank:
+          value &&
+          (row.name.toLowerCase() === value ||
+            row.city.toLowerCase() === value ||
+            row.region.toLowerCase() === value ||
+            row.aliases.some((alias) => alias.alias_normalized === value))
+            ? 0
+            : 1,
+      }))
+      .sort((left, right) => left.rank - right.rank || left.row.name.localeCompare(right.row.name))
+      .slice(0, Math.max(1, Math.min(limit || 5, 10)));
+    return ranked.map(({ row }) => ({
+      id: row.id,
+      name: row.name,
+      region: row.region,
+      city: row.city,
+    }));
+  }
+
+  private async findFacilities(
+    serviceCode: string,
+    areaId: string,
+    radiusKm: number,
+    limit: number,
+    database: Db = this.prisma,
+  ): Promise<Facility[]> {
+    return database.$queryRaw<FacilityRow[]>(
+      Prisma.sql`WITH area AS (
+        SELECT a.id, a.country_code, a.center_latitude, a.center_longitude
+        FROM "areas" a
+        WHERE a.id = ${areaId}::uuid AND a.active
+      ), eligible AS (
+        SELECT f.id, f.name, f.address, f.phone, f.is_demo, f.area_id, a.id AS requested_area_id, fs.service_code,
+          CASE
+            WHEN a.center_latitude IS NULL OR a.center_longitude IS NULL OR f.latitude IS NULL OR f.longitude IS NULL THEN NULL
+            ELSE round((6371.0 * 2.0 * asin(sqrt(
+              power(sin(radians(f.latitude::float8 - a.center_latitude::float8) / 2.0), 2)
+              + cos(radians(a.center_latitude::float8))
+              * cos(radians(f.latitude::float8))
+              * power(sin(radians(f.longitude::float8 - a.center_longitude::float8) / 2.0), 2)
+            )))::numeric, 3)::float8
+          END AS distance_km
+        FROM area a
+        JOIN "facilities" f ON f.status = 'APPROVED'
+        JOIN "areas" facility_area ON facility_area.id = f.area_id
+          AND facility_area.active AND facility_area.country_code = a.country_code
+        JOIN "facility_services" fs ON fs.facility_id = f.id
+          AND fs.service_code = ${serviceCode}::text
+          AND fs.verification_status = 'APPROVED'
+        JOIN "services" s ON s.service_code = fs.service_code AND s.active
+      ), bounded AS (
+        SELECT e.*
+        FROM eligible e
+        WHERE (e.distance_km IS NULL AND e.area_id = e.requested_area_id)
+          OR e.distance_km <= least(greatest(coalesce(${radiusKm}::numeric, 25), 1), 200)
+        ORDER BY e.distance_km NULLS LAST, e.name
+        LIMIT greatest(1, least(coalesce(${limit}::int, 3), 10))
+      )
+      SELECT b.id, b.name, b.address, b.phone, b.distance_km, b.is_demo, b.service_code
+      FROM bounded b ORDER BY b.distance_km NULLS LAST, b.name`,
+    );
+  }
+
+  private async getWebLead(id: string, database: Db = this.prisma): Promise<WebLead | null> {
+    const lead = await database.webLead.findFirst({
+      where: { id, status: { in: ['UNVERIFIED', 'REVIEW_CANDIDATE'] } },
+      include: { source: { select: { trust_tier: true } } },
+    });
+    if (!lead) return null;
+    return {
+      name: lead.name,
+      address: lead.address,
+      phone: lead.phone,
+      latitude: null,
+      longitude: null,
+      source_url: lead.source_url,
+      source_reference: lead.source_url,
+      verification_status: 'unverified',
+      service_label: '',
+    };
+  }
+
+  private cleanLead(lead: WebLead) {
+    const clean = (value: unknown, limit: number) => {
+      const text = typeof value === 'string' ? value.trim() : '';
+      return text ? text.slice(0, limit) : null;
+    };
+    const name = clean(lead.name, 200);
+    const address = clean(lead.address, 500);
+    const url = clean(lead.source_url, 2048);
+    const snippet = clean((lead as unknown as { snippet?: unknown }).snippet, 1000);
+    const title = clean((lead as unknown as { title?: unknown }).title, 300);
+    let phone = clean(lead.phone, 40);
+    if (phone && !/^\+[1-9][0-9]{7,14}$/.test(phone)) phone = null;
+    if (!name || !address || !url || !/^https?:\/\//.test(url)) return null;
+    const provided = clean(
+      (lead as unknown as { content_fingerprint?: unknown }).content_fingerprint,
+      64,
+    );
+    const fingerprint =
+      provided && /^[0-9a-f]{32,64}$/.test(provided)
+        ? provided
+        : createHash('md5')
+            .update(`${name.toLowerCase()}|${address.toLowerCase()}|${url}`)
+            .digest('hex');
+    return { name, address, url, phone, snippet, title, fingerprint };
+  }
+
+  private async storeWebLeads(leads: WebLead[], database: Db = this.prisma): Promise<string[]> {
+    if (!Array.isArray(leads)) return [];
+    const ids: string[] = [];
+    for (const raw of leads.slice(0, 5)) {
+      const lead = this.cleanLead(raw);
+      if (!lead) continue;
+      const source = await database.source.upsert({
+        where: { canonical_url: lead.url },
+        create: {
+          source_kind: 'SERPER_WEB',
+          publisher: null,
+          canonical_url: lead.url,
+          retrieved_at: new Date(),
+          query_text: null,
+          trust_tier: 'UNVERIFIED_WEB',
+          metadata: lead.title ? { title: lead.title } : {},
+        },
+        update: { retrieved_at: new Date() },
+      });
+      const saved = await database.webLead.upsert({
+        where: {
+          source_url_content_fingerprint: {
+            source_url: lead.url,
+            content_fingerprint: lead.fingerprint,
+          },
+        },
+        create: {
+          source_id: source.id,
+          name: lead.name,
+          address: lead.address,
+          phone: lead.phone,
+          source_url: lead.url,
+          snippet: lead.snippet,
+          observed_at: new Date(),
+          status: 'UNVERIFIED',
+          content_fingerprint: lead.fingerprint,
+        },
+        update: {
+          name: lead.name,
+          address: lead.address,
+          phone: lead.phone,
+          snippet: lead.snippet,
+          observed_at: new Date(),
+        },
+      });
+      ids.push(saved.id);
+    }
+    return ids;
+  }
+
+  private async recordReferral(
+    referral: {
+      serviceCode: string;
+      areaId: string;
+      facilities: Facility[];
+      consentId: string | null;
+    },
+    actor: Actor,
+    database: Db = this.prisma,
+  ): Promise<void> {
+    const channel = actor.session_id ? 'ussd' : 'sms';
+    const facilityIds: string[] = [];
+    for (const facility of referral.facilities) {
+      if (!facilityIds.includes(facility.id)) facilityIds.push(facility.id);
+    }
+    if (!facilityIds.length) return;
+    const work = async (tx: Prisma.TransactionClient) => {
+      const requestId = actor.request_id || '';
+      if (requestId) {
+        await tx.$executeRaw(
+          Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${channel}:${requestId}`}, 0))`,
+        );
+        const duplicate = await tx.referralRequest.findFirst({
+          where: { request_id: requestId, channel },
+          select: { id: true },
+        });
+        if (duplicate) return;
+      }
+      const service = await tx.service.findFirst({
+        where: { service_code: referral.serviceCode, active: true },
+        select: { service_code: true },
+      });
+      if (!service) return;
+      const area = await tx.area.findFirst({
+        where: { id: referral.areaId, active: true },
+        select: { id: true, center_latitude: true, center_longitude: true },
+      });
+      if (!area) return;
+      let patientId: string | null = null;
+      if (referral.consentId) {
+        const consent = await this.liveConsent(tx, referral.consentId, actor.phone_digest);
+        patientId = consent?.patient_id ?? null;
+      }
+      const created = await tx.referralRequest.create({
+        data: {
+          patient_id: patientId,
+          channel,
+          service_code: referral.serviceCode,
+          area_id: referral.areaId,
+          requested_latitude: null,
+          requested_longitude: null,
+          radius_km: 25,
+          status: 'matched',
+          applied_consent_id: referral.consentId,
+          applied_field_keys: [],
+          request_id: requestId,
+        },
+        select: { id: true },
+      });
+      const facilities = await tx.facility.findMany({
+        where: {
+          id: { in: facilityIds },
+          status: 'APPROVED',
+          facility_services: {
+            some: {
+              service_code: referral.serviceCode,
+              verification_status: 'APPROVED',
+            },
+          },
+        },
+        select: {
+          id: true,
+          name: true,
+          address: true,
+          phone: true,
+          last_verified_at: true,
+          latitude: true,
+          longitude: true,
+        },
+      });
+      const ordered = facilityIds
+        .map((id) => facilities.find((facility) => facility.id === id))
+        .filter((facility): facility is (typeof facilities)[number] => !!facility);
+      if (!ordered.length) {
+        await tx.referralRequest.delete({ where: { id: created.id } });
+        return;
+      }
+      const centerLatitude = area.center_latitude === null ? null : Number(area.center_latitude);
+      const centerLongitude = area.center_longitude === null ? null : Number(area.center_longitude);
+      await tx.referralResult.createMany({
+        data: ordered.map((facility, index) => {
+          const distance = distanceKm(
+            centerLatitude,
+            centerLongitude,
+            facility.latitude === null ? null : Number(facility.latitude),
+            facility.longitude === null ? null : Number(facility.longitude),
+          );
+          return {
+            referral_id: created.id,
+            facility_id: facility.id,
+            rank: index + 1,
+            distance_km: distance,
+            distance_basis: distance === null ? 'none' : 'area_centroid_straight_line',
+            reason: 'Directory service match',
+            facility_snapshot: {
+              name: facility.name,
+              address: facility.address,
+              phone: facility.phone,
+              last_verified_at: facility.last_verified_at
+                ? facility.last_verified_at.toISOString()
+                : null,
+            },
+          };
+        }),
+      });
+      await this.audit(tx, {
+        requestId,
+        patientId,
+        channel: channel === 'ussd' ? 'USSD' : 'SMS',
+        action: 'referral_create',
+        resourceType: 'directory',
+        resourceId: created.id,
+        outcome: 'ALLOWED',
+        fieldKeys: [],
+        actorRef: actor.phone_digest,
+      });
+    };
+    if (database === this.prisma) {
+      await this.transaction(work);
+    } else {
+      await work(database);
+    }
+  }
+
+  private async liveConsent(
+    database: Db,
+    consentId: string,
+    phoneDigest: string,
+  ): Promise<
+    | (Prisma.ProfileUseConsentGetPayload<{ include: { fields: true } }> & {
+        channelName: 'sms' | 'ussd';
+      })
+    | null
+  > {
+    const now = new Date();
+    const consent = await database.profileUseConsent.findFirst({
+      where: {
+        id: consentId,
+        revoked_at: null,
+        expires_at: { gt: now },
+        phone_link: {
+          phone_digest: phoneDigest,
+          revoked_at: null,
+          OR: [{ expires_at: null }, { expires_at: { gt: now } }],
+        },
+      },
+      include: { fields: true },
+    });
+    if (!consent) return null;
+    const channelName = consent.channel === 'USSD' ? 'ussd' : 'sms';
+    const scope: ConsentScope = {
+      expires_at: consent.expires_at,
+      revoked_at: consent.revoked_at,
+      channel: channelName,
+      fields: consent.fields.map((field) => field.field_key),
+    };
+    if (!isConsentLive(scope, channelName, now)) return null;
+    return { ...consent, channelName };
+  }
+
+  private async findProfileConsent(
+    actor: Actor,
+    database: Db = this.prisma,
+  ): Promise<{
+    id: string;
+    consent_id: string;
+    channel: 'sms' | 'ussd';
+    expires_at: Date;
+  } | null> {
+    if (!validDigest(actor.phone_digest)) return null;
+    const now = new Date();
+    const consent = await database.profileUseConsent.findFirst({
+      where: {
+        revoked_at: null,
+        expires_at: { gt: now },
+        phone_link: {
+          phone_digest: actor.phone_digest,
+          revoked_at: null,
+          OR: [{ expires_at: null }, { expires_at: { gt: now } }],
+        },
+      },
+      include: { fields: { select: { field_key: true } } },
+      orderBy: { expires_at: 'desc' },
+    });
+    if (!consent) return null;
+    await this.audit(database, {
+      requestId: actor.request_id,
+      patientId: consent.patient_id,
+      channel: consent.channel,
+      action: 'profile_consent_lookup',
+      resourceType: 'profile_consent',
+      resourceId: consent.id,
+      outcome: 'ALLOWED',
+      fieldKeys: [],
+      actorRef: actor.phone_digest,
+    });
+    return {
+      id: consent.id,
+      consent_id: consent.id,
+      channel: consent.channel === 'USSD' ? 'ussd' : 'sms',
+      expires_at: consent.expires_at,
+    };
+  }
+
+  private async readProfileContext(
+    consentId: string,
+    actor: Actor,
+    database: Db = this.prisma,
+  ): Promise<Projection & { consent_id?: string }> {
+    const consent = await this.liveConsent(database, consentId, actor.phone_digest);
+    const channel = consent?.channelName === 'ussd' ? 'USSD' : 'SMS';
+    if (!consent) {
+      await this.auditRead(database, {
+        channel,
+        action: 'profile_context_read',
+        patientId: null,
+        outcome: 'DENIED',
+        reason: 'consent_unavailable',
+        fields: [],
+        requestId: actor.request_id,
+        actorRef: actor.phone_digest,
+      });
+      return deniedProjection();
+    }
+    const fields = await this.consentProjection(database, consent.id, consent.patient_id);
+    if (!fields.length) {
+      await this.auditRead(database, {
+        channel,
+        action: 'profile_context_read',
+        patientId: consent.patient_id,
+        outcome: 'DENIED',
+        reason: 'no_fields',
+        fields,
+        requestId: actor.request_id,
+        actorRef: actor.phone_digest,
+      });
+      return deniedProjection();
+    }
+    await this.auditRead(database, {
+      channel,
+      action: 'profile_context_read',
+      patientId: consent.patient_id,
+      outcome: 'ALLOWED',
+      reason: null,
+      fields,
+      requestId: actor.request_id,
+      actorRef: actor.phone_digest,
+    });
+    return { ...buildProjection(fields), consent_id: consent.id };
+  }
+
+  private async emergencyProjection(database: Db, patientId: string): Promise<RecordField[]> {
+    const rows = await database.$queryRaw<ProjectionRow[]>(
+      Prisma.sql`SELECT fd.field_key AS key, fd.label, pfv.value
+      FROM "emergency_fields" ef
+      JOIN "patient_field_values" pfv
+        ON pfv.patient_id = ef.patient_id AND pfv.field_key = ef.field_key
+      JOIN "field_definitions" fd ON fd.field_key = ef.field_key
+      WHERE ef.patient_id = ${patientId}::uuid AND fd.active
+      ORDER BY ef.display_order, fd.sort_order, fd.field_key`,
+    );
+    return rows.map((row) => ({
+      key: row.key,
+      label: row.label,
+      value: row.value as RecordField['value'],
+    }));
+  }
+
+  private async grantProjection(
+    database: Db,
+    grantId: string,
+    patientId: string,
+  ): Promise<RecordField[]> {
+    const rows = await database.$queryRaw<ProjectionRow[]>(
+      Prisma.sql`SELECT fd.field_key AS key, fd.label, pfv.value
+      FROM "access_grant_fields" agf
+      JOIN "access_grants" g ON g.id = agf.grant_id AND g.patient_id = ${patientId}::uuid
+      JOIN "patient_field_values" pfv
+        ON pfv.patient_id = g.patient_id AND pfv.field_key = agf.field_key
+      JOIN "field_definitions" fd ON fd.field_key = agf.field_key
+      WHERE agf.grant_id = ${grantId}::uuid AND fd.active
+      ORDER BY fd.sort_order, fd.field_key`,
+    );
+    return rows.map((row) => ({
+      key: row.key,
+      label: row.label,
+      value: row.value as RecordField['value'],
+    }));
+  }
+
+  private async consentProjection(
+    database: Db,
+    consentId: string,
+    patientId: string,
+  ): Promise<RecordField[]> {
+    const rows = await database.$queryRaw<ProjectionRow[]>(
+      Prisma.sql`SELECT fd.field_key AS key, fd.label, pfv.value
+      FROM "consent_fields" cf
+      JOIN "patient_field_values" pfv
+        ON pfv.patient_id = ${patientId}::uuid AND pfv.field_key = cf.field_key
+      JOIN "field_definitions" fd ON fd.field_key = cf.field_key
+      WHERE cf.consent_id = ${consentId}::uuid AND fd.active
+      ORDER BY fd.sort_order, fd.field_key`,
+    );
+    return rows.map((row) => ({
+      key: row.key,
+      label: row.label,
+      value: row.value as RecordField['value'],
+    }));
+  }
+
+  private async liveUssdSession(database: Db, sessionId: string, phoneDigest: string) {
+    return database.ussdSession.findFirst({
+      where: {
+        id: sessionId,
+        phone_digest: phoneDigest,
+        ended_at: null,
+        expires_at: { gt: new Date() },
+      },
+      select: { id: true, expires_at: true, read_session_id: true },
+    });
+  }
+
+  private async attempt(
+    database: Db,
+    values: {
+      channel: 'SMS' | 'USSD';
+      action: string;
+      outcome: 'ALLOWED' | 'DENIED' | 'THROTTLED';
+      targetDigest: string | null;
+      phoneDigest: string | null;
+      requestId: string;
+    },
+  ): Promise<void> {
+    await database.accessAttempt.create({
+      data: {
+        channel: values.channel,
+        action: values.action,
+        outcome: values.outcome,
+        target_digest: values.targetDigest,
+        phone_digest: values.phoneDigest,
+        ip_hash: null,
+        request_id: values.requestId || '',
+      },
+    });
+  }
+
+  private async audit(
+    database: Db,
+    values: {
+      requestId: string;
+      patientId: string | null;
+      channel: 'WEB' | 'SMS' | 'USSD' | 'SYSTEM';
+      action: string;
+      resourceType: string;
+      resourceId: string | null;
+      outcome: 'ALLOWED' | 'DENIED' | 'ERROR';
+      reason?: string | null;
+      fieldKeys?: string[];
+      actorRef: string | null;
+    },
+  ): Promise<void> {
+    await database.auditEvent.create({
+      data: {
+        request_id: values.requestId || '',
+        actor_account_id: null,
+        patient_id: values.patientId,
+        channel: values.channel,
+        action: values.action,
+        resource_type: values.resourceType,
+        resource_id: values.resourceId,
+        outcome: values.outcome,
+        reason_code: values.reason ?? null,
+        field_keys: values.fieldKeys ?? [],
+        actor_ref: values.actorRef,
+        metadata: {},
+      },
+    });
+  }
+
+  private async auditRead(
+    database: Db,
+    values: {
+      channel: 'WEB' | 'SMS' | 'USSD' | 'SYSTEM';
+      action: string;
+      patientId: string | null;
+      outcome: 'ALLOWED' | 'DENIED' | 'ERROR';
+      reason: string | null;
+      fields: RecordField[];
+      requestId: string;
+      actorRef: string | null;
+    },
+  ): Promise<void> {
+    await this.audit(database, {
+      requestId: values.requestId,
+      patientId: values.patientId,
+      channel: values.channel,
+      action: values.action,
+      resourceType: 'patient_record',
+      resourceId: values.patientId,
+      outcome: values.outcome,
+      reason: values.reason,
+      fieldKeys: values.fields.map((field) => field.key),
+      actorRef: values.actorRef,
+    });
+  }
+
+  private async tooManyAttempts(
+    database: Db,
+    values: {
+      channel: 'SMS' | 'USSD';
+      action: string;
+      targetDigest: string;
+      phoneDigest: string;
+      limit: number;
+      windowSeconds: number;
+    },
+  ): Promise<boolean> {
+    if (!values.limit || values.limit <= 0) return false;
+    const rows = await database.$queryRaw<Array<{ count: number }>>(
+      Prisma.sql`SELECT count(*)::int AS count FROM "access_attempts"
+      WHERE channel = ${values.channel}::"AttemptChannel" AND action = ${values.action}
+        AND occurred_at > now() - make_interval(secs => ${values.windowSeconds}::int)
+        AND outcome IN ('DENIED', 'THROTTLED')
+        AND (${values.targetDigest}::text IS NULL OR target_digest = ${values.targetDigest})
+        AND (${values.phoneDigest}::text IS NULL OR phone_digest = ${values.phoneDigest})`,
+    );
+    return (rows[0]?.count ?? 0) >= values.limit;
+  }
+
+  private async readEmergencySummary(
+    digest: string,
+    actor: Actor,
+    mode: 'sms' | 'ussd',
+    database: Db = this.prisma,
+  ): Promise<Projection> {
+    const channel = mode === 'sms' ? 'SMS' : 'USSD';
+    const requestId = actor.request_id;
+    const phone = actor.phone_digest;
+    let session: { id: string; expires_at: Date; read_session_id: string | null } | null = null;
+    if (mode === 'ussd') {
+      if (!actor.session_id || !validDigest(phone)) {
+        await this.auditRead(database, {
+          channel,
+          action: 'emergency_lookup',
+          patientId: null,
+          outcome: 'DENIED',
+          reason: 'invalid_session',
+          fields: [],
+          requestId,
+          actorRef: phone,
+        });
+        return deniedProjection();
+      }
+      session = await this.liveUssdSession(database, actor.session_id, phone);
+      if (!session) {
+        await this.auditRead(database, {
+          channel,
+          action: 'emergency_lookup',
+          patientId: null,
+          outcome: 'DENIED',
+          reason: 'invalid_session',
+          fields: [],
+          requestId,
+          actorRef: phone,
+        });
+        return deniedProjection();
+      }
+    }
+    if (!validDigest(digest)) {
+      await this.attempt(database, {
+        channel,
+        action: 'emergency_lookup',
+        outcome: 'DENIED',
+        targetDigest: digest,
+        phoneDigest: phone,
+        requestId,
+      });
+      await this.auditRead(database, {
+        channel,
+        action: 'emergency_lookup',
+        patientId: null,
+        outcome: 'DENIED',
+        reason: 'invalid_digest',
+        fields: [],
+        requestId,
+        actorRef: phone,
+      });
+      return deniedProjection();
+    }
+    if (
+      await this.tooManyAttempts(database, {
+        channel,
+        action: 'emergency_lookup',
+        targetDigest: digest,
+        phoneDigest: phone,
+        limit: 20,
+        windowSeconds: 60,
+      })
+    ) {
+      await this.attempt(database, {
+        channel,
+        action: 'emergency_lookup',
+        outcome: 'THROTTLED',
+        targetDigest: digest,
+        phoneDigest: phone,
+        requestId,
+      });
+      await this.auditRead(database, {
+        channel,
+        action: 'emergency_lookup',
+        patientId: null,
+        outcome: 'DENIED',
+        reason: 'throttled',
+        fields: [],
+        requestId,
+        actorRef: phone,
+      });
+      return deniedProjection();
+    }
+    const code = await database.patientCode.findUnique({
+      where: { code_digest: digest },
+      select: { patient_id: true, code_version: true },
+    });
+    if (!code) {
+      await this.attempt(database, {
+        channel,
+        action: 'emergency_lookup',
+        outcome: 'DENIED',
+        targetDigest: digest,
+        phoneDigest: phone,
+        requestId,
+      });
+      await this.auditRead(database, {
+        channel,
+        action: 'emergency_lookup',
+        patientId: null,
+        outcome: 'DENIED',
+        reason: 'unknown_code',
+        fields: [],
+        requestId,
+        actorRef: phone,
+      });
+      return deniedProjection();
+    }
+    const fields = await this.emergencyProjection(database, code.patient_id);
+    if (!fields.length) {
+      await this.attempt(database, {
+        channel,
+        action: 'emergency_lookup',
+        outcome: 'DENIED',
+        targetDigest: digest,
+        phoneDigest: phone,
+        requestId,
+      });
+      await this.auditRead(database, {
+        channel,
+        action: 'emergency_lookup',
+        patientId: code.patient_id,
+        outcome: 'DENIED',
+        reason: 'no_shared_fields',
+        fields,
+        requestId,
+        actorRef: phone,
+      });
+      return deniedProjection();
+    }
+    let readSessionId: string | undefined;
+    if (mode === 'ussd' && session && actor.session_id) {
+      const read = await database.recordReadSession.findFirst({
+        where: {
+          telecom_session_id: actor.session_id,
+          phone_digest: phone,
+          purpose: 'EMERGENCY',
+          patient_id: code.patient_id,
+          code_version: code.code_version,
+          revoked_at: null,
+          expires_at: { gt: new Date() },
+        },
+        orderBy: { created_at: 'desc' },
+        select: { id: true },
+      });
+      if (read) {
+        await database.recordReadSession.update({
+          where: { id: read.id },
+          data: { last_read_at: new Date() },
+        });
+        readSessionId = read.id;
+      } else {
+        const expiresAt = new Date(
+          Math.min(Date.now() + 5 * 60 * 1000, session.expires_at.getTime()),
+        );
+        const created = await database.recordReadSession.create({
+          data: {
+            patient_id: code.patient_id,
+            purpose: 'EMERGENCY',
+            channel: 'USSD',
+            telecom_session_id: actor.session_id,
+            phone_digest: phone,
+            code_version: code.code_version,
+            expires_at: expiresAt,
+          },
+          select: { id: true },
+        });
+        readSessionId = created.id;
+      }
+      await database.ussdSession.update({
+        where: { id: actor.session_id },
+        data: { read_session_id: readSessionId, version: { increment: 1 } },
+      });
+    }
+    await this.attempt(database, {
+      channel,
+      action: 'emergency_lookup',
+      outcome: 'ALLOWED',
+      targetDigest: digest,
+      phoneDigest: phone,
+      requestId,
+    });
+    await this.auditRead(database, {
+      channel,
+      action: 'emergency_lookup',
+      patientId: code.patient_id,
+      outcome: 'ALLOWED',
+      reason: null,
+      fields,
+      requestId,
+      actorRef: phone,
+    });
+    return buildProjection(fields, readSessionId);
+  }
+
+  private async openGrantedRecord(
+    patientDigest: string,
+    grantDigest: string,
+    actor: Actor,
+    database: Db = this.prisma,
+  ): Promise<Projection> {
+    const phone = actor.phone_digest;
+    const requestId = actor.request_id;
+    if (!actor.session_id || !validDigest(phone)) {
+      await this.auditRead(database, {
+        channel: 'USSD',
+        action: 'grant_open',
+        patientId: null,
+        outcome: 'DENIED',
+        reason: 'invalid_session',
+        fields: [],
+        requestId,
+        actorRef: phone,
+      });
+      return deniedProjection();
+    }
+    const session = await this.liveUssdSession(database, actor.session_id, phone);
+    if (!session) {
+      await this.auditRead(database, {
+        channel: 'USSD',
+        action: 'grant_open',
+        patientId: null,
+        outcome: 'DENIED',
+        reason: 'invalid_session',
+        fields: [],
+        requestId,
+        actorRef: phone,
+      });
+      return deniedProjection();
+    }
+    if (!validDigest(patientDigest) || !validDigest(grantDigest)) {
+      await this.attempt(database, {
+        channel: 'USSD',
+        action: 'grant_open',
+        outcome: 'DENIED',
+        targetDigest: grantDigest,
+        phoneDigest: phone,
+        requestId,
+      });
+      await this.auditRead(database, {
+        channel: 'USSD',
+        action: 'grant_open',
+        patientId: null,
+        outcome: 'DENIED',
+        reason: 'invalid_digest',
+        fields: [],
+        requestId,
+        actorRef: phone,
+      });
+      return deniedProjection();
+    }
+    if (
+      await this.tooManyAttempts(database, {
+        channel: 'USSD',
+        action: 'grant_open',
+        targetDigest: grantDigest,
+        phoneDigest: phone,
+        limit: 5,
+        windowSeconds: 900,
+      })
+    ) {
+      await this.attempt(database, {
+        channel: 'USSD',
+        action: 'grant_open',
+        outcome: 'THROTTLED',
+        targetDigest: grantDigest,
+        phoneDigest: phone,
+        requestId,
+      });
+      await this.auditRead(database, {
+        channel: 'USSD',
+        action: 'grant_open',
+        patientId: null,
+        outcome: 'DENIED',
+        reason: 'throttled',
+        fields: [],
+        requestId,
+        actorRef: phone,
+      });
+      return deniedProjection();
+    }
+    const code = await database.patientCode.findUnique({
+      where: { code_digest: patientDigest },
+      select: { patient_id: true },
+    });
+    if (!code) {
+      await this.attempt(database, {
+        channel: 'USSD',
+        action: 'grant_open',
+        outcome: 'DENIED',
+        targetDigest: grantDigest,
+        phoneDigest: phone,
+        requestId,
+      });
+      await this.auditRead(database, {
+        channel: 'USSD',
+        action: 'grant_open',
+        patientId: null,
+        outcome: 'DENIED',
+        reason: 'unknown_patient_code',
+        fields: [],
+        requestId,
+        actorRef: phone,
+      });
+      return deniedProjection();
+    }
+    const grant = await database.accessGrant.findFirst({
+      where: { patient_id: code.patient_id, code_digest: grantDigest },
+      include: { channels: true, fields: true },
+    });
+    const scope: GrantScope | null = grant
+      ? {
+          expires_at: grant.expires_at,
+          revoked_at: grant.revoked_at,
+          channels: grant.channels.map((channel) => channel.channel.toLowerCase()),
+          fields: grant.fields.map((field) => field.field_key),
+        }
+      : null;
+    if (!grant || !scope || !isGrantLive(scope, 'ussd')) {
+      await this.attempt(database, {
+        channel: 'USSD',
+        action: 'grant_open',
+        outcome: 'DENIED',
+        targetDigest: grantDigest,
+        phoneDigest: phone,
+        requestId,
+      });
+      await this.auditRead(database, {
+        channel: 'USSD',
+        action: 'grant_open',
+        patientId: code.patient_id,
+        outcome: 'DENIED',
+        reason: 'grant_unavailable',
+        fields: [],
+        requestId,
+        actorRef: phone,
+      });
+      return deniedProjection();
+    }
+    if (!scope.channels.includes('ussd')) {
+      await this.attempt(database, {
+        channel: 'USSD',
+        action: 'grant_open',
+        outcome: 'DENIED',
+        targetDigest: grantDigest,
+        phoneDigest: phone,
+        requestId,
+      });
+      await this.auditRead(database, {
+        channel: 'USSD',
+        action: 'grant_open',
+        patientId: code.patient_id,
+        outcome: 'DENIED',
+        reason: 'wrong_channel',
+        fields: [],
+        requestId,
+        actorRef: phone,
+      });
+      return deniedProjection();
+    }
+    const fields = await this.grantProjection(database, grant.id, code.patient_id);
+    if (!fields.length) {
+      await this.attempt(database, {
+        channel: 'USSD',
+        action: 'grant_open',
+        outcome: 'DENIED',
+        targetDigest: grantDigest,
+        phoneDigest: phone,
+        requestId,
+      });
+      await this.auditRead(database, {
+        channel: 'USSD',
+        action: 'grant_open',
+        patientId: code.patient_id,
+        outcome: 'DENIED',
+        reason: 'no_fields',
+        fields,
+        requestId,
+        actorRef: phone,
+      });
+      return deniedProjection();
+    }
+    const existing = await database.recordReadSession.findFirst({
+      where: {
+        telecom_session_id: actor.session_id,
+        phone_digest: phone,
+        grant_id: grant.id,
+        purpose: 'GRANT',
+        revoked_at: null,
+        expires_at: { gt: new Date() },
+      },
+      orderBy: { created_at: 'desc' },
+      select: { id: true },
+    });
+    let readSessionId: string;
+    if (existing) {
+      await database.recordReadSession.update({
+        where: { id: existing.id },
+        data: { last_read_at: new Date() },
+      });
+      readSessionId = existing.id;
+    } else {
+      const expiresAt = new Date(
+        Math.min(
+          Date.now() + 5 * 60 * 1000,
+          grant.expires_at.getTime(),
+          session.expires_at.getTime(),
+        ),
+      );
+      const created = await database.recordReadSession.create({
+        data: {
+          patient_id: code.patient_id,
+          grant_id: grant.id,
+          purpose: 'GRANT',
+          channel: 'USSD',
+          telecom_session_id: actor.session_id,
+          phone_digest: phone,
+          expires_at: expiresAt,
+        },
+        select: { id: true },
+      });
+      readSessionId = created.id;
+    }
+    await database.ussdSession.update({
+      where: { id: actor.session_id },
+      data: { read_session_id: readSessionId, version: { increment: 1 } },
+    });
+    await this.attempt(database, {
+      channel: 'USSD',
+      action: 'grant_open',
+      outcome: 'ALLOWED',
+      targetDigest: grantDigest,
+      phoneDigest: phone,
+      requestId,
+    });
+    await this.auditRead(database, {
+      channel: 'USSD',
+      action: 'grant_open',
+      patientId: code.patient_id,
+      outcome: 'ALLOWED',
+      reason: null,
+      fields,
+      requestId,
+      actorRef: phone,
+    });
+    return buildProjection(fields, readSessionId);
+  }
+
+  private async readGrantedRecord(
+    readSessionId: string,
+    actor: Actor,
+    database: Db = this.prisma,
+  ): Promise<Projection> {
+    const phone = actor.phone_digest;
+    const requestId = actor.request_id;
+    if (!actor.session_id || !validDigest(phone)) {
+      await this.auditRead(database, {
+        channel: 'USSD',
+        action: 'grant_read',
+        patientId: null,
+        outcome: 'DENIED',
+        reason: 'invalid_session',
+        fields: [],
+        requestId,
+        actorRef: phone,
+      });
+      return deniedProjection();
+    }
+    if (!(await this.liveUssdSession(database, actor.session_id, phone))) {
+      await this.auditRead(database, {
+        channel: 'USSD',
+        action: 'grant_read',
+        patientId: null,
+        outcome: 'DENIED',
+        reason: 'invalid_session',
+        fields: [],
+        requestId,
+        actorRef: phone,
+      });
+      return deniedProjection();
+    }
+    const read = await database.recordReadSession.findFirst({
+      where: {
+        id: readSessionId,
+        telecom_session_id: actor.session_id,
+        phone_digest: phone,
+        channel: 'USSD',
+        purpose: 'GRANT',
+        revoked_at: null,
+        expires_at: { gt: new Date() },
+      },
+    });
+    if (!read || !read.grant_id) {
+      await this.auditRead(database, {
+        channel: 'USSD',
+        action: 'grant_read',
+        patientId: null,
+        outcome: 'DENIED',
+        reason: 'read_session_unavailable',
+        fields: [],
+        requestId,
+        actorRef: phone,
+      });
+      return deniedProjection();
+    }
+    const grant = await database.accessGrant.findFirst({
+      where: { id: read.grant_id, patient_id: read.patient_id },
+      include: { channels: true, fields: true },
+    });
+    const scope: GrantScope | null = grant
+      ? {
+          expires_at: grant.expires_at,
+          revoked_at: grant.revoked_at,
+          channels: grant.channels.map((channel) => channel.channel.toLowerCase()),
+          fields: grant.fields.map((field) => field.field_key),
+        }
+      : null;
+    if (!grant || !scope || !isGrantLive(scope, 'ussd')) {
+      await database.recordReadSession.update({
+        where: { id: read.id },
+        data: { revoked_at: new Date() },
+      });
+      await this.auditRead(database, {
+        channel: 'USSD',
+        action: 'grant_read',
+        patientId: read.patient_id,
+        outcome: 'DENIED',
+        reason: 'grant_unavailable',
+        fields: [],
+        requestId,
+        actorRef: phone,
+      });
+      return deniedProjection();
+    }
+    const fields = await this.grantProjection(database, read.grant_id, read.patient_id);
+    if (!fields.length) {
+      await this.auditRead(database, {
+        channel: 'USSD',
+        action: 'grant_read',
+        patientId: read.patient_id,
+        outcome: 'DENIED',
+        reason: 'no_fields',
+        fields,
+        requestId,
+        actorRef: phone,
+      });
+      return deniedProjection();
+    }
+    await database.recordReadSession.update({
+      where: { id: read.id },
+      data: { last_read_at: new Date() },
+    });
+    await this.auditRead(database, {
+      channel: 'USSD',
+      action: 'grant_read',
+      patientId: read.patient_id,
+      outcome: 'ALLOWED',
+      reason: null,
+      fields,
+      requestId,
+      actorRef: phone,
+    });
+    return buildProjection(fields, read.id);
+  }
+
+  private async closeGrantedRecord(
+    readSessionId: string,
+    actor: Actor,
+    database: Db = this.prisma,
+  ): Promise<void> {
+    const phone = actor.phone_digest;
+    if (!actor.session_id || !validDigest(phone)) return;
+    const read = await database.recordReadSession.findFirst({
+      where: {
+        id: readSessionId,
+        telecom_session_id: actor.session_id,
+        phone_digest: phone,
+        channel: 'USSD',
+        purpose: 'GRANT',
+      },
+      select: { id: true, patient_id: true, revoked_at: true },
+    });
+    if (!read) return;
+    await database.recordReadSession.update({
+      where: { id: read.id },
+      data: { revoked_at: read.revoked_at ?? new Date() },
+    });
+    await database.ussdSession.updateMany({
+      where: { id: actor.session_id, phone_digest: phone },
+      data: { read_session_id: null, version: { increment: 1 } },
+    });
+    await this.auditRead(database, {
+      channel: 'USSD',
+      action: 'grant_close',
+      patientId: read.patient_id,
+      outcome: 'ALLOWED',
+      reason: null,
+      fields: [],
+      requestId: actor.request_id,
+      actorRef: phone,
+    });
   }
 
   async maintain(): Promise<void> {
-    await this.transaction(async (client) => {
-      // Background retention is not constrained by the callback's USSD query budget.
-      await client.query("SET LOCAL statement_timeout = '5s'");
+    await this.transaction(async (tx) => {
       // A sender crash might have happened after provider acceptance. Never blindly resend.
-      await client.query(
-        `UPDATE telecom.outbox SET status='unknown',lease_until=NULL WHERE status='sending' AND lease_until<now()`,
-      );
-      await client.query(
-        `UPDATE telecom.outbox SET status='expired' WHERE status='queued' AND expires_at<=now()`,
-      );
-      await client.query(
-        `UPDATE telecom.sms_inbox SET status='expired' WHERE status='queued' AND expires_at<=now()`,
-      );
-      await client.query(
-        `UPDATE telecom.sms_inbox SET status='failed',lease_until=NULL
-        WHERE status='processing' AND lease_until<now() AND attempts >= $1`,
-        [this.config.workerMaxAttempts],
-      );
-      await client.query(
-        `UPDATE telecom.ussd_sessions SET state='END',context='{}',read_session_id=NULL,ended_at=COALESCE(ended_at,now()) WHERE expires_at<=now()`,
-      );
-      await client.query(
-        `DELETE FROM telecom.ussd_sessions WHERE expires_at<now()-$1*interval '1 second'`,
-        [this.config.ussdRetentionSeconds],
-      );
-      await client.query(
-        `DELETE FROM telecom.sms_inbox WHERE created_at<now()-$1*interval '1 day' AND status<>'processing'`,
-        [this.config.smsBodyRetentionDays],
-      );
-      await client.query(
-        `DELETE FROM telecom.outbox WHERE created_at<now()-$1*interval '1 day' AND status<>'sending'`,
-        [this.config.smsBodyRetentionDays],
-      );
-      await client.query(
-        `DELETE FROM telecom.delivery_events WHERE created_at<now()-$1*interval '1 day'`,
-        [this.config.deliveryRetentionDays],
-      );
-      await client.query(
-        `DELETE FROM telecom.rate_limits WHERE window_start<now()-interval '1 hour'`,
-      );
-      await client.query(`DELETE FROM telecom.sms_conversations WHERE expires_at<now()`);
-      await this.reconcileDelivery(client);
+      await tx.$executeRaw`UPDATE "outbox" SET status = 'UNKNOWN', lease_until = NULL
+        WHERE status = 'SENDING' AND lease_until < now()`;
+      await tx.$executeRaw`UPDATE "outbox" SET status = 'EXPIRED'
+        WHERE status = 'QUEUED' AND expires_at <= now()`;
+      await tx.$executeRaw`UPDATE "sms_inbox" SET status = 'EXPIRED'
+        WHERE status = 'QUEUED' AND expires_at <= now()`;
+      await tx.$executeRaw`UPDATE "sms_inbox" SET status = 'FAILED', lease_until = NULL
+        WHERE status = 'PROCESSING' AND lease_until < now() AND attempts >= ${this.config.workerMaxAttempts}::int`;
+      await tx.$executeRaw`UPDATE "ussd_sessions"
+        SET state = 'END', context = '{}', read_session_id = NULL, ended_at = COALESCE(ended_at, now())
+        WHERE expires_at <= now()`;
+      await tx.$executeRaw`DELETE FROM "ussd_sessions"
+        WHERE expires_at < now() - ${this.config.ussdRetentionSeconds}::int * interval '1 second'`;
+      await tx.$executeRaw`DELETE FROM "sms_inbox"
+        WHERE created_at < now() - ${this.config.smsBodyRetentionDays}::int * interval '1 day'
+        AND status <> 'PROCESSING'`;
+      await tx.$executeRaw`DELETE FROM "outbox"
+        WHERE created_at < now() - ${this.config.smsBodyRetentionDays}::int * interval '1 day'
+        AND status <> 'SENDING'`;
+      await tx.$executeRaw`DELETE FROM "delivery_events"
+        WHERE created_at < now() - ${this.config.deliveryRetentionDays}::int * interval '1 day'`;
+      await tx.$executeRaw`DELETE FROM "rate_limits" WHERE window_start < now() - interval '1 hour'`;
+      await tx.$executeRaw`DELETE FROM "sms_conversations" WHERE expires_at < now()`;
+      await this.reconcileDelivery(tx);
     });
   }
 }

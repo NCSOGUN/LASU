@@ -11,14 +11,16 @@ export const nav = {
     { href: "#channels", label: "Channels" },
     { href: "#trust", label: "Trust" },
   ],
-  cta: { href: "/assistant", label: "Open the assistant" },
+  cta: { href: "/app/assistant", label: "Open the assistant" },
+  findCare: { href: "/find-care", label: "Find care without an account" },
 };
 
 export const hero = {
   // Two lines of equal weight, as in the reference template ("Think Out Loud, / Beautifully Heard").
   headline: ["Care Within Reach,", "Wherever You Are"],
   body: "Find suitable care nearby, keep a short emergency summary ready, and choose exactly who can read anything more, for how long.",
-  primary: { href: "#features", label: "See features" },
+  primary: { href: "/app/assistant", label: "Open the assistant" },
+  findCare: { href: "/find-care", label: "Find care without an account" },
   secondary: { href: "/lookup", label: "Look up an emergency summary" },
   slideMs: 6500,
 };
@@ -35,15 +37,15 @@ export const heroScreens: { key: ScreenKey; label: string }[] = [
 export const bento = {
   title: "Everything in one calm place.",
   threads: {
-    title: "Ask in your own words",
-    body: "Describe what you need. If something is unclear, you get one short question with choices, not a guess.",
+    title: "Ask about a symptom",
+    body: "Describe how you feel. Get general guidance and when to seek care.",
     items: [
       {
-        name: "Child health near Ikeja",
-        preview: "3 suitable facilities in the directory",
+        name: "Headache for two days",
+        preview: "General guidance and when to seek care",
       },
-      { name: "Maternity care", preview: "Which area should I search?" },
-      { name: "My emergency summary", preview: "Allergies, contact name" },
+      { name: "Stomach pain since this morning", preview: "General guidance, not a diagnosis" },
+      { name: "A rash on my arm", preview: "What to watch for" },
     ],
   },
   summary: {
@@ -64,8 +66,8 @@ export const bento = {
 export const steps: { key: ScreenKey; title: string; body: string }[] = [
   {
     key: "ask",
-    title: "Ask for care, wherever you are",
-    body: "Type what you need, or pick a service and area. Location permission is optional: an area or landmark works too.",
+    title: "Find care near you",
+    body: "Use the find-care form to choose a service and an area. No account is needed, and results show the distance from the area centre.",
   },
   {
     key: "match",
@@ -92,7 +94,7 @@ export const steps: { key: ScreenKey; title: string; body: string }[] = [
 export const channels = {
   title: "Signal, not mobile data.",
   body: "SMS and USSD work on basic phones over the cellular network. The web works on any browser. Same directory, same permissions.",
-  cta: { href: "/assistant", label: "Try the web assistant" },
+  cta: { href: "/app/assistant", label: "Try the web assistant" },
   cards: [
     {
       key: "web",
@@ -132,8 +134,8 @@ export const trust = {
       body: "Channel, time, field names and outcome.",
     },
     {
-      title: "Codes stay out of the AI",
-      body: "Codes are never sent to the AI provider.",
+      title: "Your record stays out of the AI unless you choose",
+      body: "Codes are never sent to the AI. The assistant only uses your record if you switch it on.",
     },
   ],
   caveat:
@@ -160,10 +162,10 @@ export const finalCta = {
   kicker: "Ready when you need it",
   title: "Find suitable care, and share only what you choose.",
   cardKicker: "Start in seconds",
-  cardTitle: "No account needed to ask for care.",
+  cardTitle: "No account needed to find care.",
   cardBody:
     "Sign in only to manage your record, emergency summary and temporary codes.",
-  primary: { href: "/assistant", label: "Open the assistant" },
+  primary: { href: "/find-care", label: "Find care without an account" },
   secondary: { href: "/register", label: "Create a patient account" },
 };
 
@@ -171,7 +173,7 @@ export const footer = {
   blurb:
     "HealthAccess helps you find suitable care nearby and decide exactly what health information you share.",
   explore: [
-    { href: "/assistant", label: "Assistant" },
+    { href: "/app/assistant", label: "Assistant" },
     { href: "/find-care", label: "Find care" },
     { href: "/lookup", label: "Emergency lookup" },
     { href: "/login", label: "Sign in" },

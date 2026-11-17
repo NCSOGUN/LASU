@@ -1,0 +1,162 @@
+.grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.surface {
+  display: grid;
+  gap: 16px;
+  align-content: start;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+  min-width: 0;
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-geist), var(--font-inter), sans-serif;
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.action {
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  text-underline-offset: 3px;
+  white-space: nowrap;
+}
+
+.action:hover {
+  color: var(--accent-strong);
+}
+
+.statusRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.value {
+  margin: 0;
+  font-family: var(--font-geist), var(--font-inter), sans-serif;
+  font-size: 2rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+}
+
+.copy {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  line-height: 1.55;
+}
+
+.list {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border-subtle);
+  min-width: 0;
+}
+
+.row:first-child {
+  padding-top: 0;
+}
+
+.row:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.rowMain {
+  min-width: 0;
+}
+
+.rowTitle {
+  display: block;
+  color: var(--foreground);
+  font-size: 0.875rem;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.rowTitle:hover {
+  color: var(--accent-strong);
+}
+
+.rowMeta {
+  margin: 4px 0 0;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+}
+
+.doseTime {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.875rem;
+}
+
+.doseActions {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.errorCopy {
+  display: grid;
+  gap: 6px;
+}
+
+.requestId {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+}
+
+.retry {
+  margin-top: 12px;
+}
+
+.emptyAction {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--accent-strong);
+  font-size: 0.875rem;
+  text-underline-offset: 3px;
+}
+
+@media (max-width: 560px) {
+  .row {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .doseActions {
+    justify-content: flex-start;
+  }
+}

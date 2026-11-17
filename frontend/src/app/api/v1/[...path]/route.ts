@@ -1,5 +1,5 @@
 import { type NextRequest } from "next/server";
-import { ACCESS_COOKIE, UPSTREAM_V1, checkCsrf, jsonNoStore } from "@/lib/auth-bff";
+import { ACCESS_COOKIE, UPSTREAM_V1, checkCsrf, isBlockedPath, jsonNoStore } from "@/lib/auth-bff";
 import { logRequest } from "@/lib/log";
 
 
@@ -12,7 +12,7 @@ function aiPath(method: string, path: string) {
 
 async function handle(request: NextRequest, { params }: RouteParams) {
   const { path: segments } = await params;
-  if (!segments?.length || segments[0] === "auth" || segments.some((segment) => !segment || segment === "." || segment === "..")) {
+  if (isBlockedPath(segments)) {
     return jsonNoStore({ error: "not_found" }, 404);
   }
 

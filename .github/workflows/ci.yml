@@ -1,0 +1,98 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+# CI-only dummy values. They let build/typecheck/unit tests import config without
+# production secrets. None of these values are valid credentials.
+env:
+  NODE_ENV: test
+  DATABASE_URL: postgresql://healthaccess:ci-only@127.0.0.1:5432/healthaccess_ci
+  JWT_SECRET: ci-only-jwt-secret-not-for-production
+  CODE_DIGEST_KEY: aGVhbHRoYWNjZXNzLWNpLWNvZGUtZGlnZXN0LWtleSE=
+  DATA_ENCRYPTION_KEY: aGVhbHRoYWNjZXNzLWNpLWRhdGEtZW5jcnlwdC1rZXk=
+  PHONE_DIGEST_KEY: aGVhbHRoYWNjZXNzLWNpLXBob25lLWRpZ2VzdC1rZXk=
+  INPUT_FINGERPRINT_KEY: aGVhbHRoYWNjZXNzLWNpLWlucHV0LWZpbmdlcnByaW4=
+  CALLBACK_TOKEN: ci-only-callback-token-0123456789abcdef
+  AT_USERNAME: sandbox
+  REDIS_URL: redis://127.0.0.1:6379
+
+jobs:
+  verify:
+    name: Typecheck and unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npm run db:generate
+
+      - name: Build shared package
+        run: npm run build:shared
+
+      - name: Build API reference
+        run: npm run docs:api
+
+      - name: Typecheck workspaces
+        run: npm run typecheck
+
+      # Online tests currently require PostgreSQL (auth/users/schema), so they
+      # are DB integration tests and are intentionally not run here. Unit
+      # suites are the shared package and the offline tests/*.test.ts files,
+      # which exclude backend/offline/tests/integration/**.
+      - name: Unit tests without database
+        run: |
+          npm run test --workspace @healthaccess/shared
+          npm run test --workspace @healthaccess/offline
+
+      - name: Docs and YAML sanity
+        run: |
+          python3 -m venv /tmp/ci-yaml-venv
+          /tmp/ci-yaml-venv/bin/pip install --quiet pyyaml
+          /tmp/ci-yaml-venv/bin/python - <<'PY'
+          import pathlib
+          import sys
+
+          import yaml
+
+          yaml_paths = ["docker-compose.yml", ".github/workflows/ci.yml"]
+          for path in yaml_paths:
+              with open(path, encoding="utf-8") as handle:
+                  yaml.safe_load(handle)
+              print(f"YAML OK: {path}")
+
+          required = [
+              "README.md",
+              "docker-compose.yml",
+              "docs/README.md",
+              "docs/architecture.md",
+              "docs/database.md",
+              "docs/operations.md",
+              "docs/integration-plan.md",
+              "backend/online/README.md",
+              "backend/online/prisma/schema.prisma",
+              "backend/online/prisma/migrations",
+              "docs/api/index.html",
+              "docs/api/fixtures",
+          ]
+          missing = [path for path in required if not pathlib.Path(path).exists()]
+          if missing:
+              print("Missing required files:", ", ".join(missing), file=sys.stderr)
+              sys.exit(1)
+          print(f"Docs sanity OK: {len(required)} required paths present")
+          PY

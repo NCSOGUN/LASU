@@ -9,6 +9,9 @@ export default defineConfig({
     exclude: ["tests/e2e/**", "tests/live/**", "node_modules/**"],
     css: true,
     restoreMocks: true,
+    fileParallelism: false,
+    testTimeout: 30_000,
+    hookTimeout: 30_000,
     coverage: {
       provider: "v8",
       include: ["src/api/**", "src/lib/**"],

@@ -52,6 +52,9 @@ export function PillNav() {
               {l.label}
             </a>
           ))}
+          <Link href={nav.findCare.href} className="text-sm text-fog-muted transition-colors hover:text-fog">
+            {nav.findCare.label}
+          </Link>
           <Link
             href={nav.cta.href}
             className="inline-flex min-h-10 items-center gap-1 rounded-full bg-pill px-4 text-sm font-medium text-night transition-colors hover:bg-white"
@@ -83,6 +86,9 @@ export function PillNav() {
         ))}
         <Link href={nav.cta.href} className="mt-4 flex min-h-12 items-center justify-center gap-1 rounded-full bg-pill font-medium text-night">
           {nav.cta.label} <Chevron />
+        </Link>
+        <Link href={nav.findCare.href} onClick={() => setOpen(false)} className="flex min-h-12 items-center text-fog-muted">
+          {nav.findCare.label}
         </Link>
       </div>
     </header>
