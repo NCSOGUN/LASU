@@ -1,3 +1,24 @@
+import type { Session } from "@/api/schemas";
+
+export const practitionerSession: Session = {
+  "account": {
+    "id": "20000000-0000-4000-8000-000000000010",
+    "email": "demo.practitioner@example.test",
+    "display_name": "Demo Practitioner",
+    "status": "ACTIVE",
+    "idp_subject": null,
+    "avatar_key": null,
+    "email_verified_at": null,
+    "phone_verified_at": null,
+    "created_at": "2026-11-17T15:43:52.132Z",
+    "updated_at": "2026-11-17T16:02:02.106Z"
+  },
+  "roles": [
+    "PATIENT",
+    "PRACTITIONER"
+  ]
+};
+
 export const emergencySummary = {
   "available": true,
   "version": 3,
