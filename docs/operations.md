@@ -336,7 +336,7 @@ node --env-file-if-exists=.env --test --import tsx tests/*.test.ts
 ```
 
 The online suite covers schema, auth, users, portal, directory, symptom,
-medications and reminders and currently passes 78 tests in the local database.
+medications and reminders and currently passes 79 tests in the local database.
 
 The offline DB suite uses the Prisma schema and needs a disposable database:
 

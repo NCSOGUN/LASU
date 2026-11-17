@@ -208,7 +208,7 @@ npm run test --workspace @healthaccess/offline
 ```
 
 The online workspace tests (`schema`, `auth`, `users`, `portal`, `directory`,
-`symptom`, `medications`, `reminders`) use PostgreSQL and currently pass 78 tests.
+`symptom`, `medications`, `reminders`) use PostgreSQL and currently pass 79 tests.
 They are DB integration tests, so CI does not run them. Run the ones you need
 against a disposable database:
 

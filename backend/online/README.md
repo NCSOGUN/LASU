@@ -6,7 +6,7 @@ used by the web client and the symptom/medication features.
 
 Status: auth/users, portal/grants, directory, symptom chat, medications/reminders,
 the AI layer, reminder job and FCM service are implemented. Workspace typecheck is
-clean and the online DB suite passes 78 tests. Live FCM delivery and production
+clean and the online DB suite passes 79 tests. Live FCM delivery and production
 provider credentials are not configured. See `../../docs/README.md` for the phase
 table.
 
@@ -229,6 +229,6 @@ node --env-file-if-exists=.env --test --import tsx tests/*.test.ts
 
 `npm test` in this workspace runs every `tests/*.test.ts`, which currently means
 the PostgreSQL integration suites (`schema`, auth, users, portal, directory,
-symptom, medications, reminders). The suite currently passes 78 tests. CI
+symptom, medications, reminders). The suite currently passes 79 tests. CI
 excludes it and provisions no database. There is no online unit suite yet.
 Never point tests at a shared or production database.
