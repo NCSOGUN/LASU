@@ -44,6 +44,12 @@ describe("grant creation and the query cache", () => {
         .map((query) => JSON.stringify({ key: query.queryKey, data: query.state.data }))
         .join("\n");
       expect(cached).not.toContain("48219367");
+      const mutations = client
+        .getMutationCache()
+        .getAll()
+        .map((mutation) => JSON.stringify(mutation.state.data ?? null))
+        .join("\n");
+      expect(mutations).not.toContain("48219367");
     });
 
     const browserStorage = JSON.stringify({
