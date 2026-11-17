@@ -1,8 +1,40 @@
 import { test, expect, type Page, type BrowserContext } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { demoSession } from "../../src/api/mocks/fixtures/auth";
+import {
+  accessEvents,
+  emergencySummary,
+  fieldsResponse,
+  grants,
+  meResponse,
+  patientCode,
+  scheduleDetail,
+  scheduleList,
+  services,
+  symptomList,
+} from "../../src/api/mocks/fixtures";
+
+async function mockApi(page: Page) {
+  await page.route("**/api/v1/**", (route) => {
+    const path = new URL(route.request().url()).pathname.replace(/^\/api\/v1/, "");
+    const json = (body: unknown) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
+
+    if (path === "/me") return json(meResponse);
+    if (path === "/me/fields") return json(fieldsResponse);
+    if (path === "/me/emergency-summary") return json(emergencySummary);
+    if (path === "/me/grants") return json(grants);
+    if (path === "/me/patient-code") return json(patientCode);
+    if (path === "/me/access-events") return json(accessEvents);
+    if (path === "/symptom") return json(symptomList);
+    if (path === "/medications") return json(scheduleList);
+    if (path.startsWith("/medications/")) return json(scheduleDetail);
+    if (path === "/directory/services") return json(services);
+    return route.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ error: "not_found" }) });
+  });
+}
 
 async function mockAuth(page: Page) {
+  await mockApi(page);
   await page.route("**/api/auth/session", (route) =>
     route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(demoSession) }),
   );
