@@ -85,19 +85,13 @@ Operational defaults (session TTLs, retention, rate limits, menu bounds) live in
 
 ## Local setup
 
-Prerequisites: Node 24+, npm 11+, Docker (for the compose services), PostgreSQL
-16 if you do not use Docker.
+Prerequisites: Node 24+, npm 11+. The repository compose file includes
+PostgreSQL 16 and Redis 7; for non-Docker development, point the env files at
+your own instances.
 
-1. Start local infrastructure:
-
-```sh
-docker compose up -d postgres redis minio
-docker compose ps
-```
-
-The compose Postgres uses trust authentication on localhost for development only.
-Redis is optional until a feature uses it. MinIO exposes the S3 API on `9000` and
-a console on `9001`.
+1. For non-Docker development, point the env files at your own PostgreSQL, Redis
+   and S3/MinIO instances. For Docker, the included Postgres and Redis are used
+   and the compose overrides `DATABASE_URL` and `REDIS_URL`.
 
 2. Install workspace dependencies from the root:
 
@@ -117,10 +111,10 @@ cd backend/offline
 npm run keys:generate
 ```
 
-Copy the generated keys/token into both `.env` files as appropriate. For the
-compose database, `DATABASE_URL` is
-`postgresql://healthaccess@localhost:5432/healthaccess`. Fill `JWT_SECRET` with a
-long random value. The online and offline services must share
+Copy the generated keys/token into both `.env` files as appropriate. Set
+`DATABASE_URL` to your PostgreSQL instance, for example
+`postgresql://healthaccess:password@localhost:5432/healthaccess`. Fill
+`JWT_SECRET` with a long random value. The online and offline services must share
 `CODE_DIGEST_KEY` and `DATA_ENCRYPTION_KEY`.
 
 4. Migrate and seed:
@@ -174,12 +168,55 @@ npm run start --workspace @healthaccess/offline
 npm run worker --workspace @healthaccess/offline
 ```
 
+## Compose deployment
+
+`docker-compose.yml` builds one backend image and runs the application services
+with PostgreSQL 16 and Redis 7 included. S3/MinIO is not included.
+
+| Service | Default port | Purpose |
+| --- | --- | --- |
+| `postgres` | internal 5432 | PostgreSQL 16, `healthaccess_pgdata` volume |
+| `redis` | internal 6379 | Redis 7, AOF persistence |
+| `migrate` | - | `prisma migrate deploy`, one shot, runs first |
+| `online` | 3000 | `node backend/online/dist/server.js` |
+| `offline` | 3001 | `node backend/offline/dist/server.js` |
+| `offline-worker` | - | `node backend/offline/dist/worker.js` |
+| `docs` | 8080 | nginx serving `docs/api` with a `/v1` proxy to `online` |
+
+```sh
+docker compose up -d --build
+docker compose run --rm online npm run db:seed   # optional demo fixtures
+docker compose ps
+docker compose logs -f online
+```
+
+The compose provides `DATABASE_URL` and `REDIS_URL` to the containers, so the
+DB/Redis values in the backend env files are only for direct npm runs. Both env
+files must agree on `CODE_DIGEST_KEY`, `DATA_ENCRYPTION_KEY` and
+`ENCRYPTION_KEY_VERSION`; online also needs `JWT_SECRET`. `env_file` entries are
+optional so a deployment platform can inject the other variables directly.
+
+The default Postgres password is `healthaccess`. For anything beyond local
+testing, copy the root `.env.example` to `.env` and set `POSTGRES_PASSWORD`
+before the first start. Changing it after the volume exists requires resetting
+that volume. The included Postgres uses its owner account for simplicity; a
+production deployment should use a least-privilege role or an external managed
+database. Each service reads `NODE_ENV` from its env file; the examples ship
+with `development` (sandbox/mock SMS). A live deployment sets
+`NODE_ENV=production` in both files, which requires live Africa's Talking
+credentials, `AT_SMS_FROM`, `AT_USSD_SERVICE_CODE` and `CALLBACK_ALLOWED_IPS`.
+
+The `docs` container proxies `/v1` to `online`, so its Try It panel is
+same-origin. Override published ports with `ONLINE_PORT`, `OFFLINE_PORT`,
+`DOCS_PORT` and the timezone with `TZ` (default `Africa/Lagos`). A rebuild that
+includes a new migration recreates `migrate` and applies it before the services
+start. `docker compose down` stops the stack; `down -v` also deletes the
+Postgres and Redis volumes.
+
 ## Object storage
 
-The local MinIO container is for development. It reads `MINIO_ROOT_USER` and
-`MINIO_ROOT_PASSWORD` from the environment; `docker-compose.yml` has local-only
-defaults that must be overridden outside development. Create the bucket once
-through <http://localhost:9001> or with `mc`:
+Your MinIO or S3 instance is external to the compose file. Create the bucket once
+through the MinIO console or with `mc`:
 
 ```sh
 mc alias set local http://localhost:9000 <access-key> <secret-key>
@@ -325,7 +362,7 @@ provision PostgreSQL and does not run the DB integration suites.
 | ----------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
 | Online exits with `Missing required environment variable`   | `backend/online/.env` is missing or not loaded; fill every required variable              |
 | `/health/ready` returns 503                                 | `DATABASE_URL`, database container, or Prisma migration state                             |
-| Prisma `P1001` / connection refused                         | Compose Postgres is not running or the port/URL is wrong                                  |
+| Prisma `P1001` / connection refused                         | If using the included Postgres, check `docker compose ps postgres` and `docker compose logs migrate`; if using an external DB, its host must be reachable from the container and allow the Docker network. |
 | `prisma migrate dev` says schema drift                      | You edited a migration or applied SQL outside Prisma; use a disposable DB and regenerate   |
 | Offline readiness fails                                     | `DATABASE_URL`, migrations, or missing table grants; run `backend/online/scripts/grant-runtime.sql` |
 | USSD callback 403                                           | Exact `AT_USSD_SERVICE_CODE` match; production IP allowlist                               |
@@ -377,7 +414,8 @@ provision PostgreSQL and does not run the DB integration suites.
 - No frontend application is present.
 - There is no approved production directory or clinically reviewed content.
 - No admin UI for facility/service/content approval.
-- No production deployment manifests, metrics or alerting yet.
+- Dockerfiles and a compose deployment (with PostgreSQL and Redis) exist, but
+  there is no metrics, alerting or secret-manager integration yet.
 - Africa's Talking behavior is covered by mocks/unit tests in this pass, not a
   live sandbox shortcode or handset. Provision and verify before a pilot.
 - The callback secret path is defense in depth, not a provider HMAC. Production

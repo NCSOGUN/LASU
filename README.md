@@ -42,23 +42,25 @@ backend/
 docs/              architecture, database, operations, integration plan
 frontend/          placeholder only
 plans/             retired HTML planning documents
-docker-compose.yml local Postgres 16, Redis 7 and MinIO
+docker-compose.yml deploys online, offline (server + worker), docs, PostgreSQL and Redis; S3/MinIO is external
 .github/workflows/ unit/typecheck CI
 ```
 
 ## Quick start
 
-Prerequisites: Node 24+, npm 11+, Docker (or a local PostgreSQL 16).
+Prerequisites: Node 24+, npm 11+, and a PostgreSQL 16 instance. Redis and
+S3/MinIO are optional unless you enable those features. The repository compose
+file does not start infrastructure; it deploys the application services against
+the instances you already run.
 
 ```sh
 npm install
-docker compose up -d postgres redis minio
 
 cp backend/online/.env.example backend/online/.env
 cp backend/offline/.env.example backend/offline/.env
-# Fill required values. Never commit .env. For the compose database use
-# DATABASE_URL=postgresql://healthaccess@localhost:5432/healthaccess
-# JWT_SECRET, CODE_DIGEST_KEY and DATA_ENCRYPTION_KEY are required.
+# Fill required values and point them at your PostgreSQL/Redis/S3 instances.
+# Never commit .env. JWT_SECRET, CODE_DIGEST_KEY and DATA_ENCRYPTION_KEY are
+# required, and CODE_DIGEST_KEY / DATA_ENCRYPTION_KEY must match in both files.
 
 npm run db:migrate
 npm run db:seed
@@ -78,6 +80,81 @@ npm run dev:worker
 The offline service uses the same Prisma schema and migrations as online, so no
 second schema or `db:apply` step is needed. Its full DB integration run needs a
 disposable database; see [`docs/operations.md`](docs/operations.md).
+
+## Docker deployment
+
+`docker-compose.yml` builds one backend image and runs:
+
+| Service | Default port | Purpose |
+| --- | --- | --- |
+| `postgres` | internal 5432 | PostgreSQL 16 with the `healthaccess_pgdata` volume |
+| `redis` | internal 6379 | Redis 7 with AOF persistence |
+| `migrate` | - | one-shot `prisma migrate deploy`, runs first |
+| `online` | 3000 | Express API and `/docs` |
+| `offline` | 3001 | SMS/USSD callback server |
+| `offline-worker` | - | SMS outbox and conversation worker |
+| `docs` | 8080 | standalone API reference with a same-origin `/v1` proxy |
+
+PostgreSQL and Redis are included and are not published on the host by default.
+S3/MinIO is not included; set its details in `backend/online/.env` if you use
+uploads. The compose sets `DATABASE_URL` and `REDIS_URL` for the backend
+containers, so the `localhost` values in the env files only matter when you run a
+service directly with npm. The backend env files must still agree on
+`CODE_DIGEST_KEY`, `DATA_ENCRYPTION_KEY` and `ENCRYPTION_KEY_VERSION`.
+
+The default Postgres password is `healthaccess`. For anything beyond local
+testing, copy `.env.example` to `.env` and set `POSTGRES_PASSWORD` before the
+first start. Changing it after the database volume exists requires resetting
+that volume. Use a URL-safe password or URL-encode it in `DATABASE_URL`. The
+included Postgres uses its owner account; a production deployment should use a
+least-privilege role or an external managed database.
+
+### Which env file is used?
+
+| Container | Reads | Main values |
+| --- | --- | --- |
+| `online`, `migrate` | `backend/online/.env` | JWT, S3, AI, `FRONTEND_URL`; DB/Redis come from compose |
+| `offline`, `offline-worker` | `backend/offline/.env` | callback token, Africa's Talking, AI; DB comes from compose |
+| `postgres` | compose | `POSTGRES_PASSWORD` |
+| `redis` | compose | no password; internal network only |
+| `docs` | none | static page plus the `/v1` proxy |
+| Compose itself | optional root `.env` | `POSTGRES_PASSWORD`, `${TZ}`, ports |
+
+A root `.env` is not passed wholesale into the containers; it only supplies the
+values above for Compose. The two backend env files still hold the JWT, crypto,
+Africa's Talking, S3 and AI settings. If you replace the included Postgres/Redis
+with external services, change the compose `DATABASE_URL`/`REDIS_URL` to a host
+the containers can reach.
+
+Each backend container reads `NODE_ENV` from its own env file. The examples ship
+with `development` (sandbox/mock SMS). For a live deployment, set
+`NODE_ENV=production` in both env files; that requires live Africa's Talking
+credentials (`AT_USERNAME` not `sandbox`, `AT_API_KEY`), the provisioned
+`AT_SMS_FROM` and `AT_USSD_SERVICE_CODE`, and `CALLBACK_ALLOWED_IPS`.
+
+```sh
+docker compose up -d --build
+docker compose run --rm online npm run db:seed   # optional demo fixtures
+docker compose ps
+docker compose logs -f online
+```
+
+Then open:
+
+- `http://localhost:3000/v1` for the API
+- `http://localhost:3000/docs` for the reference served by the API
+- `http://localhost:8080` for the standalone docs site (Try It proxies `/v1` to `online`)
+- `http://localhost:3001` for the Africa's Talking callbacks
+
+From another machine, replace `localhost` with the server IP or domain. The
+compose publishes plain HTTP; put your reverse proxy/TLS in front for production.
+
+Override published ports with `ONLINE_PORT`, `OFFLINE_PORT`, `DOCS_PORT` and the
+timezone with `TZ` (default `Africa/Lagos`). A new migration rebuilds the image
+and re-runs the `migrate` service on `up --build`.
+
+`docker compose down` stops the stack; `docker compose down -v` also deletes the
+Postgres and Redis volumes.
 
 For keys, environment details, sandbox callbacks and troubleshooting, read
 [`docs/operations.md`](docs/operations.md).

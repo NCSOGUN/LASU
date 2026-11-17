@@ -26,15 +26,12 @@ Run from the repository root so npm workspaces and the lockfile are used:
 
 ```sh
 npm install
-docker compose up -d postgres redis minio
 cp backend/online/.env.example backend/online/.env
 ```
 
-For the compose database, set:
-
-```text
-DATABASE_URL=postgresql://healthaccess@localhost:5432/healthaccess
-```
+The repository compose file starts PostgreSQL and Redis and overrides
+`DATABASE_URL` and `REDIS_URL` for the containers. The values in this file are
+used when you run the service directly with npm.
 
 Fill at least `DATABASE_URL`, `JWT_SECRET`, `CODE_DIGEST_KEY` and
 `DATA_ENCRYPTION_KEY`. The two crypto keys must match `backend/offline`, and

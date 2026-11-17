@@ -43,7 +43,7 @@ Phase labels are based on code present in the repository on 17 November 2026.
 | Symptom chat + AI             | Implemented | symptom routes, attachment upload, AI agents/tools, audited reads/writes; 10 symptom tests pass with a fake agent        |
 | Medications + reminders       | Implemented | HTTP routes, domain, reminder job, FCM service, 21 medication/reminder tests pass; live FCM delivery not configured      |
 | Offline SMS/USSD              | Implemented | Prisma repository, `db:migrate`/`db:seed-demo`, no `pg` or routines; 71 unit + 20 DB integration tests pass              |
-| Docs / DevOps                 | Implemented | READMEs, `docker-compose.yml`, CI and this status table; production images/monitoring are not included                |
+| Docs / DevOps                 | Implemented | READMEs, Dockerfiles, `docker-compose.yml` with PostgreSQL and Redis, API reference, CI; secret management, monitoring and alerting are not included |
 | Patient/frontend UI           | Not present | `frontend/` contains only a placeholder README                                                                           |
 | Voice channel                 | Pending     | Not implemented                                                                                                          |
 
@@ -119,7 +119,7 @@ backend/
 docs/                          this documentation set
 frontend/                      placeholder only
 plans/                         retired HTML planning documents
-docker-compose.yml             local Postgres, Redis and MinIO
+docker-compose.yml             deploys online, offline (server + worker), docs, PostgreSQL and Redis; S3/MinIO is external
 .github/workflows/ci.yml       unit/typecheck/CI sanity workflow
 ```
 
@@ -150,15 +150,19 @@ The full runbook is in [operations.md](operations.md). The short version:
 ```sh
 # from the repository root
 npm install
-docker compose up -d postgres redis minio
 cp backend/online/.env.example backend/online/.env
 cp backend/offline/.env.example backend/offline/.env
 # fill in at least DATABASE_URL, JWT_SECRET, CODE_DIGEST_KEY, DATA_ENCRYPTION_KEY,
-# CALLBACK_TOKEN; never commit .env
+# CALLBACK_TOKEN and point them at your PostgreSQL/Redis/S3 instances for direct
+# npm runs; never commit .env
 npm run db:migrate
 npm run db:seed
 npm run dev:online
 ```
+
+The compose file includes PostgreSQL 16 and Redis 7 and sets the backend
+`DATABASE_URL`/`REDIS_URL` to them. S3/MinIO is external. See the root
+[README](../README.md#docker-deployment) for the service and port map.
 
 In another terminal, run the offline HTTP process and worker:
 
@@ -242,7 +246,7 @@ Never point integration tests at a live database.
 Priority order:
 
 1. Build the patient/frontend UI and wire it to `/v1`; the API has no frontend.
-2. Add a production deployment path (images, migrations, secrets, backup and
+2. Harden the Docker deployment (secret management, backups, TLS/reverse proxy,
    monitoring) and verify live FCM/S3/provider credentials.
 3. Add online unit tests that do not require PostgreSQL; the current online suite
    is DB integration only.

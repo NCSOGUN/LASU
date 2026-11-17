@@ -7,6 +7,8 @@ opened directly or served by the API.
 ## Open it
 
 - With the online API running: <http://localhost:3000/docs>
+- With the compose stack: <http://localhost:8080> (the docs container proxies
+  `/v1` to the online service)
 - As a static file: open `docs/api/index.html`, or serve the folder with
   `python3 -m http.server 5173 -d docs/api` and open
   <http://localhost:5173>.
