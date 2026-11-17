@@ -112,19 +112,68 @@
 
 .fieldList {
   display: grid;
-  gap: 20px;
+  gap: 28px;
+}
+
+.fieldGroup {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  margin: 0;
+  padding: 24px 0 0;
+  border: 0;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.fieldGroup:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.groupTitle {
+  float: left;
+  width: 100%;
+  margin-bottom: 2px;
+  padding: 0;
+  color: var(--foreground);
+  font-size: var(--text-sm, 0.875rem);
+  font-weight: 500;
+}
+
+/* Short fields pack three to four per row; list fields get two wider columns. Cells align at the top. */
+.fieldGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 180px), 1fr));
+  gap: 20px 18px;
+  align-items: start;
+  clear: both;
+}
+
+/* Side-by-side cells reserve the badge row so labels and inputs line up; a single column does not need it. */
+@media (min-width: 600px) {
+  .fieldMeta {
+    min-height: 20px;
+  }
+}
+
+.fieldMeta:empty {
+  display: none;
+}
+
+@media (min-width: 600px) {
+  .fieldMeta:empty {
+    display: flex;
+  }
+}
+
+.fieldGridWide {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
 }
 
 .fieldRow {
   display: grid;
   gap: 8px;
-  padding-bottom: 20px;
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.fieldRow:last-child {
-  padding-bottom: 0;
-  border-bottom: 0;
+  min-width: 0;
 }
 
 .fieldMeta {

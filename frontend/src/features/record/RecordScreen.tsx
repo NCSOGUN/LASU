@@ -199,14 +199,21 @@ export function RecordScreen() {
         ) : (
           <>
             <div className={styles.fieldList}>
-              {fields.map((field) => (
-                <FieldRow
-                  key={field.key}
-                  field={field}
-                  value={draft[field.key] ?? valueForDraft(field.value)}
-                  error={fieldErrors[field.key]}
-                  onChange={(value) => changeValue(field.key, value)}
-                />
+              {groupFields(fields).map((group) => (
+                <fieldset key={group.title} className={styles.fieldGroup}>
+                  <legend className={styles.groupTitle}>{group.title}</legend>
+                  <div className={group.wide ? `${styles.fieldGrid} ${styles.fieldGridWide}` : styles.fieldGrid}>
+                    {group.fields.map((field) => (
+                      <FieldRow
+                        key={field.key}
+                        field={field}
+                        value={draft[field.key] ?? valueForDraft(field.value)}
+                        error={fieldErrors[field.key]}
+                        onChange={(value) => changeValue(field.key, value)}
+                      />
+                    ))}
+                  </div>
+                </fieldset>
               ))}
             </div>
 
@@ -269,6 +276,28 @@ export function RecordScreen() {
   );
 }
 
+// Known keys get a home; anything new from the API lands in "Other details" (lists are split out so they get wider cells).
+const FIELD_GROUPS = [
+  { title: "Personal details", keys: ["full_name", "date_of_birth", "gender"] },
+  { title: "Emergency contact", keys: ["emergency_contact_name", "emergency_contact_phone"] },
+  { title: "Vitals", keys: ["blood_group", "genotype", "blood_pressure", "weight", "height"] },
+];
+
+function groupFields(fields: FieldDefinition[]) {
+  const placed = new Set(FIELD_GROUPS.flatMap((group) => group.keys));
+  const groups = FIELD_GROUPS.map((group) => ({
+    title: group.title,
+    wide: false,
+    fields: group.keys.map((key) => fields.find((field) => field.key === key)).filter((field): field is FieldDefinition => Boolean(field)),
+  }));
+  const rest = fields.filter((field) => !placed.has(field.key));
+  groups.push(
+    { title: "Medical history", wide: true, fields: rest.filter((field) => field.value_type === "STRING_ARRAY") },
+    { title: "Other details", wide: false, fields: rest.filter((field) => field.value_type !== "STRING_ARRAY") },
+  );
+  return groups.filter((group) => group.fields.length > 0);
+}
+
 function FieldRow({
   field,
   value,
@@ -283,13 +312,13 @@ function FieldRow({
   const id = fieldDomId(field.key);
   return (
     <div className={styles.fieldRow} data-field={field.key}>
-      {field.emergency_eligible ? (
-        <div className={styles.fieldMeta}>
+      <div className={styles.fieldMeta}>
+        {field.emergency_eligible ? (
           <Badge tone="info" size="sm">
             Emergency eligible
           </Badge>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
       {field.value_type === "STRING_ARRAY" ? (
         <>
           <TagInput
