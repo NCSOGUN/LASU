@@ -1,0 +1,252 @@
+@import "tailwindcss";
+
+/*
+ * HealthAccess design tokens.
+ * Light app tokens come from the prototype (approved palette). The "night" tokens drive the dark landing page
+ * (redesign modelled on the 21st.dev voice-app template, recoloured to HealthAccess greens).
+ * Contrast (WCAG AA): fog on night 14.4, fog-muted on night 7.0 / on night-card 6.5, mint on night-card 10.1.
+ */
+@theme {
+  /* App (light) */
+  --color-brand: #17644f;
+  --color-brand-dark: #104b3b;
+  --color-ink: #183d35;
+  --color-muted: #5a6e67;
+  --color-wash: #f3f7f4;
+  --color-paper: #ffffff;
+  --color-soft: #e8f3eb;
+  --color-line: #dce5df;
+  --color-warn: #fff3df;
+  --color-error: #a23535;
+  --color-amber: #d79738;
+  --color-amber-ink: #a8620f;
+  --color-mint: #7fd1ae;
+
+  /* Landing (dark) */
+  --color-night: #070d0e;
+  --color-night-card: #0e1719;
+  --color-night-raised: #152224;
+  --color-night-line: #1d2c2e;
+  --color-fog: #d5dfdb;
+  --color-fog-muted: #8d9e98;
+  --color-fog-dim: #7d8e88;
+  --color-pill: #e9f1ed;
+  --color-teal: #2bb3a3;
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-head: var(--font-manrope), var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Consolas, monospace;
+
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-curtain: cubic-bezier(0.7, 0, 0.3, 1);
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    background: var(--color-wash);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    line-height: 1.55;
+  }
+  :focus-visible {
+    outline: 3px solid var(--color-amber-ink);
+    outline-offset: 3px;
+    border-radius: 6px;
+  }
+  body:has(.landing) {
+    background: var(--color-night);
+  }
+  .landing :focus-visible {
+    outline-color: var(--color-amber);
+  }
+  .landing ::selection {
+    background: var(--color-mint);
+    color: var(--color-night);
+  }
+}
+
+/* ---------- Preloader (visible only when <html> has .ha-preload, set by the inline head script) ---------- */
+.preloader {
+  display: none;
+}
+html.ha-preload .preloader {
+  display: flex;
+}
+html.ha-preload.ha-preload-done .preloader {
+  transform: translateY(-100%);
+  visibility: hidden; /* keeps the off-screen skip button out of the tab order */
+  transition:
+    transform 700ms var(--ease-curtain),
+    visibility 0s 700ms;
+}
+.preloader-dot {
+  opacity: 0.18;
+  animation: preloader-dot 520ms var(--ease-out-soft) forwards;
+  animation-delay: calc(var(--i) * 45ms);
+}
+.preloader-dot[data-cross="false"] {
+  animation: none;
+}
+@keyframes preloader-dot {
+  to {
+    opacity: 1;
+    fill: var(--color-mint);
+  }
+}
+.preloader-tagline {
+  opacity: 0;
+  filter: blur(8px);
+  animation: blur-in 600ms var(--ease-out-soft) 250ms forwards;
+}
+@keyframes blur-in {
+  to {
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
+/* ---------- Word-by-word blur reveal (the template's signature heading motion) ----------
+ * The hidden state applies only when html[data-motion] is set by the head script (JS on, motion allowed),
+ * so without JS or under reduced motion the text is simply visible. InView sets [data-in] on the trigger. */
+html[data-motion] [data-inview] .bw {
+  display: inline-block;
+  opacity: 0;
+  filter: blur(12px);
+  translate: 0 0.18em;
+}
+html[data-motion] [data-inview][data-in] .bw {
+  animation: word-in 900ms var(--ease-out-soft) forwards;
+  animation-delay: calc(var(--w) * 70ms);
+}
+/* While the preloader curtain is down, hold reveals so they play as it lifts. */
+html.ha-preload:not(.ha-preload-done) .bw,
+html.ha-preload:not(.ha-preload-done) .rise {
+  animation-play-state: paused !important;
+}
+@keyframes word-in {
+  to {
+    opacity: 1;
+    filter: blur(0);
+    translate: 0 0;
+  }
+}
+
+/* Generic fade-up for cards. */
+html[data-motion] [data-inview] .rise {
+  opacity: 0;
+  translate: 0 28px;
+}
+html[data-motion] [data-inview][data-in] .rise {
+  animation: rise 900ms var(--ease-out-soft) forwards;
+  animation-delay: calc(var(--d, 0) * 90ms + 150ms);
+}
+@keyframes rise {
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
+/* Hero phone rises once the curtain lifts (data-intro is set by the head script or the preloader). */
+html[data-motion] .hero-phone {
+  opacity: 0;
+  translate: 0 80px;
+}
+html[data-motion][data-intro="play"] .hero-phone {
+  animation: rise 1200ms var(--ease-out-soft) 250ms forwards;
+}
+
+/* Glossy objects float gently. */
+@keyframes float {
+  50% {
+    translate: 0 -14px;
+  }
+}
+.float {
+  animation: float 7s ease-in-out infinite;
+  animation-delay: var(--delay, 0s);
+}
+
+/* Fade-swap for phone screens and slides. */
+.swap-in {
+  animation: swap-in 500ms var(--ease-out-soft) both;
+}
+@keyframes swap-in {
+  from {
+    opacity: 0;
+    translate: 0 10px;
+    filter: blur(6px);
+  }
+}
+
+/* Slide timer bar (auto-advance fires on animationend). */
+.slide-progress {
+  transform-origin: left;
+  animation: slide-progress var(--slide-ms) linear forwards;
+}
+.slide-progress[data-paused="true"] {
+  animation-play-state: paused;
+}
+@keyframes slide-progress {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+/* Brushed-titanium phone rim (Murmur-style frame): light catches the corners, darker along the sides. */
+.phone-rim {
+  background: linear-gradient(
+    155deg,
+    #eef0f2 0%,
+    #9a9fa5 12%,
+    #c7cbcf 28%,
+    #6f747a 50%,
+    #b1b6bb 70%,
+    #e4e7ea 88%,
+    #8a8f95 100%
+  );
+  box-shadow:
+    0 50px 100px -30px rgba(0, 0, 0, 0.85),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.35),
+    inset 0 0 0 2px rgba(0, 0, 0, 0.25);
+}
+.phone-button {
+  background: linear-gradient(90deg, #7a7f85, #c4c8cc 50%, #7a7f85);
+}
+
+/* Gradient hairline border for in-screen cards (Murmur's glowing card), in HealthAccess colours. */
+.grad-border {
+  border: 1px solid transparent;
+  background:
+    linear-gradient(var(--grad-fill, #0c1517), var(--grad-fill, #0c1517)) padding-box,
+    conic-gradient(from 200deg, #7fd1ae, #2bb3a3, #d79738, #f2c27b, #7fd1ae) border-box;
+}
+
+/* Light rays behind the channel orb. */
+.rays {
+  background:
+    linear-gradient(100deg, transparent 30%, rgba(127, 209, 174, 0.55) 49%, rgba(255, 255, 255, 0.8) 50%, rgba(215, 151, 56, 0.5) 51%, transparent 70%),
+    linear-gradient(80deg, transparent 32%, rgba(43, 179, 163, 0.4) 49.5%, transparent 68%);
+  filter: blur(1px);
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

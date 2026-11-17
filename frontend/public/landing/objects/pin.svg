@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 230" aria-hidden="true">
+  <defs>
+    <linearGradient id="b" x1="30" y1="10" x2="150" y2="220" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fff4dd"/><stop offset=".3" stop-color="#f0c27a"/><stop offset=".6" stop-color="#7fd1ae"/><stop offset=".9" stop-color="#17644f"/>
+    </linearGradient>
+    <radialGradient id="h" cx="62" cy="58" r="70" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fff" stop-opacity=".95"/><stop offset=".55" stop-color="#fff" stop-opacity=".1"/><stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="hole" cx="90" cy="86" r="30" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0b2a26"/><stop offset=".8" stop-color="#17644f"/><stop offset="1" stop-color="#7fd1ae"/>
+    </radialGradient>
+    <filter id="s" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="9"/></filter>
+  </defs>
+  <path d="M90 214C58 174 18 134 18 88a72 72 0 0 1 144 0c0 46-40 86-72 126z" fill="#d79738" opacity=".35" filter="url(#s)" transform="translate(6 8)"/>
+  <path d="M90 214C58 174 18 134 18 88a72 72 0 0 1 144 0c0 46-40 86-72 126z" fill="url(#b)"/>
+  <path d="M90 214C58 174 18 134 18 88a72 72 0 0 1 144 0c0 46-40 86-72 126z" fill="url(#h)"/>
+  <circle cx="90" cy="86" r="28" fill="url(#hole)"/>
+  <path d="M85 72h10v9h9v10h-9v9H85v-9h-9V81h9z" fill="#e9fff6"/>
+  <ellipse cx="62" cy="42" rx="16" ry="6" fill="#fff" opacity=".8" transform="rotate(-25 62 42)"/>
+</svg>
