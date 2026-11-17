@@ -1,12 +1,12 @@
-'use client';
+"use client";
 
-import { useEffect, useRef, useState } from 'react';
-import { usePrefersReducedMotion } from '@/lib/usePrefersReducedMotion';
-import { hero, heroScreens } from './content';
-import { PhoneChrome } from './Phone';
-import { PhoneScreen } from './PhoneScreens';
+import { useEffect, useRef, useState } from "react";
+import { usePrefersReducedMotion } from "@/lib/usePrefersReducedMotion";
+import { hero, heroScreens } from "./content";
+import { PhoneChrome } from "./Phone";
+import { PhoneScreen } from "./PhoneScreens";
 
-const pad = (n: number) => String(n).padStart(2, '0');
+const pad = (n: number) => String(n).padStart(2, "0");
 
 /*
  * Screen rectangle inside /landing/hero/hand-phone.webp (688x1024, measured from the cut-out):
@@ -14,7 +14,12 @@ const pad = (n: number) => String(n).padStart(2, '0');
  * The UI is laid out at a fixed 300px design width and scaled to the measured screen width, so it keeps
  * the same proportions at every viewport.
  */
-const SCREEN = { left: '26.31%', top: '1.86%', width: '46.66%', height: '66.41%' };
+const SCREEN = {
+  left: "26.31%",
+  top: "1.86%",
+  width: "46.66%",
+  height: "66.41%",
+};
 const DESIGN_W = 300;
 const DESIGN_H = Math.round(DESIGN_W * (680 / 321));
 
@@ -36,7 +41,9 @@ export function HeroPhone() {
   useEffect(() => {
     const el = screenRef.current;
     if (!el) return;
-    const ro = new ResizeObserver(([e]) => setScale(e.contentRect.width / DESIGN_W));
+    const ro = new ResizeObserver(([e]) =>
+      setScale(e.contentRect.width / DESIGN_W),
+    );
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
@@ -82,7 +89,11 @@ export function HeroPhone() {
           style={SCREEN}>
           <div
             className='origin-top-left'
-            style={{ width: DESIGN_W, height: DESIGN_H, transform: `scale(${scale})` }}>
+            style={{
+              width: DESIGN_W,
+              height: DESIGN_H,
+              transform: `scale(${scale})`,
+            }}>
             <PhoneChrome>
               <PhoneScreen k={screen.key} />
             </PhoneChrome>
@@ -93,10 +104,12 @@ export function HeroPhone() {
       </div>
 
       <div className='relative -mt-10 flex flex-wrap items-center justify-center gap-x-3 gap-y-2 sm:-mt-16'>
-        <p aria-live={announce ? 'polite' : 'off'} className='whitespace-nowrap text-sm text-fog'>
-          <span className='font-mono text-fog-muted'>
+        <p
+          aria-live={announce ? "polite" : "off"}
+          className='whitespace-nowrap text-sm text-fog'>
+          {/* <span className='font-mono text-fog-muted'>
             {pad(index + 1)}/{pad(total)}
-          </span>{' '}
+          </span>{" "} */}
           <span className='sr-only'>Showing: </span>
           {screen.label}
         </p>
@@ -106,19 +119,29 @@ export function HeroPhone() {
               key={`${index}-${userPaused}`}
               className='slide-progress h-full bg-mint'
               data-paused={!running}
-              style={{ '--slide-ms': `${hero.slideMs}ms` } as React.CSSProperties}
+              style={
+                { "--slide-ms": `${hero.slideMs}ms` } as React.CSSProperties
+              }
               onAnimationEnd={() => go(index + 1, false)}
             />
           )}
         </div>
         <div className='flex gap-1'>
-          <RoundButton label='Previous' onClick={() => go(index - 1, true)} d='M10 4 6 8l4 4' />
-          <RoundButton label='Next' onClick={() => go(index + 1, true)} d='m6 4 4 4-4 4' />
+          <RoundButton
+            label='Previous'
+            onClick={() => go(index - 1, true)}
+            d='M10 4 6 8l4 4'
+          />
+          <RoundButton
+            label='Next'
+            onClick={() => go(index + 1, true)}
+            d='m6 4 4 4-4 4'
+          />
           {autoplay && (
             <RoundButton
-              label={userPaused ? 'Play' : 'Pause'}
+              label={userPaused ? "Play" : "Pause"}
               onClick={() => setUserPaused((v) => !v)}
-              d={userPaused ? 'M6 4.5v7l5.5-3.5z' : 'M6 4.5v7M10 4.5v7'}
+              d={userPaused ? "M6 4.5v7l5.5-3.5z" : "M6 4.5v7M10 4.5v7"}
             />
           )}
         </div>
@@ -127,7 +150,15 @@ export function HeroPhone() {
   );
 }
 
-export function RoundButton({ label, onClick, d }: { label: string; onClick: () => void; d: string }) {
+export function RoundButton({
+  label,
+  onClick,
+  d,
+}: {
+  label: string;
+  onClick: () => void;
+  d: string;
+}) {
   return (
     <button
       type='button'
