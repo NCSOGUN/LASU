@@ -1,19 +1,25 @@
 {
-  "name": "healthaccess-offline",
+  "name": "@healthaccess/offline",
   "version": "1.0.0",
   "description": "Independent HealthAccess SMS and USSD backend",
   "private": true,
   "main": "dist/server.js",
   "scripts": {
+    "prestart": "npm run build",
     "start": "node --env-file-if-exists=.env dist/server.js",
     "worker": "node --env-file-if-exists=.env dist/worker.js",
+    "predev": "npm run build --workspace @healthaccess/shared && npm run db:generate",
     "dev": "node --env-file-if-exists=.env --import tsx --watch src/server.ts",
     "dev:worker": "node --env-file-if-exists=.env --import tsx --watch src/worker.ts",
+    "prebuild": "npm run build --workspace @healthaccess/shared && npm run db:generate",
     "build": "tsc -p tsconfig.build.json",
+    "pretypecheck": "npm run build --workspace @healthaccess/shared && npm run db:generate",
     "typecheck": "tsc --noEmit",
+    "pretest": "npm run build --workspace @healthaccess/shared && npm run db:generate",
     "test": "tsx --test tests/*.test.ts",
-    "test:db": "tsx --test --test-concurrency=1 tests/integration/*.test.ts",
-    "db:apply": "node --env-file-if-exists=.env --import tsx scripts/apply-schema.ts",
+    "test:db": "node --env-file-if-exists=.env --import tsx --test --test-concurrency=1 tests/integration/*.test.ts",
+    "db:generate": "prisma generate --schema ../online/prisma/schema.prisma",
+    "db:migrate": "prisma migrate deploy --schema ../online/prisma/schema.prisma",
     "keys:generate": "tsx scripts/generate-keys.ts",
     "db:seed-demo": "node --env-file-if-exists=.env --import tsx scripts/seed-demo.ts"
   },
@@ -21,12 +27,13 @@
     "node": ">=24"
   },
   "dependencies": {
+    "@healthaccess/shared": "*",
     "@openrouter/ai-sdk-provider": "3.1.0",
+    "@prisma/client": "^6.5.0",
     "africastalking": "0.8.4",
     "ai": "7.0.173",
     "axios": "1.21.1",
     "express": "5.3.0",
-    "pg": "8.23.1",
     "zod": "4.6.7"
   },
   "overrides": {
@@ -43,7 +50,7 @@
   "devDependencies": {
     "@types/express": "^5.0.6",
     "@types/node": "^26.6.6",
-    "@types/pg": "^8.23.1",
+    "prisma": "^6.5.0",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2"
   }
