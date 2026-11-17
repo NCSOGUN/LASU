@@ -1,2 +1,6 @@
 .playwright-mcp
 .env
+node_modules/
+coverage/
+*.log
+backend/offline/dist/

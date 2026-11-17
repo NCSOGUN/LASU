@@ -1,0 +1,1310 @@
+import type { Config } from '../config.js';
+import type { Crypto } from '../security/crypto.js';
+import type { Area, Facility, Projection, RecordField, Service } from '../types.js';
+import { fieldText } from './render.js';
+
+export type UssdState =
+  | 'MAIN'
+  | 'CARE_SERVICE'
+  | 'CARE_LOCATION'
+  | 'CARE_AREA_CHOICE'
+  | 'CARE_PROFILE_CONFIRM'
+  | 'CARE_RESULTS'
+  | 'CARE_NO_MATCH'
+  | 'EMERGENCY_CODE'
+  | 'GRANT_PATIENT_CODE'
+  | 'GRANT_ACCESS_CODE'
+  | 'RECORD_PAGE'
+  | 'END';
+
+export interface UssdCursor {
+  fieldKey: string;
+  itemIndex?: number;
+  partIndex?: number;
+}
+
+export interface UssdContext {
+  kind?: string;
+  serviceCode?: string;
+  serviceCodes?: string[];
+  areaId?: string;
+  choices?: Area[];
+  truncated?: boolean;
+  consentId?: string;
+  patientCodeDigest?: string;
+  recordKind?: 'emergency' | 'grant';
+  codeDigest?: string;
+  cursor?: UssdCursor | null;
+  pageNo?: number;
+  viewDigest?: string;
+  radiusKm?: number;
+  resultIds?: string[];
+  resultIndex?: number;
+  seenIds?: string[];
+  widenSteps?: number;
+  reason?: 'none' | 'exhausted';
+  terminalKind?:
+    | 'goodbye'
+    | 'sms_requested'
+    | 'unavailable'
+    | 'expired'
+    | 'invalid_limit'
+    | 'protected';
+  safeText?: string;
+  meta?: { invalidAttempts?: number };
+}
+
+export interface UssdSession {
+  id: string;
+  providerSessionId: string;
+  phoneDigest: string;
+  serviceCode: string;
+  state: UssdState;
+  context: UssdContext;
+  expiresAt: string | Date;
+  readSessionId?: string | null;
+}
+
+export interface UssdResult {
+  state: UssdState;
+  context: UssdContext;
+  response: string;
+  terminal: boolean;
+  sensitive: boolean;
+  readSessionId: string | null;
+}
+
+export interface UssdRepository {
+  listServices(): Promise<Service[]>;
+  findAreas(query: string): Promise<Area[]>;
+  findFacilities(serviceCode: string, areaId: string, radiusKm: number): Promise<Facility[]>;
+  getFacility(
+    id: string,
+    serviceCode: string,
+    areaId: string,
+    radiusKm: number,
+  ): Promise<Facility | null>;
+  readEmergency(codeDigest: string): Promise<Projection>;
+  openGrant(patientDigest: string, grantDigest: string): Promise<Projection>;
+  readGrant(readSessionId: string): Promise<Projection>;
+  closeReadSession(readSessionId: string): Promise<void>;
+  findProfileConsent(): Promise<{ id: string } | null>;
+  readMatchingContext(consentId: string): Promise<{ available: boolean } | null>;
+  queueFacilitySms(facilityId: string): Promise<boolean>;
+}
+
+export type UssdConfig = Pick<
+  Config,
+  | 'ussdMaxChars'
+  | 'ussdMaxInvalidAttempts'
+  | 'searchRadiusKm'
+  | 'searchMaxRadiusKm'
+  | 'profileUseEnabled'
+>;
+
+export type UssdCrypto = Pick<Crypto, 'digestCode' | 'fingerprint'>;
+
+export interface UssdEngine {
+  transition(session: UssdSession, input: string | null): Promise<UssdResult>;
+  render(session: UssdSession): Promise<UssdResult>;
+  replay(session: UssdSession): Promise<UssdResult>;
+}
+
+interface Atom {
+  key: string;
+  item: number;
+  part: number;
+  text: string;
+}
+
+interface Page {
+  text: string;
+  start: UssdCursor;
+  next: UssdCursor | null;
+}
+
+interface Prepared {
+  atoms: Atom[];
+  digest: string;
+  cursor: UssdCursor | null;
+  pageNo: number;
+  notice: string | null;
+  readSessionId: string | null;
+}
+
+const MAX_AREA_CHOICES = 4;
+const MAX_RESULTS = 3;
+const MAX_RECORD_PAGES = 10;
+const FOOTER_RESERVE = 28;
+
+const MAIN =
+  'HealthAccess\n1. Find nearby care\n2. Emergency summary\n3. View shared details\n0. Exit';
+const LOCATION = 'CON Enter area or landmark\n0. Back';
+const EMERGENCY = 'CON Emergency summary\nEnter patient code\n0. Back';
+const GRANT_PATIENT = 'CON View shared details\nEnter patient code\n0. Back';
+const GRANT_ACCESS = 'CON Enter temporary access code\n0. Back';
+const PROFILE = 'CON Use your saved profile for this search?\n1. Yes\n2. No\n0. Back';
+const UNAVAILABLE = 'HealthAccess is temporarily unavailable. Please try again.';
+
+function inline(value: unknown): string {
+  return String(value ?? '')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201c\u201d]/g, '"')
+    .replace(/[\u2013\u2014]/g, '-')
+    .replace(/\u2026/g, '...')
+    .replace(/[^\x20-\x7e\n]/g, '?')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\s*\n\s*/g, '; ')
+    .trim();
+}
+
+function shorten(value: string, max: number): string {
+  if (value.length <= max) return value;
+  if (max <= 3) return value.slice(0, max);
+  const cut = value.slice(0, max - 3);
+  const space = cut.lastIndexOf(' ');
+  return `${(space > 0 ? cut.slice(0, space) : cut).trimEnd()}...`;
+}
+
+function meta(context: UssdContext): NonNullable<UssdContext['meta']> {
+  return context.meta ?? {};
+}
+
+function withMeta(context: UssdContext, patch: NonNullable<UssdContext['meta']>): UssdContext {
+  return { ...context, meta: { ...meta(context), ...patch } };
+}
+
+function acceptedContext(context: UssdContext): UssdContext {
+  return withMeta(context, { invalidAttempts: 0 });
+}
+
+function attempts(session: UssdSession): number {
+  const value = meta(session.context).invalidAttempts;
+  return typeof value === 'number' && Number.isFinite(value) ? Math.max(0, value) : 0;
+}
+
+function sessionReadId(session: UssdSession): string | null {
+  return session.readSessionId || null;
+}
+
+function isExpired(session: UssdSession): boolean {
+  const value = new Date(session.expiresAt).getTime();
+  return Number.isFinite(value) && value <= Date.now();
+}
+
+function digit(token: string): boolean {
+  return /^\d$/.test(token);
+}
+
+function validArea(token: string): boolean {
+  const value = token.trim();
+  return (
+    value.length > 0 && value.length <= 64 && /^[\x20-\x7e]+$/.test(value) && !/[*#]/.test(value)
+  );
+}
+
+function validCode(token: string): boolean {
+  const value = token.trim();
+  return value.length > 0 && value.length <= 32 && /^[A-Za-z0-9]+$/.test(value);
+}
+
+function areaLabel(area: Area): string {
+  const suffix = area.city || area.region;
+  return inline(suffix ? `${area.name}, ${suffix}` : area.name);
+}
+
+function digestFields(fields: RecordField[], fingerprint: (value: string) => string): string {
+  const canonical = fields.map((field) => [
+    field.key,
+    field.label,
+    Array.isArray(field.value) ? field.value : [String(field.value)],
+  ]);
+  return fingerprint(`record-view:${JSON.stringify(canonical)}`);
+}
+
+function atomCursor(atom: Atom): UssdCursor {
+  return { fieldKey: atom.key, itemIndex: atom.item, partIndex: atom.part };
+}
+
+function atomIndex(atoms: Atom[], cursor: UssdCursor | null | undefined): number {
+  if (!cursor) return 0;
+  return atoms.findIndex(
+    (atom) =>
+      atom.key === cursor.fieldKey &&
+      atom.item === (cursor.itemIndex ?? -1) &&
+      atom.part === (cursor.partIndex ?? 0),
+  );
+}
+
+function breakAt(text: string, max: number): number {
+  const slice = text.slice(0, max);
+  for (const separator of ['\n', '. ', '; ', ', ', ' ']) {
+    const index = slice.lastIndexOf(separator);
+    if (index >= Math.floor(max * 0.5)) return index + separator.length;
+  }
+  return max;
+}
+
+function split(text: string, budget: number, indent: string): string[] {
+  const chunks: string[] = [];
+  let remaining = text;
+  let first = true;
+  while (remaining.length > (first ? budget : budget - indent.length)) {
+    const available = first ? budget : budget - indent.length;
+    const cut = Math.max(1, breakAt(remaining, available));
+    const chunk = remaining.slice(0, cut).trimEnd();
+    if (chunk) chunks.push(first ? chunk : `${indent}${chunk}`);
+    remaining = remaining.slice(cut).trimStart();
+    first = false;
+  }
+  if (remaining) chunks.push(first ? remaining : `${indent}${remaining}`);
+  return chunks;
+}
+
+function buildAtoms(fields: RecordField[], budget: number): Atom[] {
+  // Preserve names, medicine units and symbols; never transliterate clinical values.
+  const recordText = (value: string) =>
+    value
+      .normalize('NFC')
+      .replace(/[\p{Cc}\p{Cf}]+/gu, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  const atoms: Atom[] = [];
+  for (const field of fields) {
+    const label = inline(field.label || field.key) || 'Details';
+    if (Array.isArray(field.value)) {
+      atoms.push({ key: field.key, item: -1, part: 0, text: `${label}:` });
+      const items = field.value.length ? field.value : ['not provided'];
+      items.forEach((item, index) => {
+        split(`- ${recordText(item)}`, budget, '  ').forEach((text, part) => {
+          atoms.push({ key: field.key, item: index, part, text });
+        });
+      });
+      continue;
+    }
+    let formatted = '';
+    try {
+      formatted = fieldText([field]);
+    } catch {
+      formatted = `${label}: ${recordText(String(field.value))}`;
+    }
+    if (!recordText(formatted)) formatted = `${label}: not provided`;
+    split(recordText(formatted), budget, '  ').forEach((text, part) => {
+      atoms.push({ key: field.key, item: -1, part, text });
+    });
+  }
+  return atoms;
+}
+
+function makePage(
+  atoms: Atom[],
+  cursor: UssdCursor | null,
+  budget: number,
+  notice: string | null,
+): Page | null {
+  const start = atomIndex(atoms, cursor);
+  if (start < 0 || start >= atoms.length) return null;
+  let shown = notice;
+  if (shown && atoms[start].text.length > budget - shown.length - 1) shown = null;
+  const effective = budget - (shown ? shown.length + 1 : 0);
+  const parts: string[] = [];
+  let length = 0;
+  let index = start;
+  while (index < atoms.length) {
+    const addition = (parts.length ? 1 : 0) + atoms[index].text.length;
+    if (parts.length && length + addition > effective) break;
+    parts.push(atoms[index].text);
+    length += addition;
+    index += 1;
+  }
+  return {
+    text: `${shown ? `${shown}\n` : ''}${parts.join('\n')}`,
+    start: atomCursor(atoms[start]),
+    next: index < atoms.length ? atomCursor(atoms[index]) : null,
+  };
+}
+
+function pageStart(atoms: Atom[], target: number, budget: number): UssdCursor | null {
+  if (target <= 1) return null;
+  let cursor: UssdCursor | null = null;
+  for (let page = 1; page < target; page += 1) {
+    const result = makePage(atoms, cursor, budget, null);
+    if (!result?.next) return cursor;
+    cursor = result.next;
+  }
+  return cursor;
+}
+
+function queueState(value: boolean): 'queued' | 'failed' {
+  return value ? 'queued' : 'failed';
+}
+
+export function createUssdEngine({
+  repository,
+  config,
+  crypto,
+}: {
+  repository: UssdRepository;
+  config: UssdConfig;
+  crypto: UssdCrypto;
+}): UssdEngine {
+  const maxChars = config.ussdMaxChars;
+  const maxInvalid = Math.max(1, config.ussdMaxInvalidAttempts);
+  const budget = Math.max(40, maxChars - 4 - FOOTER_RESERVE - 1);
+
+  function bounded(prefix: 'CON' | 'END', body: string): string {
+    const text = `${prefix} ${body}`;
+    if (text.length <= maxChars) return text;
+    const fallback = `${prefix} Service temporarily unavailable.`;
+    return fallback.length <= maxChars ? fallback : `${prefix} Unavailable.`;
+  }
+
+  function menu(header: string, options: string[]): string | null {
+    for (const limit of [60, 40, 28, 20, 14, 10]) {
+      const text = `CON ${[header, ...options.map((option) => shorten(option, limit))].join('\n')}`;
+      if (text.length <= maxChars) return text;
+    }
+    return null;
+  }
+
+  function makeResult(
+    session: UssdSession,
+    state: UssdState,
+    context: UssdContext,
+    response: string,
+    options: {
+      terminal?: boolean;
+      sensitive?: boolean;
+      readSessionId?: string | null;
+    } = {},
+  ): UssdResult {
+    let nextState = state;
+    let nextContext = context;
+    let nextResponse = response;
+    let nextTerminal = options.terminal ?? response.startsWith('END ');
+    let nextSensitive = options.sensitive ?? false;
+    let nextRead =
+      options.readSessionId !== undefined
+        ? options.readSessionId
+        : state === 'RECORD_PAGE' || context.terminalKind === 'protected'
+          ? sessionReadId(session)
+          : null;
+    if (nextResponse.length > maxChars) {
+      nextState = 'END';
+      nextContext = { kind: 'end', terminalKind: 'unavailable', safeText: UNAVAILABLE };
+      nextResponse = bounded('END', UNAVAILABLE);
+      nextTerminal = true;
+      nextSensitive = false;
+      nextRead = null;
+    }
+    return {
+      state: nextState,
+      context: nextContext,
+      response: nextResponse,
+      terminal: nextTerminal,
+      sensitive: nextSensitive,
+      readSessionId: nextRead,
+    };
+  }
+
+  function terminal(
+    session: UssdSession,
+    text: string,
+    kind: NonNullable<UssdContext['terminalKind']>,
+    options: {
+      sensitive?: boolean;
+      readSessionId?: string | null;
+      record?: Partial<UssdContext>;
+    } = {},
+  ): UssdResult {
+    const context: UssdContext = {
+      kind: 'end',
+      terminalKind: kind,
+      safeText: options.sensitive ? undefined : text,
+      ...options.record,
+    };
+    return makeResult(session, 'END', context, `END ${text}`, {
+      terminal: true,
+      sensitive: options.sensitive,
+      readSessionId: options.readSessionId ?? null,
+    });
+  }
+
+  async function closeRead(session: UssdSession): Promise<void> {
+    const id = sessionReadId(session);
+    if (!id) return;
+    try {
+      await repository.closeReadSession(id);
+    } catch {
+      // A cleanup failure must not reveal anything or keep the session reference alive.
+    }
+  }
+
+  async function unavailable(session: UssdSession): Promise<UssdResult> {
+    return terminal(session, UNAVAILABLE, 'unavailable');
+  }
+
+  async function expired(session: UssdSession): Promise<UssdResult> {
+    await closeRead(session);
+    return terminal(session, 'Session expired. Please dial again.', 'expired');
+  }
+
+  async function accessError(
+    session: UssdSession,
+    kind: 'emergency' | 'grant',
+  ): Promise<UssdResult> {
+    await closeRead(session);
+    const text =
+      kind === 'grant'
+        ? 'Shared details are no longer available.'
+        : 'Emergency summary unavailable.';
+    return terminal(session, text, 'unavailable');
+  }
+
+  function invalidPrompt(session: UssdSession): string {
+    const context = session.context ?? {};
+    switch (session.state) {
+      case 'MAIN':
+        return MAIN;
+      case 'CARE_SERVICE':
+        return (
+          menu('Choose service', [
+            ...(context.serviceCodes ?? []).map((code, index) => `${index + 1}. ${code}`),
+            '0. Back',
+          ]) ?? UNAVAILABLE
+        );
+      case 'CARE_LOCATION':
+        return LOCATION.slice(4);
+      case 'CARE_AREA_CHOICE':
+        return (
+          menu('Choose area', [
+            ...(context.choices ?? []).map((area, index) => `${index + 1}. ${areaLabel(area)}`),
+            '0. Back',
+          ]) ?? UNAVAILABLE
+        );
+      case 'CARE_PROFILE_CONFIRM':
+        return PROFILE.slice(4);
+      case 'CARE_RESULTS':
+        return resultOptions(context, true).join('\n');
+      case 'CARE_NO_MATCH':
+        return noMatchOptions(context).join('\n');
+      case 'EMERGENCY_CODE':
+        return EMERGENCY.slice(4);
+      case 'GRANT_PATIENT_CODE':
+        return GRANT_PATIENT.slice(4);
+      case 'GRANT_ACCESS_CODE':
+        return GRANT_ACCESS.slice(4);
+      case 'RECORD_PAGE':
+        return recordFooter((context.pageNo ?? 1) > 1).join('\n');
+      default:
+        return UNAVAILABLE;
+    }
+  }
+
+  async function invalid(
+    session: UssdSession,
+    prompt = invalidPrompt(session),
+  ): Promise<UssdResult> {
+    const count = attempts(session) + 1;
+    if (count >= maxInvalid) {
+      await closeRead(session);
+      return terminal(session, 'Too many invalid attempts. Please dial again.', 'invalid_limit');
+    }
+    const context = withMeta(session.context ?? {}, { invalidAttempts: count });
+    return makeResult(
+      session,
+      session.state,
+      context,
+      bounded('CON', `Invalid choice.\n${prompt}`),
+      {
+        terminal: false,
+        readSessionId: sessionReadId(session),
+      },
+    );
+  }
+
+  function canWiden(context: UssdContext): boolean {
+    return (
+      (context.widenSteps ?? 0) < 2 &&
+      (context.radiusKm ?? config.searchRadiusKm) < config.searchMaxRadiusKm
+    );
+  }
+
+  function resultOptions(context: UssdContext, facility: boolean): string[] {
+    const next = (context.resultIndex ?? 0) + 1 < (context.resultIds?.length ?? 0);
+    const first = next
+      ? '1. Next hospital'
+      : canWiden(context)
+        ? '1. Wider search'
+        : '1. Another area';
+    return facility ? [first, '2. Send details by SMS', '0. Exit'] : [first, '0. Exit'];
+  }
+
+  function noMatchOptions(context: UssdContext): string[] {
+    return [...(canWiden(context) ? ['1. Wider search'] : []), '2. Another area', '0. Exit'];
+  }
+
+  function recordFooter(back: boolean): string[] {
+    return ['1. Next', ...(back ? ['2. Back'] : []), '0. Exit'];
+  }
+
+  function recordContext(
+    context: UssdContext,
+    cursor: UssdCursor,
+    pageNo: number,
+    digest: string,
+  ): UssdContext {
+    return acceptedContext({
+      kind: 'record_page',
+      recordKind: context.recordKind,
+      codeDigest: context.recordKind === 'emergency' ? context.codeDigest : undefined,
+      cursor,
+      pageNo,
+      viewDigest: digest,
+    });
+  }
+
+  function composeRecord(
+    session: UssdSession,
+    base: UssdContext,
+    prepared: Prepared,
+    page: Page,
+    pageNo: number,
+  ): UssdResult {
+    const active =
+      base.recordKind === 'grant'
+        ? sessionReadId(session)
+        : prepared.readSessionId || sessionReadId(session);
+    if (base.recordKind === 'grant' && !active) {
+      return terminal(session, 'Shared details are no longer available.', 'unavailable');
+    }
+    if (page.next) {
+      return makeResult(
+        session,
+        'RECORD_PAGE',
+        recordContext(base, page.start, pageNo, prepared.digest),
+        bounded('CON', `${page.text}\n${recordFooter(pageNo > 1).join('\n')}`),
+        {
+          terminal: false,
+          sensitive: true,
+          readSessionId: active,
+        },
+      );
+    }
+    const end = 'End of details.';
+    const body =
+      page.text.length + end.length + 1 <= maxChars - 4 ? `${page.text}\n${end}` : page.text;
+    return makeResult(
+      session,
+      'END',
+      {
+        kind: 'end',
+        terminalKind: 'protected',
+        recordKind: base.recordKind,
+        codeDigest: base.recordKind === 'emergency' ? base.codeDigest : undefined,
+        cursor: page.start,
+        pageNo,
+        viewDigest: prepared.digest,
+      },
+      `END ${body}`,
+      {
+        terminal: true,
+        sensitive: true,
+        readSessionId: active,
+      },
+    );
+  }
+
+  function prepare(projection: Projection, context: UssdContext): Prepared | null {
+    const fields = projection.fields ?? [];
+    if (!fields.length) return null;
+    const atoms = buildAtoms(fields, budget);
+    if (!atoms.length) return null;
+    const digest = digestFields(fields, crypto.fingerprint);
+    let cursor = context.cursor ?? null;
+    let pageNo = context.pageNo ?? 1;
+    let notice: string | null = null;
+    if (context.viewDigest && context.viewDigest !== digest && (cursor || pageNo > 1)) {
+      cursor = null;
+      pageNo = 1;
+      notice = 'Details changed.';
+    }
+    if (cursor && atomIndex(atoms, cursor) < 0) {
+      cursor = null;
+      pageNo = 1;
+      notice = 'Details changed.';
+    }
+    return {
+      atoms,
+      digest,
+      cursor,
+      pageNo,
+      notice,
+      readSessionId: projection.read_session_id ?? null,
+    };
+  }
+
+  function projectionResult(
+    session: UssdSession,
+    context: UssdContext,
+    projection: Projection,
+  ): UssdResult {
+    const prepared = prepare(projection, context);
+    if (!prepared) {
+      return terminal(
+        session,
+        context.recordKind === 'grant'
+          ? 'Shared details are no longer available.'
+          : 'Emergency summary unavailable.',
+        'unavailable',
+      );
+    }
+    if (prepared.pageNo > MAX_RECORD_PAGES) {
+      return terminal(
+        session,
+        'Too much information to display here. Use the online portal.',
+        'unavailable',
+      );
+    }
+    const page = makePage(prepared.atoms, prepared.cursor, budget, prepared.notice);
+    if (!page) {
+      return terminal(
+        session,
+        context.recordKind === 'grant'
+          ? 'Shared details are no longer available.'
+          : 'Emergency summary unavailable.',
+        'unavailable',
+      );
+    }
+    return composeRecord(session, context, prepared, page, prepared.pageNo);
+  }
+
+  async function loadRecord(
+    session: UssdSession,
+    context: UssdContext,
+  ): Promise<Projection | null> {
+    try {
+      if (context.recordKind === 'grant') {
+        const id = sessionReadId(session);
+        return id ? await repository.readGrant(id) : null;
+      }
+      if (context.recordKind === 'emergency' && context.codeDigest) {
+        return await repository.readEmergency(context.codeDigest);
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  async function recordResult(session: UssdSession, context: UssdContext): Promise<UssdResult> {
+    const projection = await loadRecord(session, context);
+    if (!projection?.available || !projection.fields?.length) {
+      return accessError(session, context.recordKind ?? 'grant');
+    }
+    return projectionResult(session, context, projection);
+  }
+
+  async function facility(context: UssdContext): Promise<Facility | null> {
+    const id = (context.resultIds ?? [])[context.resultIndex ?? 0];
+    if (!id) return null;
+    try {
+      if (!context.serviceCode || !context.areaId) return null;
+      return await repository.getFacility(
+        id,
+        context.serviceCode,
+        context.areaId,
+        context.radiusKm ?? config.searchRadiusKm,
+      );
+    } catch {
+      return null;
+    }
+  }
+
+  function facilityMessage(item: Facility, options: string[]): string {
+    const name = `${item.is_demo ? 'DEMO: ' : ''}${inline(item.name) || 'Hospital'}`;
+    const address = inline(item.address);
+    const contact = item.phone ? `Contact: ${inline(item.phone)}` : 'Contact not listed.';
+    const distance =
+      Number.isFinite(Number(item.distance_km)) && item.distance_km !== null
+        ? `Approx. ${Number(item.distance_km).toFixed(1)} km from area centre.`
+        : '';
+    const footer = options.join('\n');
+    const build = (line: string, showDistance: boolean) =>
+      `CON ${[name, line, contact, showDistance ? distance : '', footer].filter(Boolean).join('\n')}`;
+    let text = build(address, true);
+    if (text.length > maxChars) text = build(address, false);
+    if (text.length > maxChars) {
+      const fixed = ['CON', name, contact, footer].filter(Boolean).join('\n').length;
+      text = build(shorten(address, Math.max(12, maxChars - fixed - 2)), false);
+    }
+    if (text.length > maxChars) {
+      text = `CON ${[shorten(name, 40), '2. Send details by SMS', '0. Exit'].join('\n')}`;
+    }
+    return text.length <= maxChars ? text : bounded('END', UNAVAILABLE);
+  }
+
+  async function results(
+    session: UssdSession,
+    context: UssdContext,
+    preserve = false,
+  ): Promise<UssdResult> {
+    const item = await facility(context);
+    const nextContext = preserve ? context : acceptedContext(context);
+    if (!item) {
+      const response =
+        menu('This facility is no longer listed.', resultOptions(context, false)) ??
+        bounded('END', UNAVAILABLE);
+      return makeResult(session, 'CARE_RESULTS', nextContext, response);
+    }
+    return makeResult(
+      session,
+      'CARE_RESULTS',
+      nextContext,
+      facilityMessage(item, resultOptions(context, true)),
+    );
+  }
+
+  async function noMatch(
+    session: UssdSession,
+    context: UssdContext,
+    preserve = false,
+  ): Promise<UssdResult> {
+    const header =
+      context.reason === 'exhausted' ? 'No more hospitals nearby.' : 'No suitable hospital found.';
+    const response = menu(header, noMatchOptions(context)) ?? bounded('END', UNAVAILABLE);
+    return makeResult(
+      session,
+      'CARE_NO_MATCH',
+      preserve ? context : acceptedContext(context),
+      response,
+    );
+  }
+
+  async function search(
+    session: UssdSession,
+    serviceCode: string,
+    areaId: string,
+    radius = config.searchRadiusKm,
+    seen: string[] = [],
+    widenSteps = 0,
+  ): Promise<UssdResult> {
+    let found: Facility[];
+    try {
+      found = await repository.findFacilities(serviceCode, areaId, radius);
+    } catch {
+      return unavailable(session);
+    }
+    const ids = found
+      .slice(0, MAX_RESULTS)
+      .map((item) => item.id)
+      .filter(Boolean);
+    if (!ids.length) {
+      return noMatch(session, {
+        kind: 'care_no_match',
+        serviceCode,
+        areaId,
+        radiusKm: radius,
+        seenIds: [...new Set(seen)],
+        widenSteps,
+        reason: 'none',
+      });
+    }
+    return results(session, {
+      kind: 'care_results',
+      serviceCode,
+      areaId,
+      radiusKm: radius,
+      resultIds: ids,
+      resultIndex: 0,
+      seenIds: [...new Set([...seen, ...ids])],
+      widenSteps,
+    });
+  }
+
+  async function widen(session: UssdSession, context: UssdContext): Promise<UssdResult> {
+    const { serviceCode, areaId } = context;
+    if (!serviceCode || !areaId) return unavailable(session);
+    let radius = context.radiusKm ?? config.searchRadiusKm;
+    let widenSteps = context.widenSteps ?? 0;
+    const seen = context.seenIds ?? [];
+    while (widenSteps < 2 && radius < config.searchMaxRadiusKm) {
+      radius = Math.min(radius * 2, config.searchMaxRadiusKm);
+      widenSteps += 1;
+      let found: Facility[];
+      try {
+        found = await repository.findFacilities(serviceCode, areaId, radius);
+      } catch {
+        return unavailable(session);
+      }
+      const ids = found
+        .map((item) => item.id)
+        .filter((id) => id && !seen.includes(id))
+        .slice(0, MAX_RESULTS);
+      if (ids.length) {
+        return results(session, {
+          kind: 'care_results',
+          serviceCode,
+          areaId,
+          radiusKm: radius,
+          resultIds: ids,
+          resultIndex: 0,
+          seenIds: [...new Set([...seen, ...ids])],
+          widenSteps,
+        });
+      }
+    }
+    return noMatch(session, {
+      kind: 'care_no_match',
+      serviceCode,
+      areaId,
+      radiusKm: radius,
+      seenIds: seen,
+      widenSteps,
+      reason: 'exhausted',
+    });
+  }
+
+  async function services(session: UssdSession, preserve = false): Promise<UssdResult> {
+    let found: Service[];
+    try {
+      found = (await repository.listServices()).slice(0, 3);
+    } catch {
+      return unavailable(session);
+    }
+    if (!found.length) return unavailable(session);
+    const options = [
+      ...found.map((service, index) => `${index + 1}. ${inline(service.label)}`),
+      '0. Back',
+    ];
+    const response = menu('Choose service', options) ?? bounded('END', UNAVAILABLE);
+    const context: UssdContext = {
+      kind: 'care_service',
+      serviceCodes: found.map((service) => service.service_code),
+    };
+    return makeResult(
+      session,
+      'CARE_SERVICE',
+      preserve ? { ...session.context, ...context } : acceptedContext(context),
+      response,
+    );
+  }
+
+  function areas(session: UssdSession, serviceCode: string, found: Area[]): UssdResult {
+    let visible = found.slice(0, MAX_AREA_CHOICES);
+    let truncated = found.length > visible.length;
+    let response: string | null = null;
+    while (visible.length && !response) {
+      response = menu(truncated ? 'Choose area\nMore matches exist' : 'Choose area', [
+        ...visible.map((area, index) => `${index + 1}. ${areaLabel(area)}`),
+        '0. Back',
+      ]);
+      if (!response) {
+        visible = visible.slice(0, -1);
+        truncated = true;
+      }
+    }
+    if (!response) return terminal(session, UNAVAILABLE, 'unavailable');
+    return makeResult(
+      session,
+      'CARE_AREA_CHOICE',
+      acceptedContext({
+        kind: 'care_area_choice',
+        serviceCode,
+        choices: visible,
+        truncated,
+      }),
+      response,
+    );
+  }
+
+  function location(session: UssdSession, serviceCode: string, preserve = false): UssdResult {
+    const context: UssdContext = { kind: 'care_location', serviceCode };
+    return makeResult(
+      session,
+      'CARE_LOCATION',
+      preserve ? { ...session.context, ...context } : acceptedContext(context),
+      LOCATION,
+    );
+  }
+
+  async function current(session: UssdSession): Promise<UssdResult> {
+    if (isExpired(session)) return expired(session);
+    const context = session.context ?? {};
+    switch (session.state) {
+      case 'MAIN':
+        return makeResult(session, 'MAIN', { ...context, kind: 'main' }, bounded('CON', MAIN));
+      case 'CARE_SERVICE':
+        return services(session, true);
+      case 'CARE_LOCATION':
+        return location(session, context.serviceCode ?? '', true);
+      case 'CARE_AREA_CHOICE': {
+        const response =
+          menu(context.truncated ? 'Choose area\nMore matches exist' : 'Choose area', [
+            ...(context.choices ?? []).map((area, index) => `${index + 1}. ${areaLabel(area)}`),
+            '0. Back',
+          ]) ?? bounded('END', UNAVAILABLE);
+        return makeResult(session, 'CARE_AREA_CHOICE', context, response);
+      }
+      case 'CARE_PROFILE_CONFIRM':
+        return makeResult(session, 'CARE_PROFILE_CONFIRM', context, PROFILE);
+      case 'CARE_RESULTS':
+        return results(session, context, true);
+      case 'CARE_NO_MATCH':
+        return noMatch(session, context, true);
+      case 'EMERGENCY_CODE':
+        return makeResult(
+          session,
+          'EMERGENCY_CODE',
+          { ...context, kind: 'emergency_code' },
+          EMERGENCY,
+        );
+      case 'GRANT_PATIENT_CODE':
+        return makeResult(
+          session,
+          'GRANT_PATIENT_CODE',
+          { ...context, kind: 'grant_patient_code' },
+          GRANT_PATIENT,
+        );
+      case 'GRANT_ACCESS_CODE':
+        return makeResult(session, 'GRANT_ACCESS_CODE', context, GRANT_ACCESS);
+      case 'RECORD_PAGE':
+        return recordResult(session, context);
+      case 'END':
+        return renderEnd(session);
+      default:
+        return terminal(session, UNAVAILABLE, 'unavailable');
+    }
+  }
+
+  async function maybeSearch(
+    session: UssdSession,
+    serviceCode: string,
+    areaId: string,
+  ): Promise<UssdResult> {
+    if (config.profileUseEnabled) {
+      try {
+        const consent = await repository.findProfileConsent();
+        if (consent) {
+          return makeResult(
+            session,
+            'CARE_PROFILE_CONFIRM',
+            acceptedContext({
+              kind: 'care_profile_confirm',
+              serviceCode,
+              areaId,
+              consentId: consent.id,
+            }),
+            PROFILE,
+          );
+        }
+      } catch {
+        // A consent lookup failure falls back to a guest directory search.
+      }
+    }
+    return search(session, serviceCode, areaId);
+  }
+
+  async function renderEnd(session: UssdSession): Promise<UssdResult> {
+    const context = session.context ?? {};
+    if (context.terminalKind === 'protected' && context.recordKind) {
+      return recordResult(session, context);
+    }
+    return terminal(
+      session,
+      context.safeText ?? 'Session ended. Please dial again.',
+      context.terminalKind ?? 'goodbye',
+    );
+  }
+
+  async function transition(session: UssdSession, input: string | null): Promise<UssdResult> {
+    if (isExpired(session)) return expired(session);
+    if (session.state === 'END') return replay(session);
+    if (input === null) return current(session);
+    const token = input;
+    if (
+      token === null ||
+      token.length === 0 ||
+      token.length > 64 ||
+      /[\x00-\x1f\x7f]/.test(token)
+    ) {
+      return invalid(session);
+    }
+    const context = session.context ?? {};
+
+    switch (session.state) {
+      case 'MAIN':
+        if (!digit(token)) return invalid(session, MAIN);
+        if (token === '0') return terminal(session, 'Thank you for using HealthAccess.', 'goodbye');
+        if (token === '1') return services(session);
+        if (token === '2') {
+          return makeResult(
+            session,
+            'EMERGENCY_CODE',
+            acceptedContext({ kind: 'emergency_code' }),
+            EMERGENCY,
+          );
+        }
+        if (token === '3') {
+          return makeResult(
+            session,
+            'GRANT_PATIENT_CODE',
+            acceptedContext({ kind: 'grant_patient_code' }),
+            GRANT_PATIENT,
+          );
+        }
+        return invalid(session, MAIN);
+
+      case 'CARE_SERVICE': {
+        if (token === '0')
+          return makeResult(
+            session,
+            'MAIN',
+            acceptedContext({ kind: 'main' }),
+            bounded('CON', MAIN),
+          );
+        if (!digit(token)) return invalid(session, invalidPrompt(session));
+        const serviceCode = context.serviceCodes?.[Number(token) - 1];
+        if (!serviceCode) return invalid(session, invalidPrompt(session));
+        return location(session, serviceCode);
+      }
+
+      case 'CARE_LOCATION': {
+        if (token === '0') return services(session);
+        if (!validArea(token)) return invalid(session, LOCATION.slice(4));
+        let found: Area[];
+        try {
+          found = await repository.findAreas(token.trim());
+        } catch {
+          return unavailable(session);
+        }
+        if (!found.length) {
+          return makeResult(
+            session,
+            'CARE_LOCATION',
+            acceptedContext({ ...context, kind: 'care_location' }),
+            bounded('CON', 'No matching area. Enter another area or 0 Back.'),
+          );
+        }
+        if (found.length === 1) return maybeSearch(session, context.serviceCode ?? '', found[0].id);
+        return areas(session, context.serviceCode ?? '', found);
+      }
+
+      case 'CARE_AREA_CHOICE': {
+        if (token === '0') return location(session, context.serviceCode ?? '');
+        if (!digit(token)) return invalid(session, invalidPrompt(session));
+        const area = context.choices?.[Number(token) - 1];
+        if (!area) return invalid(session, invalidPrompt(session));
+        return maybeSearch(session, context.serviceCode ?? '', area.id);
+      }
+
+      case 'CARE_PROFILE_CONFIRM': {
+        if (token === '0') return location(session, context.serviceCode ?? '');
+        if (token !== '1' && token !== '2') return invalid(session, PROFILE.slice(4));
+        if (token === '1' && context.consentId) {
+          try {
+            await repository.readMatchingContext(context.consentId);
+          } catch {
+            // Consent disappearing is not an error; continue as a guest search.
+          }
+        }
+        return search(session, context.serviceCode ?? '', context.areaId ?? '');
+      }
+
+      case 'CARE_RESULTS': {
+        if (token === '0') return terminal(session, 'Thank you for using HealthAccess.', 'goodbye');
+        if (token === '1') {
+          const index = context.resultIndex ?? 0;
+          if (index + 1 < (context.resultIds?.length ?? 0)) {
+            return results(session, { ...context, resultIndex: index + 1 });
+          }
+          if (canWiden(context)) return widen(session, context);
+          return location(session, context.serviceCode ?? '');
+        }
+        if (token === '2') {
+          const item = await facility(context);
+          if (!item) return invalid(session, resultOptions(context, false).join('\n'));
+          let queued: boolean;
+          try {
+            queued = await repository.queueFacilitySms(item.id);
+          } catch {
+            queued = false;
+          }
+          const state = queueState(queued);
+          if (state === 'failed') {
+            const options = resultOptions(context, true).map((option) =>
+              option === '2. Send details by SMS' ? '2. Try again' : option,
+            );
+            return makeResult(
+              session,
+              'CARE_RESULTS',
+              acceptedContext(context),
+              bounded('CON', ['SMS could not be requested.', ...options].join('\n')),
+              {},
+            );
+          }
+          return terminal(session, 'SMS requested.', 'sms_requested');
+        }
+        return invalid(session, resultOptions(context, true).join('\n'));
+      }
+
+      case 'CARE_NO_MATCH': {
+        if (token === '0') return terminal(session, 'Thank you for using HealthAccess.', 'goodbye');
+        if (token === '1' && canWiden(context)) return widen(session, context);
+        if (token === '2') return location(session, context.serviceCode ?? '');
+        return invalid(session, noMatchOptions(context).join('\n'));
+      }
+
+      case 'EMERGENCY_CODE': {
+        if (token === '0')
+          return makeResult(
+            session,
+            'MAIN',
+            acceptedContext({ kind: 'main' }),
+            bounded('CON', MAIN),
+          );
+        if (!validCode(token)) return invalid(session, EMERGENCY.slice(4));
+        const digest = await crypto.digestCode(token.trim(), 'patient');
+        if (!digest) return invalid(session, EMERGENCY.slice(4));
+        let projection: Projection;
+        try {
+          projection = await repository.readEmergency(digest);
+        } catch {
+          return accessError(session, 'emergency');
+        }
+        if (!projection.available || !projection.fields?.length)
+          return accessError(session, 'emergency');
+        return projectionResult(
+          session,
+          {
+            kind: 'record_page',
+            recordKind: 'emergency',
+            codeDigest: digest,
+            cursor: null,
+            pageNo: 1,
+          },
+          projection,
+        );
+      }
+
+      case 'GRANT_PATIENT_CODE': {
+        if (token === '0')
+          return makeResult(
+            session,
+            'MAIN',
+            acceptedContext({ kind: 'main' }),
+            bounded('CON', MAIN),
+          );
+        if (!validCode(token)) return invalid(session, GRANT_PATIENT.slice(4));
+        const digest = await crypto.digestCode(token.trim(), 'patient');
+        if (!digest) return invalid(session, GRANT_PATIENT.slice(4));
+        return makeResult(
+          session,
+          'GRANT_ACCESS_CODE',
+          acceptedContext({
+            kind: 'grant_access_code',
+            patientCodeDigest: digest,
+          }),
+          GRANT_ACCESS,
+        );
+      }
+
+      case 'GRANT_ACCESS_CODE': {
+        if (token === '0')
+          return makeResult(
+            session,
+            'MAIN',
+            acceptedContext({ kind: 'main' }),
+            bounded('CON', MAIN),
+          );
+        if (!validCode(token) || !context.patientCodeDigest)
+          return invalid(session, GRANT_ACCESS.slice(4));
+        const grantDigest = await crypto.digestCode(token.trim(), 'grant');
+        if (!grantDigest) return invalid(session, GRANT_ACCESS.slice(4));
+        let opened: Projection;
+        try {
+          opened = await repository.openGrant(context.patientCodeDigest, grantDigest);
+        } catch {
+          return accessError(session, 'grant');
+        }
+        if (!opened.available || !opened.read_session_id) return accessError(session, 'grant');
+        const withRead: UssdSession = { ...session, readSessionId: opened.read_session_id };
+        let projection: Projection;
+        try {
+          projection = await repository.readGrant(opened.read_session_id);
+        } catch {
+          await closeRead(withRead);
+          return accessError(withRead, 'grant');
+        }
+        if (!projection.available || !projection.fields?.length) {
+          await closeRead(withRead);
+          return accessError(withRead, 'grant');
+        }
+        return projectionResult(
+          withRead,
+          {
+            kind: 'record_page',
+            recordKind: 'grant',
+            cursor: null,
+            pageNo: 1,
+          },
+          projection,
+        );
+      }
+
+      case 'RECORD_PAGE': {
+        if (token === '0') {
+          await closeRead(session);
+          return terminal(session, 'Closed.', 'goodbye', { readSessionId: null });
+        }
+        if (token !== '1' && token !== '2') return invalid(session, invalidPrompt(session));
+        const projection = await loadRecord(session, context);
+        if (!projection?.available || !projection.fields?.length)
+          return accessError(session, context.recordKind ?? 'grant');
+        const prepared = prepare(projection, context);
+        if (!prepared) return accessError(session, context.recordKind ?? 'grant');
+        const page = makePage(prepared.atoms, prepared.cursor, budget, prepared.notice);
+        if (!page) return accessError(session, context.recordKind ?? 'grant');
+        if (prepared.notice)
+          return composeRecord(session, context, prepared, page, prepared.pageNo);
+        if (token === '1') {
+          if (!page.next) return composeRecord(session, context, prepared, page, prepared.pageNo);
+          const next = makePage(prepared.atoms, page.next, budget, null);
+          return next
+            ? composeRecord(session, context, prepared, next, prepared.pageNo + 1)
+            : composeRecord(session, context, prepared, page, prepared.pageNo);
+        }
+        if (prepared.pageNo <= 1) {
+          const first = makePage(prepared.atoms, null, budget, 'Already at the first page.');
+          return first
+            ? composeRecord(session, context, prepared, first, 1)
+            : composeRecord(session, context, prepared, page, prepared.pageNo);
+        }
+        const previous = makePage(
+          prepared.atoms,
+          pageStart(prepared.atoms, prepared.pageNo - 1, budget),
+          budget,
+          null,
+        );
+        return previous
+          ? composeRecord(session, context, prepared, previous, prepared.pageNo - 1)
+          : composeRecord(session, context, prepared, page, prepared.pageNo);
+      }
+
+      default:
+        return terminal(session, UNAVAILABLE, 'unavailable');
+    }
+  }
+
+  async function render(session: UssdSession): Promise<UssdResult> {
+    return current(session);
+  }
+
+  async function replay(session: UssdSession): Promise<UssdResult> {
+    return current(session);
+  }
+
+  return { transition, render, replay };
+}
