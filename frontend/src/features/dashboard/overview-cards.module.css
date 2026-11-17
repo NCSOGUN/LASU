@@ -1,7 +1,41 @@
 .grid {
   display: grid;
   gap: 16px;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* Three status cards across the top, the two lists side by side below. Cards size to their content. */
+@media (min-width: 720px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .grid > :nth-child(5) {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (min-width: 1100px) {
+  .grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+
+  .grid > :nth-child(-n + 3) {
+    grid-column: span 2;
+  }
+
+  .grid > :nth-child(n + 4) {
+    grid-column: span 3;
+    align-self: start;
+  }
+}
+
+/* About five doses visible; the rest scroll inside the card. The rows hold buttons, so keyboard users reach them. */
+.scrollList {
+  max-height: 356px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
 }
 
 .surface {
@@ -17,12 +51,16 @@
 
 .head {
   display: flex;
-  align-items: baseline;
+  flex-wrap: wrap;
+  align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 6px 8px;
 }
 
 .title {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
   margin: 0;
   font-family: var(--font-geist), var(--font-inter), sans-serif;
   font-size: 1rem;
@@ -30,6 +68,9 @@
 }
 
 .action {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   color: var(--text-secondary);
   font-size: 0.8125rem;
   text-underline-offset: 3px;
@@ -159,4 +200,15 @@
   .doseActions {
     justify-content: flex-start;
   }
+}
+
+.icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: var(--accent-subtle);
+  color: var(--accent-strong);
 }

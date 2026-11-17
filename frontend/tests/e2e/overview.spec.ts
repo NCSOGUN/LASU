@@ -27,8 +27,8 @@ test.describe("overview journey", () => {
 
     const completeness = page.getByRole("region", { name: "Profile completeness" });
     await expect(completeness).toBeVisible();
-    await expect(completeness.getByText(`${filledFields}`, { exact: true })).toBeVisible();
-    await expect(completeness.getByText(`of ${totalFields}`)).toBeVisible();
+    // The counter draws digits separately; its screen-reader text carries the full value.
+    await expect(completeness.getByText(new RegExp(`^${filledFields}\\s+of ${totalFields}$`))).toBeVisible();
 
     const emergency = page.getByRole("region", { name: "Emergency summary" });
     await expect(emergency.getByText("Available by code")).toBeVisible();
@@ -36,7 +36,7 @@ test.describe("overview journey", () => {
 
     const grantCard = page.getByRole("region", { name: "Active access codes" });
     await expect(grantCard.getByText("Codes still valid")).toBeVisible();
-    await expect(grantCard.getByText(`${activeGrants}`, { exact: true })).toBeVisible();
+    await expect(grantCard.getByText(`${activeGrants}`, { exact: true }).first()).toBeVisible();
 
     const symptoms = page.getByRole("region", { name: "Recent conversations" });
     await expect(symptoms.getByRole("link", { name: symptomList.symptoms[0].name })).toBeVisible();
@@ -69,7 +69,7 @@ test.describe("overview journey", () => {
 
     // Cards that did load keep their data.
     await expect(page.getByText("Available by code")).toHaveCount(0);
-    await expect(page.getByText(`of ${totalFields}`)).toBeVisible();
+    await expect(page.getByText(new RegExp(`^${filledFields}\\s+of ${totalFields}$`))).toBeVisible();
     await expect(page.getByRole("link", { name: symptomList.symptoms[0].name })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Today's doses" })).toBeVisible();
   });

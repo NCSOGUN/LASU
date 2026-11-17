@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { ArrowRight, ClipboardCheck, KeyRound, MessageSquare, Pill, ShieldAlert, type LucideIcon } from "lucide-react";
 import { Alert } from "@/components/arc/alert/alert";
 import { Badge } from "@/components/arc/badge/badge";
 import { Button } from "@/components/arc/button/button";
@@ -16,6 +17,7 @@ export type RegionState = "loading" | "error" | "empty" | "ready";
 
 interface SurfaceProps {
   title: string;
+  icon: LucideIcon;
   action?: { href: string; label: string };
   state: RegionState;
   error?: string;
@@ -25,16 +27,20 @@ interface SurfaceProps {
   children: ReactNode;
 }
 
-function Surface({ title, action, state, error, requestId, onRetry, empty, children }: SurfaceProps) {
+function Surface({ title, icon: Icon, action, state, error, requestId, onRetry, empty, children }: SurfaceProps) {
   return (
     <section className={styles.surface} aria-labelledby={`card-${title.replace(/\s+/g, "-").toLowerCase()}`} aria-busy={state === "loading"}>
       <div className={styles.head}>
         <h2 className={styles.title} id={`card-${title.replace(/\s+/g, "-").toLowerCase()}`}>
+          <span className={styles.icon} aria-hidden="true">
+            <Icon size={16} strokeWidth={1.75} />
+          </span>
           {title}
         </h2>
         {action ? (
           <Link className={styles.action} href={action.href}>
             {action.label}
+            <ArrowRight aria-hidden="true" size={14} />
           </Link>
         ) : null}
       </div>
@@ -63,15 +69,17 @@ function Surface({ title, action, state, error, requestId, onRetry, empty, child
 
 export function CompletenessCard({ state, filled, total, onRetry, error, requestId }: { state: RegionState; filled: number; total: number; onRetry?: () => void; error?: string; requestId?: string }) {
   return (
-    <Surface title="Profile completeness" state={state} onRetry={onRetry} error={error} requestId={requestId} action={{ href: "/app/record", label: "Edit record" }}>
-      <MetricCard label="Fields with a value" value={filled} suffix={` of ${total}`} context="Shareable record fields" />
+    <Surface title="Profile completeness"
+      icon={ClipboardCheck} state={state} onRetry={onRetry} error={error} requestId={requestId} action={{ href: "/app/record", label: "Edit record" }}>
+      <MetricCard label="Fields with a value" value={filled} suffix={`\u00a0of ${total}`} context="Shareable record fields" />
     </Surface>
   );
 }
 
 export function EmergencyCard({ state, available, count, onRetry, error, requestId }: { state: RegionState; available: boolean; count: number; onRetry?: () => void; error?: string; requestId?: string }) {
   return (
-    <Surface title="Emergency summary" state={state} onRetry={onRetry} error={error} requestId={requestId} action={{ href: "/app/emergency-summary", label: "Choose fields" }}>
+    <Surface title="Emergency summary"
+      icon={ShieldAlert} state={state} onRetry={onRetry} error={error} requestId={requestId} action={{ href: "/app/emergency-summary", label: "Choose fields" }}>
       <div className={styles.statusRow}>
         <Badge tone={available ? "success" : "neutral"} dot>
           {available ? "Available by code" : "Not set up"}
@@ -85,7 +93,8 @@ export function EmergencyCard({ state, available, count, onRetry, error, request
 
 export function GrantsCard({ state, count, onRetry, error, requestId }: { state: RegionState; count: number; onRetry?: () => void; error?: string; requestId?: string }) {
   return (
-    <Surface title="Active access codes" state={state} onRetry={onRetry} error={error} requestId={requestId} action={{ href: "/app/access", label: "Manage access" }}>
+    <Surface title="Active access codes"
+      icon={KeyRound} state={state} onRetry={onRetry} error={error} requestId={requestId} action={{ href: "/app/access", label: "Manage access" }}>
       <MetricCard label="Codes still valid" value={count} context="Expired and revoked codes are excluded" />
     </Surface>
   );
@@ -102,6 +111,7 @@ export function SymptomsCard({ state, records, onRetry, error, requestId }: { st
   return (
     <Surface
       title="Recent conversations"
+      icon={MessageSquare}
       state={state}
       onRetry={onRetry}
       error={error}
@@ -156,6 +166,7 @@ export function DosesCard({
   return (
     <Surface
       title="Today's doses"
+      icon={Pill}
       state={state}
       onRetry={onRetry}
       error={error}
@@ -173,7 +184,7 @@ export function DosesCard({
         />
       }
     >
-      <ul className={styles.list}>
+      <ul className={`${styles.list} ${styles.scrollList}`}>
         {moments.map((moment) => {
           const pending = pendingId === moment.id;
           return (
