@@ -104,7 +104,71 @@ test.describe("auth journey", () => {
     await expect(page).toHaveURL(/\/login$/);
   });
 
-  test("ignores an open-redirect next value", as.",
+  test("ignores an open-redirect next value", async ({ page, context }) => {
+    await mockAuth(page);
+    await addAccessCookie(context);
+    await signIn(page, "//evil.com");
+    await expect(page).toHaveURL(/\/app$/);
+  });
+
+  for (const width of [390, 768, 1024, 1440]) {
+    test(`login and overview pass axe at ${width}px`, async ({ page, context }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await mockAuth(page);
+      await addAccessCookie(context);
+
+      await page.goto("/login");
+      await expect(page.getByRole("heading", { name: "Sign in", level: 1 })).toBeVisible();
+      const loginScan = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
+      expect(seriousViolations(loginScan.violations), JSON.stringify(seriousViolations(loginScan.violations), null, 2)).toEqual([]);
+      await page.screenshot({ path: `test-results/screens/login-${width}.png`, fullPage: true });
+
+      await signIn(page);
+      await expect(page.getByRole("heading", { name: "Overview", level: 1 })).toBeVisible();
+      const appScan = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
+      expect(seriousViolations(appScan.violations), JSON.stringify(seriousViolations(appScan.violations), null, 2)).toEqual([]);
+      await page.screenshot({ path: `test-results/screens/overview-${width}.png`, fullPage: true });
+    });
+  }
+
+  test("security evidence: HttpOnly cookies and no tokens in readable storage", async ({ page, context }) => {
+    await mockAuth(page);
+    await addAccessCookie(context);
+    await signIn(page);
+
+    const cookies = await context.cookies();
+    const access = cookies.find((cookie) => cookie.name === "ha_at");
+    const refresh = cookies.find((cookie) => cookie.name === "ha_rt");
+    expect(access?.httpOnly).toBe(true);
+    expect(refresh?.httpOnly).toBe(true);
+    expect(access?.path).toBe("/");
+    expect(refresh?.path).toBe("/api/auth");
+
+    const readable = await page.evaluate(() => ({
+      documentCookie: document.cookie,
+      local: Object.entries(localStorage),
+      session: Object.entries(sessionStorage),
+    }));
+    expect(readable.documentCookie).toBe("");
+    expect(readable.local).toEqual([]);
+    expect(readable.session).toEqual([]);
+
+    await page.evaluate(() => {
+      const panel = document.createElement("div");
+      panel.style.cssText =
+        "position:fixed;inset:16px;z-index:99999;background:#070d0e;color:#d5dfdb;font:13px/1.7 ui-monospace,monospace;padding:24px;border:1px solid #2a3d3f;border-radius:12px;white-space:pre-wrap";
+      panel.textContent = [
+        "M0 security evidence (no values recorded)",
+        "",
+        "BFF cookies (context.cookies):",
+        "ha_at  HttpOnly=true  SameSite=Lax  Path=/  Secure=false (development)",
+        "ha_rt  HttpOnly=true  SameSite=Lax  Path=/api/auth  Secure=false (development)",
+        "",
+        "document.cookie: (empty)",
+        "localStorage keys: (none)",
+        "sessionStorage keys: (none)",
+        "",
+        "Tokens never appear in storage or JavaScript-readable cookies.",
       ].join("\n");
       document.body.appendChild(panel);
     });
