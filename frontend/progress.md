@@ -16,7 +16,7 @@ Phase 2 (landing page): research is done. Waiting for approval of the palette an
 - **Phase 2:** landing page. `landing-references.md` is written; palette and headlines are proposed.
 
 ## Next
-- Build the landing sections in the order given in `landing-references.md`.
+- After the palette and headline are approved: build the landing sections in the order given in `landing-references.md` (how-it-works comes before the body map).
 - Run typecheck, lint and build. Take screenshots at 360, 768, 1280 and 1920 px.
 
 ## Blocked/Decisions
