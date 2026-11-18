@@ -27,6 +27,24 @@ const ClassificationSchema = z
   })
   .strict();
 
+const ConverseSchema = z
+  .object({
+    intent: z.enum([
+      'emergency',
+      'find_care',
+      'health_question',
+      'my_code',
+      'clarification',
+      'smalltalk',
+      'unsupported',
+    ]),
+    service_code: z.string().max(64).nullable(),
+    location_query: z.string().max(120).nullable(),
+    question: z.string().max(500).nullable(),
+    reply: z.string().max(600),
+  })
+  .strict();
+
 const AnswerSchema = z
   .object({
     answer_text: z.string().max(MAX_ANSWER_LENGTH),
@@ -59,6 +77,28 @@ export interface Classification {
   service_code: string | null;
   location_query: string | null;
   question: string | null;
+}
+
+export type ConverseIntent = z.infer<typeof ConverseSchema>['intent'];
+
+export interface ConverseTurn {
+  role: 'user' | 'assistant';
+  text: string;
+}
+
+export interface ConverseOptions {
+  services?: Service[];
+  history?: ConverseTurn[];
+  savedAreaLabel?: string | null;
+}
+
+export interface ConverseResult {
+  intent: ConverseIntent;
+  service_code: string | null;
+  location_query: string | null;
+  question: string | null;
+  /** Safe reply text, or null when the model's reply failed the safety checks. */
+  reply: string | null;
 }
 
 export type AnswerKind = 'reviewed' | 'web_unreviewed' | 'fallback';
@@ -108,6 +148,8 @@ export interface AnswerOptions {
 
 export interface Assistant {
   classify(message: string, options?: ClassifyOptions): Promise<Classification>;
+  /** Conversation-aware routing with a short natural reply; null when AI is unavailable. */
+  converse?(message: string, options?: ConverseOptions): Promise<ConverseResult | null>;
   answer(question: string, options?: AnswerOptions): Promise<AssistantAnswer>;
 }
 
@@ -167,6 +209,7 @@ function loadPrompt(name: string): string | null {
 
 const PROMPTS = {
   classify: loadPrompt('assistant-classify.txt'),
+  converse: loadPrompt('assistant-converse.txt'),
   answerReviewed: loadPrompt('assistant-answer-reviewed.txt'),
   answerWeb: loadPrompt('assistant-answer-web.txt'),
 };
@@ -386,6 +429,17 @@ function isSafeWebText(text: string): boolean {
   );
 }
 
+/** Conversational replies may give general guidance but never doses, prescriptions or certain diagnoses. */
+function isSafeConversationText(text: string): boolean {
+  return ![
+    DOSE_PATTERN,
+    PRESCRIBE_PATTERN,
+    DIRECT_DIAGNOSIS_PATTERN,
+    MEDICATION_ACTION_PATTERN,
+    VERIFICATION_CLAIM_PATTERN,
+  ].some((pattern) => pattern.test(text));
+}
+
 function fallbackResult(): AssistantAnswer {
   return {
     text: FALLBACK_TEXT,
@@ -548,6 +602,39 @@ export function createAssistant(
     return output ? normalizeClassification(output, serviceList) : clarificationResult();
   }
 
+  async function converse(
+    message: string,
+    { services = [], history = [], savedAreaLabel = null }: ConverseOptions = {},
+  ): Promise<ConverseResult | null> {
+    const text = cleanUserText(message, MAX_INPUT_LENGTH);
+    if (!text || !canGenerate() || !PROMPTS.converse) return null;
+    const serviceList = normalizeServices(services);
+    const turns = history
+      .slice(-8)
+      .map((turn) => ({
+        role: turn.role === 'assistant' ? 'assistant' : 'user',
+        text:
+          turn.role === 'assistant'
+            ? redactLongNumbers(cleanText(turn.text, 320))
+            : cleanUserText(turn.text, 320),
+      }))
+      .filter((turn) => turn.text);
+    const area = cleanText(savedAreaLabel, 80) || null;
+    const prompt = `Recent conversation (oldest first):\n${JSON.stringify(turns)}\n\nLatest message:\n<<<\n${text}\n>>>\n\nSaved home area: ${JSON.stringify(area)}\n\nService codes and labels:\n${JSON.stringify(serviceList)}`;
+    const output = await generate(ConverseSchema, 'SmsConversation', PROMPTS.converse, prompt);
+    if (!output) return null;
+    const codes = new Set(serviceList.map((service) => service.service_code));
+    const reply = redactLongNumbers(cleanText(output.reply, 320));
+    return {
+      intent: output.intent,
+      service_code:
+        output.service_code && codes.has(output.service_code) ? output.service_code : null,
+      location_query: cleanText(output.location_query, 120) || null,
+      question: cleanText(output.question, 500) || null,
+      reply: reply && isSafeConversationText(reply) ? reply : null,
+    };
+  }
+
   async function answer(question: string, options: AnswerOptions = {}): Promise<AssistantAnswer> {
     const text = cleanUserText(question, MAX_INPUT_LENGTH);
     const hints = normalizePersonalHints(options.personal);
@@ -618,5 +705,5 @@ export function createAssistant(
     };
   }
 
-  return { classify, answer };
+  return { classify, converse, answer };
 }

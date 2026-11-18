@@ -3,7 +3,9 @@ import type { Crypto } from '../security/crypto.js';
 import type {
   Area,
   Facility,
+  OwnCodes,
   Projection,
+  QuickGrantResult,
   RecordField,
   Service,
   WebLead,
@@ -22,6 +24,7 @@ export type UssdState =
   | 'GRANT_PATIENT_CODE'
   | 'GRANT_ACCESS_CODE'
   | 'RECORD_PAGE'
+  | 'MY_CODE'
   | 'END';
 
 export interface UssdCursor {
@@ -34,6 +37,7 @@ export interface UssdContext {
   kind?: string;
   serviceCode?: string;
   serviceCodes?: string[];
+  serviceLabels?: string[];
   areaId?: string;
   areaLabel?: string;
   resultKind?: 'directory' | 'web';
@@ -97,13 +101,16 @@ export interface UssdRepository {
     radiusKm: number,
   ): Promise<Facility | null>;
   readEmergency(codeDigest: string): Promise<Projection>;
-  openGrant(patientDigest: string, grantDigest: string): Promise<Projection>;
+  /** patientDigest is null when the temporary code alone identifies the patient. */
+  openGrant(patientDigest: string | null, grantDigest: string): Promise<Projection>;
   readGrant(readSessionId: string): Promise<Projection>;
   closeReadSession(readSessionId: string): Promise<void>;
   findProfileConsent(): Promise<{ id: string } | null>;
   readMatchingContext(consentId: string): Promise<{ available: boolean } | null>;
   /** Linked patient's home area, available only through a live profile-use consent. */
   findSavedArea?(): Promise<{ id: string; label: string } | null>;
+  readOwnCodes?(): Promise<OwnCodes>;
+  createQuickGrant?(minutes?: number): Promise<QuickGrantResult>;
   queueFacilitySms(facilityId: string): Promise<boolean>;
   storeWebLeads(leads: WebLead[]): Promise<string[]>;
   getWebLead(id: string): Promise<WebLead | null>;
@@ -166,13 +173,15 @@ const MAX_RECORD_PAGES = 10;
 const FOOTER_RESERVE = 28;
 
 const MAIN =
-  'HealthAccess\n1. Find nearby care\n2. Emergency summary\n3. View shared details\n4. Emergency help\n0. Exit';
+  'HealthAccess\n1. Find care near me\n2. Open shared health info\n3. My access code\n4. Emergency help\n0. Exit';
 const LOCATION = 'CON Enter area or landmark\n0. Back';
 const EMERGENCY_DETAILS =
   'CON Emergency help\nWhat is happening? Briefly describe.\nNo names/codes; sent for live search.\nCall 112 if life-threatening.\n0. Back';
 const EMERGENCY_LOCATION =
-  'CON Enter area or landmark\nUsed to find nearby help.\nCall 112 if life-threatening.\n0. Back';
-const EMERGENCY = 'CON Emergency summary\nEnter patient code\n0. Back';
+  'CON Emergency help\nCall 112 now if life-threatening.\nEnter your area or landmark:\n0. Back';
+const EMERGENCY = 'CON Enter the access code you were given\n0. Back';
+const NOT_LINKED =
+  'This phone is not linked to HealthAccess. On the website open Channels and verify this number.';
 const GRANT_PATIENT = 'CON View shared details\nEnter patient code\n0. Back';
 const GRANT_ACCESS = 'CON Enter temporary access code\n0. Back';
 const PROFILE = 'CON Use your saved profile for this search?\n1. Yes\n2. No\n0. Back';
@@ -506,8 +515,8 @@ export function createUssdEngine({
     await closeRead(session);
     const text =
       kind === 'grant'
-        ? 'Shared details are no longer available.'
-        : 'Emergency summary unavailable.';
+        ? 'That code did not work. It may have expired. Ask for a new code and dial again.'
+        : 'That code did not work. Check the digits and dial again.';
     return terminal(session, text, 'unavailable');
   }
 
@@ -519,7 +528,9 @@ export function createUssdEngine({
       case 'CARE_SERVICE':
         return (
           menu('Choose service', [
-            ...(context.serviceCodes ?? []).map((code, index) => `${index + 1}. ${code}`),
+            ...(context.serviceCodes ?? []).map(
+              (code, index) => `${index + 1}. ${context.serviceLabels?.[index] ?? code}`,
+            ),
             '0. Back',
           ]) ?? UNAVAILABLE
         );
@@ -546,6 +557,8 @@ export function createUssdEngine({
         return noMatchOptions(context).join('\n');
       case 'EMERGENCY_CODE':
         return EMERGENCY.slice(4);
+      case 'MY_CODE':
+        return '1. Get a 1-hour code\n0. Back';
       case 'GRANT_PATIENT_CODE':
         return GRANT_PATIENT.slice(4);
       case 'GRANT_ACCESS_CODE':
@@ -1192,6 +1205,7 @@ export function createUssdEngine({
     const context: UssdContext = {
       kind: 'care_service',
       serviceCodes: found.map((service) => service.service_code),
+      serviceLabels: found.map((service) => inline(service.label)),
     };
     return makeResult(
       session,
@@ -1226,6 +1240,85 @@ export function createUssdEngine({
         truncated,
       }),
       response,
+    );
+  }
+
+  function grouped(code: string): string {
+    return code.replace(/(\d{4})(?=\d)/g, '$1 ');
+  }
+
+  function myCodeMenu(code: string, empty = false): string {
+    const note = empty
+      ? 'It shows nothing yet: pick your emergency summary on the website.'
+      : 'Anyone can view your emergency info with it.';
+    return `Your emergency code:\n${grouped(code)}\n${note}\n1. Get a 1-hour code\n0. Back`;
+  }
+
+  async function myCode(session: UssdSession): Promise<UssdResult> {
+    let codes: OwnCodes;
+    try {
+      codes = (await repository.readOwnCodes?.()) ?? { linked: false };
+    } catch {
+      return unavailable(session);
+    }
+    if (!codes.linked) return terminal(session, NOT_LINKED, 'goodbye');
+    return makeResult(
+      session,
+      'MY_CODE',
+      acceptedContext({ kind: 'my_code' }),
+      bounded('CON', myCodeMenu(codes.patientCode, codes.summaryFields === 0)),
+      { sensitive: true },
+    );
+  }
+
+  async function openTemporaryCode(session: UssdSession, code: string): Promise<UssdResult> {
+    const grantDigest = await crypto.digestCode(code, 'grant');
+    if (!grantDigest) return invalid(session, EMERGENCY.slice(4));
+    let opened: Projection;
+    try {
+      opened = await repository.openGrant(null, grantDigest);
+    } catch {
+      return accessError(session, 'grant');
+    }
+    if (!opened.available || !opened.read_session_id) return accessError(session, 'grant');
+    const withRead: UssdSession = { ...session, readSessionId: opened.read_session_id };
+    let projection: Projection;
+    try {
+      projection = await repository.readGrant(opened.read_session_id);
+    } catch {
+      await closeRead(withRead);
+      return accessError(withRead, 'grant');
+    }
+    if (!projection.available || !projection.fields?.length) {
+      await closeRead(withRead);
+      return accessError(withRead, 'grant');
+    }
+    return projectionResult(
+      withRead,
+      { kind: 'record_page', recordKind: 'grant', cursor: null, pageNo: 1 },
+      projection,
+    );
+  }
+
+  async function quickCode(session: UssdSession): Promise<UssdResult> {
+    let created: QuickGrantResult;
+    try {
+      created = (await repository.createQuickGrant?.(60)) ?? { status: 'not_linked' };
+    } catch {
+      return unavailable(session);
+    }
+    if (created.status === 'not_linked') return terminal(session, NOT_LINKED, 'goodbye');
+    if (created.status === 'nothing_to_share')
+      return terminal(
+        session,
+        'Add your health information on the website first, then dial again.',
+        'goodbye',
+      );
+    return terminal(
+      session,
+      `Your 1-hour code:\n${grouped(created.code)}\nGive it to your doctor. It opens your emergency info on USSD or the web.`,
+      'protected',
+      { sensitive: true },
     );
   }
 
@@ -1286,6 +1379,8 @@ export function createUssdEngine({
           { ...context, kind: 'emergency_code' },
           EMERGENCY,
         );
+      case 'MY_CODE':
+        return myCode(session);
       case 'GRANT_PATIENT_CODE':
         return makeResult(
           session,
@@ -1374,21 +1469,9 @@ export function createUssdEngine({
             EMERGENCY,
           );
         }
-        if (token === '3') {
-          return makeResult(
-            session,
-            'GRANT_PATIENT_CODE',
-            acceptedContext({ kind: 'grant_patient_code' }),
-            GRANT_PATIENT,
-          );
-        }
-        if (token === '4')
-          return makeResult(
-            session,
-            'CARE_LOCATION',
-            acceptedContext({ kind: 'emergency_details' }),
-            EMERGENCY_DETAILS,
-          );
+        if (token === '3') return myCode(session);
+        // Emergency: ask only for the area so help is one step away.
+        if (token === '4') return emergencyArea(session, undefined, false, await savedArea());
         return invalid(session, MAIN);
 
       case 'CARE_SERVICE': {
@@ -1557,6 +1640,18 @@ export function createUssdEngine({
         return invalid(session, noMatchOptions(context).join('\n'));
       }
 
+      case 'MY_CODE': {
+        if (token === '0')
+          return makeResult(
+            session,
+            'MAIN',
+            acceptedContext({ kind: 'main' }),
+            bounded('CON', MAIN),
+          );
+        if (token === '1') return quickCode(session);
+        return invalid(session);
+      }
+
       case 'EMERGENCY_CODE': {
         if (token === '0')
           return makeResult(
@@ -1565,8 +1660,11 @@ export function createUssdEngine({
             acceptedContext({ kind: 'main' }),
             bounded('CON', MAIN),
           );
-        if (!validCode(token)) return invalid(session, EMERGENCY.slice(4));
-        const digest = await crypto.digestCode(token.trim(), 'patient');
+        // One box for every code: 12 digits is an emergency code, 8 digits a temporary code.
+        const code = token.replace(/[\s-]/g, '');
+        if (/^\d{8}$/.test(code)) return openTemporaryCode(session, code);
+        if (!validCode(code)) return invalid(session, EMERGENCY.slice(4));
+        const digest = await crypto.digestCode(code, 'patient');
         if (!digest) return invalid(session, EMERGENCY.slice(4));
         let projection: Projection;
         try {

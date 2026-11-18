@@ -51,3 +51,18 @@ export interface PersonalHints {
   medications: string[];
   language: string;
 }
+
+/** The caller's own codes; only for a phone verified to a patient. */
+export type OwnCodes =
+  | { linked: false }
+  | {
+      linked: true;
+      patientCode: string;
+      /** Fields chosen for the emergency summary; 0 means the emergency code shows nothing yet. */
+      summaryFields?: number;
+    };
+
+export type QuickGrantResult =
+  | { status: 'not_linked' }
+  | { status: 'nothing_to_share' }
+  | { status: 'created'; code: string; expiresAt: Date };

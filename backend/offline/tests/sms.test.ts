@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createSmsEngine, isPotentiallyUrgent } from '../src/channels/sms.js';
+import { createSmsEngine, GREETING, HELP, isPotentiallyUrgent } from '../src/channels/sms.js';
 import type { SmsRepository, SmsResult } from '../src/channels/sms.js';
 import { smsSegments, renderFacility, renderWebLead } from '../src/channels/render.js';
 import type { WebLead } from '../src/types.js';
@@ -395,4 +395,188 @@ test('ASK passes consented personal hints to the assistant and tolerates lookup 
   fail = true;
   assert.equal(textOf(await engine.process('ASK what helps a cough')), 'Tailored answer.');
   assert.deepEqual(seen, [hints, null]);
+});
+
+function engineWith(
+  overrides: Partial<SmsRepository> = {},
+  converse?: (
+    message: string,
+    options: { history: Array<{ role: string; text: string }>; savedAreaLabel: string | null },
+  ) => Promise<{
+    intent: string;
+    service_code: string | null;
+    location_query: string | null;
+    question: string | null;
+    reply: string | null;
+  } | null>,
+  answerKind = 'fallback',
+) {
+  const areas: string[] = [];
+  const repository: SmsRepository = {
+    listServices: async () => services,
+    setOptOut: async () => {},
+    findAreas: async () => [{ id: 'area1', name: 'Ikeja' }],
+    findFacilities: async () => [
+      { id: 'facility1', name: 'Example', address: 'Test', phone: null, distance_km: null },
+    ],
+    readEmergency: async () => ({ available: false }),
+    findProfileConsent: async () => null,
+    readMatchingContext: async () => ({ available: false }),
+    storeWebLeads: async () => ['lead1'],
+    ...overrides,
+  };
+  const engine = createSmsEngine({
+    repository,
+    config: { searchRadiusKm: 25, allowLiveWeb: true, profileUseEnabled: false },
+    crypto: { digestCode: () => 'digest' },
+    assistant: {
+      classify: async () => ({ intent: 'unsupported', service_code: null, location_query: null, question: null }),
+      answer: async () => ({ text: 'Reviewed answer.', kind: answerKind }),
+      ...(converse ? { converse } : {}),
+    },
+    search: {
+      discoverFacilities: async () => [],
+      discoverEmergency: async ({ area }) => {
+        areas.push(area);
+        return [lead('one')];
+      },
+    },
+  });
+  return { engine, areas };
+}
+
+async function chat(engine: ReturnType<typeof createSmsEngine>, messages: string[]) {
+  let conversation: { state: string; context: SmsResult['context'] } = { state: 'idle', context: {} };
+  const results: SmsResult[] = [];
+  for (const message of messages) {
+    const next = await engine.process(message, conversation);
+    results.push(next);
+    conversation = { state: next.state, context: next.context };
+  }
+  return results;
+}
+
+test('the reported conversation: greeting, breathing trouble, area, confusion', async () => {
+  const { engine, areas } = engineWith();
+  const [hello, breathing, area, confused, emergency] = await chat(engine, [
+    'Hello',
+    'i am having issues breathing where can i go to help me',
+    'Ikeja',
+    'i dont understand',
+    '2',
+  ]);
+  assert.equal(textOf(hello), GREETING);
+  assert.equal(breathing.state, 'awaiting_emergency_area');
+  assert.match(textOf(breathing), /call 112 now/);
+  assert.match(textOf(breathing), /Reply with your area/);
+  assert.equal(area.state, 'showing_emergency');
+  assert.deepEqual(areas, ['Ikeja']);
+  assert.equal(textOf(confused), HELP);
+  assert.equal(confused.state, 'menu');
+  assert.equal(emergency.state, 'awaiting_emergency_area');
+  assert.doesNotMatch(textOf(hello), /LOOKUP|STOP/);
+});
+
+test('urgent messages search the saved area immediately', async () => {
+  const { engine, areas } = engineWith({
+    findSavedArea: async () => ({ id: 'home', label: 'Yaba, Lagos' }),
+  });
+  const [result] = await chat(engine, ['my chest hurts and I feel faint']);
+  assert.equal(result.state, 'showing_emergency');
+  assert.deepEqual(areas, ['Yaba, Lagos']);
+  assert.match(textOf(result), /call 112/);
+});
+
+test('urgency detection covers common phrasings', () => {
+  for (const phrase of [
+    'having issues breathing',
+    'I have trouble breathing',
+    'shortness of breath',
+    'he fainted',
+    'she is having a seizure',
+    'heavy bleeding after birth',
+    'my baby is not breathing',
+    'snake bite on leg',
+  ]) {
+    assert.equal(isPotentiallyUrgent(phrase), true, phrase);
+  }
+  assert.equal(isPotentiallyUrgent('I have a mild headache'), false);
+});
+
+test('the conversation remembers earlier turns and redacts numbers from memory', async () => {
+  const seen: Array<Array<{ role: string; text: string }>> = [];
+  const { engine } = engineWith({}, async (_message, options) => {
+    seen.push(options.history);
+    return { intent: 'clarification', service_code: null, location_query: null, question: null, reply: 'Which area are you in?' };
+  });
+  const [, second] = await chat(engine, ['my son has had a fever for 2 days', 'he is 4']);
+  assert.equal(seen[1]!.length, 2);
+  assert.equal(seen[1]![0]!.text, 'my son has had a fever for 2 days');
+  assert.equal(seen[1]![1]!.text, 'Which area are you in?');
+  assert.equal(second.context.history?.length, 4);
+
+  const coded = await engine.process('CODE', { state: 'idle', context: {} });
+  assert.match(textOf(coded), /not linked/);
+  const { engine: linked } = engineWith({
+    readOwnCodes: async () => ({ linked: true, patientCode: '123456789012' }),
+  });
+  const reply = await linked.process('my code', { state: 'idle', context: {} });
+  assert.match(textOf(reply), /1234 5678 9012/);
+  assert.doesNotMatch(JSON.stringify(reply.context.history), /1234|5678|9012/);
+});
+
+test('converse routes care requests with a location from the conversation', async () => {
+  const { engine } = engineWith({}, async () => ({
+    intent: 'find_care',
+    service_code: 'pediatrics',
+    location_query: 'Ikeja',
+    question: null,
+    reply: null,
+  }));
+  const [result] = await chat(engine, ['where can I take my sick child near Ikeja']);
+  assert.equal(result.state, 'showing_results');
+});
+
+test('converse gives safe general guidance when no reviewed answer exists', async () => {
+  const { engine } = engineWith({}, async () => ({
+    intent: 'health_question',
+    service_code: null,
+    location_query: null,
+    question: 'What helps a mild fever?',
+    reply: 'Rest, drink plenty of fluids and see a clinician if the fever lasts over 2 days.',
+  }));
+  const [result] = await chat(engine, ['what should I do for a mild fever']);
+  assert.match(textOf(result), /Rest, drink plenty of fluids/);
+  assert.match(textOf(result), /not a diagnosis/);
+
+  const { engine: reviewed } = engineWith(
+    {},
+    async () => ({ intent: 'health_question', service_code: null, location_query: null, question: 'q', reply: 'model text' }),
+    'reviewed',
+  );
+  assert.equal(textOf((await chat(reviewed, ['question about fever']))[0]!), 'Reviewed answer.');
+});
+
+test('without AI, unknown messages get the plain-language menu, not a command list', async () => {
+  const { engine } = engineWith({}, async () => null);
+  const [result] = await chat(engine, ['something odd']);
+  assert.equal(textOf(result), HELP);
+  assert.equal(result.state, 'menu');
+});
+
+test('NEW CODE creates a 1-hour code for a linked phone', async () => {
+  const { engine } = engineWith({
+    createQuickGrant: async () => ({ status: 'created', code: '87654321', expiresAt: new Date() }),
+  });
+  const [result] = await chat(engine, ['new code']);
+  assert.match(textOf(result), /8765 4321/);
+});
+
+test('LOOKUP accepts spaced codes and explains 8-digit codes', async () => {
+  const { engine } = engineWith({
+    readEmergency: async () => ({ available: true, fields: [{ key: 'a', label: 'A', value: 'x' }] }),
+  });
+  const spaced = await engine.process('LOOKUP 1234 5678 9012');
+  assert.deepEqual(spaced.replies, [{ kind: 'emergency', codeDigest: 'digest' }]);
+  assert.match(textOf(await engine.process('LOOKUP 1234 5678')), /USSD/);
 });

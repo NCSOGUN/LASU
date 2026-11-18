@@ -159,3 +159,19 @@ test('symptom prompt embeds patient context only when records are allowed', () =
   assert.doesNotMatch(without, /Location: Ikeja/);
   assert.match(without, /Do not look up or use the patient record/);
 });
+
+test('saving the allergy list keeps the shareable allergies field in sync', async () => {
+  const auth = await register('allergy-sync');
+  const saved = await request(app)
+    .put('/v1/me/medical')
+    .set(auth)
+    .send({ allergies: [{ name: 'Penicillin' }, { name: 'Peanuts', severity: 'SEVERE' }] })
+    .expect(200);
+  assert.deepEqual(saved.body.field_values.allergies, ['Penicillin', 'Peanuts']);
+  const shared = await request(app).post('/v1/me/grants/quick').set(auth).send({}).expect(201);
+  assert.deepEqual(shared.body.field_keys, ['allergies']);
+  await prisma.accessGrant.deleteMany({ where: { id: shared.body.grant_id } });
+
+  const cleared = await request(app).put('/v1/me/medical').set(auth).send({ allergies: [] }).expect(200);
+  assert.equal(cleared.body.field_values.allergies, undefined);
+});

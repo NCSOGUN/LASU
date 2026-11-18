@@ -3,7 +3,9 @@ import type { Crypto } from '../security/crypto.js';
 import type {
   Area,
   Facility,
+  OwnCodes,
   PersonalHints,
+  QuickGrantResult,
   Projection,
   SavedArea,
   Service,
@@ -25,6 +27,10 @@ export interface SmsRepository {
   findSavedArea?(): Promise<SavedArea | null>;
   /** Consent-scoped, de-identified hints for tailoring answers (live consent only). */
   readPersonalHints?(): Promise<PersonalHints | null>;
+  /** The sender's own emergency code, when the phone is verified to a patient. */
+  readOwnCodes?(): Promise<OwnCodes>;
+  /** One-tap temporary code for the sender's emergency information. */
+  createQuickGrant?(minutes?: number): Promise<QuickGrantResult>;
   storeWebLeads(leads: WebLead[]): Promise<string[]>;
   recordEmergencyRequest?(request: {
     channel: 'SMS' | 'USSD';
@@ -55,7 +61,21 @@ interface SmsDependencies {
     answer(
       question: string,
       options?: { personal?: PersonalHints | null },
-    ): Promise<{ text: string }>;
+    ): Promise<{ text: string; kind?: string }>;
+    converse?(
+      message: string,
+      options: {
+        services: Service[];
+        history: Array<{ role: 'user' | 'assistant'; text: string }>;
+        savedAreaLabel: string | null;
+      },
+    ): Promise<{
+      intent: string;
+      service_code: string | null;
+      location_query: string | null;
+      question: string | null;
+      reply: string | null;
+    } | null>;
   };
   search?: {
     discoverFacilities(request: { serviceLabel: string; area: string }): Promise<WebLead[]>;
@@ -70,10 +90,14 @@ export interface SmsResult extends SmsConversation {
 }
 
 export const HELP =
-  'HealthAccess: FIND <care> near <area>; LOOKUP <12-digit patient code>; EMERGENCY <area>; ASK <general health question>; MORE; CANCEL; STOP. AI-assisted information is not a diagnosis. English only.';
+  'HealthAccess can help. Reply with a number: 1 Find a clinic or hospital, 2 Emergency help, 3 Ask a health question, 4 Get my access code. Or just tell me what is wrong. In danger? Call 112.';
+export const GREETING =
+  'Hi, I am HealthAccess. Tell me what is wrong or what you need, for example "fever since yesterday" or "clinic in Ikeja". Or reply 1 Find care, 2 Emergency, 3 Ask a question, 4 My access code.';
+export const NOT_LINKED =
+  'This phone is not linked to a HealthAccess account yet. Sign in on the HealthAccess website, open Channels and verify this number, then reply CODE again.';
 export const UNAVAILABLE = 'No shared summary is available for that code. Check the code.';
 export const URGENT =
-  'If this may be an emergency, seek immediate in-person medical help or call 112 now. Do not wait for an SMS reply. Reply EMERGENCY <area> for live emergency listings. HealthAccess does not dispatch an ambulance.';
+  'This may be an emergency. Get immediate in-person help: call 112 now or go to the nearest emergency department. Reply with your area (e.g. Ikeja) and I will send the nearest emergency hospital, or send EMERGENCY <area>.';
 export const EMERGENCY_FALLBACK =
   'No live emergency listing found. Call 112 now or go to the nearest emergency department. HealthAccess does not dispatch ambulances.';
 
@@ -95,9 +119,20 @@ export function resolveService(text: string, services: Service[]) {
 
 export function isPotentiallyUrgent(text: string) {
   // Conservative routing only, not clinical triage or a claim of reviewed advice.
-  return /\b(can['\u2019]?t breathe|cannot breathe|can not breathe|difficulty breathing|unconscious|severe bleeding|heavy bleeding|overdose|kill myself|suicid(?:e|al)|chest pain)\b/i.test(
-    text,
-  );
+  return [
+    /\b(?:can['\u2019]?t|cannot|can not|unable to|struggling to|hard to|difficult to) breathe?\b/i,
+    /\b(?:difficulty|trouble|problems?|issues?|struggling|hard|pain) (?:with |when |while )?breathing\b/i,
+    /\bbreathing (?:problems?|issues?|difficult(?:y|ies)|trouble|hard|fast|badly)\b/i,
+    /\bshort(?:ness)? of breath\b|\bgasping\b|\bchoking\b/i,
+    /\bchest (?:pain|tightness|is tight|hurts)\b/i,
+    /\b(?:unconscious|not waking|passed out|fainted|collapsed|unresponsive)\b/i,
+    /\b(?:seizure|convulsion|convulsing|fitting)s?\b/i,
+    /\b(?:stroke|face drooping|slurred speech)\b/i,
+    /\b(?:severe|heavy|a lot of|won['\u2019]?t stop) bleeding\b|\bbleeding (?:a lot|heavily|won['\u2019]?t stop)\b/i,
+    /\b(?:overdose|poison(?:ed|ing)?|snake ?bite)\b/i,
+    /\b(?:kill myself|end my life|suicid(?:e|al))\b/i,
+    /\bnot breathing\b|\b(?:baby|child)(?: is)? (?:not moving|blue|turning blue)\b/i,
+  ].some((pattern) => pattern.test(text));
 }
 
 export function createSmsEngine({
@@ -324,12 +359,108 @@ export function createSmsEngine({
     return note ? { ...shown, replies: [textReply(note), ...shown.replies] } : shown;
   }
 
+  type Turn = { role: 'user' | 'assistant'; text: string };
+  const HISTORY_TURNS = 10;
+  const historyText = (value: string) =>
+    value
+      .replace(/\d[\d\s-]{4,}\d/g, '[number]')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 320);
+
+  function replyText(reply: SmsReply): string {
+    if (reply.kind === 'text') return reply.text;
+    if (reply.kind === 'emergency') return '[sent the emergency summary]';
+    return '[sent a care listing]';
+  }
+
+  const grouped = (code: string) => code.replace(/(\d{4})(?=\d)/g, '$1 ');
+
+  async function myCode(): Promise<SmsResult> {
+    let codes: OwnCodes = { linked: false };
+    try {
+      codes = (await repository.readOwnCodes?.()) ?? { linked: false };
+    } catch {
+      return idle('Your code is unavailable right now. Please try again shortly.');
+    }
+    if (!codes.linked) return idle(NOT_LINKED);
+    return result('idle', {}, [
+      textReply(
+        codes.summaryFields === 0
+          ? `Your HealthAccess emergency code is ${grouped(codes.patientCode)}. It shows nothing yet: choose your emergency summary on the HealthAccess website. Reply NEW CODE for a 1-hour code with your emergency details.`
+          : `Your HealthAccess emergency code is ${grouped(codes.patientCode)}. Anyone you give it to can see your emergency information. Reply NEW CODE for a code that expires in 1 hour.`,
+      ),
+    ]);
+  }
+
+  async function newCode(): Promise<SmsResult> {
+    let created: QuickGrantResult = { status: 'not_linked' };
+    try {
+      created = (await repository.createQuickGrant?.(60)) ?? { status: 'not_linked' };
+    } catch {
+      return idle('A new code could not be created right now. Please try again shortly.');
+    }
+    if (created.status === 'not_linked') return idle(NOT_LINKED);
+    if (created.status === 'nothing_to_share')
+      return idle('Add your health information on the HealthAccess website first, then reply NEW CODE.');
+    return idle(
+      `Your 1-hour HealthAccess code is ${grouped(created.code)}. Give it to your doctor or nurse. It opens your emergency information by USSD or on the website.`,
+    );
+  }
+
+  async function urgent(note = URGENT): Promise<SmsResult> {
+    const saved = await savedArea();
+    if (saved)
+      return emergencySearch(
+        saved.label,
+        `This may be an emergency: call 112 now or go to the nearest emergency department. Searching near your saved area, ${saved.label}. Send EMERGENCY <area> if you are elsewhere.`,
+      );
+    return result('awaiting_emergency_area', {}, [textReply(note)]);
+  }
+
+  async function startEmergency(): Promise<SmsResult> {
+    const saved = await savedArea();
+    if (saved)
+      return emergencySearch(
+        saved.label,
+        `Searching near your saved area, ${saved.label}. Call 112 now if life-threatening. Send EMERGENCY <area> if you are somewhere else.`,
+      );
+    return result('awaiting_emergency_area', {}, [
+      textReply('Which area or nearby landmark are you in? Call 112 now if the situation is life-threatening.'),
+    ]);
+  }
+
+  const MENU_PATTERN =
+    /^(?:help|menu|options?|start|\?+|what\??|huh\??|i don['’]?t understand|i do not understand|don['’]?t understand|confused|what can you do\??)$/i;
+  const GREETING_PATTERN =
+    /^(?:hi+|hello+|hey+|hallo|good (?:morning|afternoon|evening|day)|howdy|how far|bawo|sannu|ndewo)[!. ]*$/i;
+  const THANKS_PATTERN = /^(?:thanks?|thank you|ok(?:ay)?|alright|cool|great)[!. ]*$/i;
+
   async function process(
     message: string,
     conversation: SmsConversation = { state: 'idle', context: {} },
   ): Promise<SmsResult> {
+    const history: Turn[] = Array.isArray(conversation.context?.history)
+      ? (conversation.context.history as Turn[]).slice(-HISTORY_TURNS)
+      : [];
+    const out = await route(message, conversation, history);
+    if (out.state === 'closed') return out;
+    const turns: Turn[] = [
+      ...history,
+      { role: 'user' as const, text: historyText(message) },
+      { role: 'assistant' as const, text: historyText(out.replies.map(replyText).join(' ')) },
+    ].filter((turn) => turn.text);
+    return { ...out, context: { ...out.context, history: turns.slice(-HISTORY_TURNS) } };
+  }
+
+  async function route(
+    message: string,
+    conversation: SmsConversation,
+    history: Turn[],
+  ): Promise<SmsResult> {
     const text = message.trim();
-    const { state, context = {} } = conversation;
+    const { state } = conversation;
+    const { history: _history, historyEnvelope: _envelope, ...context } = conversation.context ?? {};
     if (/^(CANCEL|STOP)$/i.test(text)) {
       if (/^STOP$/i.test(text)) await repository.setOptOut(true);
       return result('closed', {}, [
@@ -341,47 +472,38 @@ export function createSmsEngine({
       ]);
     }
     await repository.setOptOut(false);
-    if (/^HELP$/i.test(text)) return idle(HELP);
-    if (isPotentiallyUrgent(text)) return idle(URGENT);
+    if (MENU_PATTERN.test(text)) return result('menu', {}, [textReply(HELP)]);
+    if (isPotentiallyUrgent(text)) return urgent();
     if (/^LOOKUP(?:\s|$)/i.test(text)) {
-      const match = /^LOOKUP\s+(\d{12})$/i.exec(text);
-      if (!match)
+      const code = text.replace(/^LOOKUP\s*/i, '').replace(/[\s-]/g, '');
+      if (/^\d{8}$/.test(code))
         return idle(
-          'Use LOOKUP followed by your 12-digit patient code. Temporary access codes work in USSD only.',
+          'That is a 1-hour access code. Dial the HealthAccess USSD code and choose 2 (Open shared health info), or enter it on the HealthAccess website.',
         );
-      const codeDigest = crypto.digestCode(match[1]);
+      if (!/^\d{12}$/.test(code))
+        return idle('Send LOOKUP followed by the 12-digit emergency code, for example LOOKUP 1234 5678 9012.');
+      const codeDigest = crypto.digestCode(code);
       if (!codeDigest) return idle(UNAVAILABLE);
       const projection = await repository.readEmergency(codeDigest);
       if (!projection?.available || !projection.fields?.length) return idle(UNAVAILABLE);
       // Re-resolve in the sending worker; a queued record is not an authorization snapshot.
       return result('idle', {}, [{ kind: 'emergency', codeDigest }]);
     }
-    if (/\d{6,}/.test(text))
+    if (/^(?:MY\s+)?(?:ACCESS\s+|PATIENT\s+|EMERGENCY\s+)?CODE$/i.test(text)) return myCode();
+    if (/^NEW\s+CODE$/i.test(text)) return newCode();
+    if (/\d{6,}/.test(text.replace(/[\s-]/g, '')) && /\d{3,}[\s-]?\d{3,}/.test(text))
       return idle(
-        'Do not send access codes or phone numbers in a health question. Use LOOKUP <12-digit patient code> for a summary.',
+        'Please do not send codes or phone numbers in a question. To view someone\'s emergency information, send LOOKUP <12-digit code>.',
       );
     if (/^MORE$/i.test(text)) {
       return state === 'showing_results' || state === 'showing_emergency'
         ? showResult(context, (context.resultIndex || 0) + 1, state)
-        : idle('There is no active result list. Send FIND <care> near <area>.');
+        : idle('There is no active result list. Tell me what care you need and where, for example "clinic in Ikeja".');
     }
     const emergency = /^EMERGENCY\b\s*(.*)$/i.exec(text);
     if (emergency) {
       const area = emergency[1].replace(/^near\b\s*/i, '').trim();
-      if (!area) {
-        const saved = await savedArea();
-        if (saved)
-          return emergencySearch(
-            saved.label,
-            `Searching near your saved area, ${saved.label}. Call 112 now if life-threatening. Send EMERGENCY <area> if you are somewhere else.`,
-          );
-      }
-      if (!area)
-        return result('awaiting_emergency_area', {}, [
-          textReply(
-            'Which area or nearby landmark are you in? Call 112 now if the situation is life-threatening.',
-          ),
-        ]);
+      if (!area) return startEmergency();
       if (!validEmergencyArea(area))
         return result('awaiting_emergency_area', {}, [
           textReply('Reply with your area or a nearby landmark. Call 112 now if life-threatening.'),
@@ -389,6 +511,7 @@ export function createSmsEngine({
       return emergencySearch(area);
     }
     if (state === 'awaiting_emergency_area') {
+      if (/^(YES|Y)$/i.test(text)) return startEmergency();
       if (!validEmergencyArea(text))
         return result(state, {}, [
           textReply('Reply with your area or a nearby landmark. Call 112 now if life-threatening.'),
@@ -396,33 +519,43 @@ export function createSmsEngine({
       return emergencySearch(text);
     }
     const services = await repository.listServices();
-    const find = /^FIND(?:\s+(.+?))?(?:\s+near\s+(.+))?$/i.exec(text);
+    const find = /^FIND(?:\s+(.+?))?(?:\s+(?:near|in|at)\s+(.+))?$/i.exec(text);
     if (find) return findCare(resolveService(find[1] || '', services), find[2] || null);
     if (/^ASK(?:\s|$)/i.test(text)) {
       const question = text.replace(/^ASK\s*/i, '');
       if (!question)
-        return idle(
-          'Send ASK followed by a general health question. Do not include names, codes or private records.',
-        );
+        return result('awaiting_question', {}, [
+          textReply('What would you like to ask? Describe the symptom or question in one message.'),
+        ]);
       return answerQuestion(question);
     }
+    if (state === 'menu' && /^[1-4]$/.test(text)) {
+      if (text === '1') return findCare(null, null);
+      if (text === '2') return startEmergency();
+      if (text === '3')
+        return result('awaiting_question', {}, [
+          textReply('What would you like to ask? Describe the symptom or question in one message.'),
+        ]);
+      return myCode();
+    }
+    if (state === 'awaiting_question') return answerQuestion(text);
     if (state === 'awaiting_profile_confirmation') {
-      if (!/^(YES|NO)$/i.test(text))
+      if (!/^(YES|NO|Y|N)$/i.test(text))
         return result(state, context, [textReply('Reply YES or NO, or CANCEL.')]);
       return findCare(
         context.serviceCode,
         null,
-        { ...context, skipProfile: /^NO$/i.test(text) },
-        /^YES$/i.test(text),
+        { ...context, skipProfile: /^NO?$/i.test(text) },
+        /^Y(ES)?$/i.test(text),
       );
     }
     if (state === 'awaiting_service') {
       const selected = /^\d+$/.test(text)
         ? services[Number(text) - 1]?.service_code
         : resolveService(text, services);
-      return findCare(selected, null);
+      if (selected || /^\d+$/.test(text)) return findCare(selected, null);
     }
-    if (state === 'awaiting_area') {
+    if (state === 'awaiting_area' && text.length <= 64 && !/\?$/.test(text)) {
       if (/^(YES|Y)$/i.test(text) && context.suggestedAreaId)
         return findCare(context.serviceCode, null, {
           areaId: context.suggestedAreaId,
@@ -442,6 +575,45 @@ export function createSmsEngine({
         areaLabel: areaContext(context).areaLabels?.[index],
       } as SmsContext);
     }
+    if (GREETING_PATTERN.test(text)) return result('menu', {}, [textReply(GREETING)]);
+    if (THANKS_PATTERN.test(text))
+      return idle('You are welcome. Message me any time you need care or have a health question. In danger? Call 112.');
+
+    if (assistant.converse) {
+      const saved = await savedArea();
+      const reply = await assistant.converse(text, {
+        services,
+        history,
+        savedAreaLabel: saved?.label ?? null,
+      });
+      if (reply) {
+        if (reply.intent === 'emergency') {
+          if (reply.location_query && validEmergencyArea(reply.location_query))
+            return emergencySearch(reply.location_query, reply.reply ?? undefined);
+          return urgent(reply.reply ?? URGENT);
+        }
+        if (reply.intent === 'find_care') {
+          const service =
+            reply.service_code ??
+            (reply.location_query && services.some((item) => item.service_code === 'general')
+              ? 'general'
+              : null);
+          if (!service || reply.location_query) return findCare(service, reply.location_query);
+          if (reply.reply) return result('awaiting_area', { serviceCode: service }, [textReply(reply.reply)]);
+          return findCare(service, null);
+        }
+        if (reply.intent === 'health_question') {
+          const answer = await assistant.answer(reply.question ?? text, { personal: await personalHints() });
+          if ((answer as { kind?: string }).kind === 'fallback' && reply.reply)
+            return idle(`${reply.reply} This is general information, not a diagnosis.`);
+          return idle(answer.text);
+        }
+        if (reply.intent === 'my_code') return myCode();
+        if (reply.reply) return result('menu', {}, [textReply(reply.reply)]);
+      }
+      return result('menu', {}, [textReply(HELP)]);
+    }
+
     const interpreted = await assistant.classify(text, { services });
     if (interpreted.intent === 'find_care') {
       const service = services.some((s) => s.service_code === interpreted.service_code)
@@ -450,7 +622,7 @@ export function createSmsEngine({
       return findCare(service, interpreted.location_query);
     }
     if (interpreted.intent === 'health_question') return answerQuestion(text);
-    return idle(interpreted.question || HELP);
+    return interpreted.question ? idle(interpreted.question) : result('menu', {}, [textReply(HELP)]);
   }
   return { process };
 }

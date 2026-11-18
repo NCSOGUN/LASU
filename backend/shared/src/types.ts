@@ -70,6 +70,9 @@ export interface SmsContext {
   /** Patient's saved home area, offered when no area was given. */
   suggestedAreaId?: string;
   suggestedAreaLabel?: string;
+  /** Recent turns for conversational memory (encrypted at rest by the repository). */
+  history?: Array<{ role: 'user' | 'assistant'; text: string }>;
+  historyEnvelope?: string;
 }
 
 export interface SmsConversation {
