@@ -191,6 +191,35 @@ events, with `error` replacing `done` on failure. The stream is built from
 LangGraph `streamEvents` (`version: "v2"`) and uses the same checkpointer thread
 as the non-streaming route. Client disconnects abort the model call; attachments
 are cleaned up and a newly created record is deleted only if no token was sent.
+The web app consumes these streams token by token; the Next.js BFF passes
+`text/event-stream` responses through unbuffered and aborts upstream work when the
+browser disconnects.
+
+### Personalisation
+
+- Patient-entered personal context lives in field definitions added by the
+  `personal_context_fields` migration: `city`, `state`, `country`,
+  `pregnancy_status`, `smoking_status`, `alcohol_use`, `activity_level`
+  (plus existing `gender`, `date_of_birth`, vitals, conditions, medications).
+  `PATCH /v1/me` accepts them (empty string clears a value) and
+  `preferredLanguage`; city/state are matched to a directory `Area` and stored
+  as the profile's `home_area_id`.
+- `src/ai/context.ts` builds a de-identified snapshot (age band, sex, pregnancy,
+  location, local emergency number, BMI, genotype, conditions, medications incl.
+  active schedules, allergies, lifestyle, recent symptom chats). When a chat has
+  `includeRecords`, the snapshot is embedded in the system prompt, which also
+  carries a triage/format guide, today's date and the preferred reply language.
+  No names, emails, phone numbers or codes are included.
+- `GET /v1/me/assistant-context` returns the snapshot and a completeness score
+  with the most useful missing items; the web assistant shows it and links to the
+  profile. New accounts are offered an optional, skippable setup wizard at
+  `/app/welcome`.
+- Offline: with a live profile-use consent for the sending phone, SMS `FIND` and
+  `EMERGENCY` (and USSD option `1. My area`) offer the patient's saved home area,
+  and `ASK` answers receive consent-scoped hints (age band, sex, pregnancy,
+  conditions, allergies, medications). Hints go to the model only, never to web
+  search or channel state, and each read is audited (`profile_area_read`,
+  `assistant_context_read`).
 
 - Agents: symptom chat (ReAct loop with conversation memory) and medication
   scheduling/addition.

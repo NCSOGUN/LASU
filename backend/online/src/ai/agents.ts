@@ -4,6 +4,12 @@ import { PostgresSaver } from '@langchain/langgraph-checkpoint-postgres';
 import { config } from '../config.js';
 import { prisma } from '../db.js';
 import { AppError } from '../middleware/error.js';
+import {
+  buildPatientSnapshot,
+  emergencyNumberFor,
+  languageName,
+  renderSnapshot,
+} from './context.js';
 import { defaultSchedulerModel, getModel } from './models.js';
 import {
   medicationAdderPrompt,
@@ -85,6 +91,9 @@ export interface SymptomAgentContext extends AgentToolContext {
   includeRecords: boolean;
   modifyHistory: boolean;
   hasImages?: boolean;
+  patientContext?: string | null;
+  language?: string | null;
+  emergencyNumber?: string | null;
 }
 
 export interface MedicationAgentContext {
@@ -184,11 +193,40 @@ export function getSymptomAgent(context: SymptomAgentContext) {
       includeRecords: context.includeRecords,
       modifyHistory: context.modifyHistory,
       hasImages: Boolean(context.hasImages),
+      patientContext: context.patientContext,
+      language: context.language,
+      emergencyNumber: context.emergencyNumber,
+      today: new Date().toISOString().slice(0, 10),
     }),
     llm: model,
     tools,
     checkpointer: getCheckpointer(),
   });
+}
+
+/**
+ * Load the de-identified patient snapshot for the prompt. Location and language
+ * are part of the record, so they are only used when the patient allowed it.
+ */
+export async function withPatientContext(
+  context: SymptomAgentContext,
+): Promise<SymptomAgentContext> {
+  if (!context.includeRecords) {
+    return { ...context, patientContext: null, language: null, emergencyNumber: null };
+  }
+  try {
+    const snapshot = await buildPatientSnapshot(context.patientId);
+    if (!snapshot) return context;
+    return {
+      ...context,
+      patientContext: renderSnapshot(snapshot),
+      language: languageName(snapshot.preferredLanguage),
+      emergencyNumber: snapshot.emergencyNumber ?? emergencyNumberFor(snapshot.location.country),
+    };
+  } catch {
+    // The assistant still works without personal context; the tool can retry the lookup.
+    return context;
+  }
 }
 
 export async function runSymptomChat(
@@ -197,7 +235,7 @@ export async function runSymptomChat(
 ): Promise<ConversationEntry[]> {
   await ensureCheckpointerReady();
   const agent = getSymptomAgent({
-    ...context,
+    ...(await withPatientContext(context)),
     hasImages: Boolean(input.images?.length),
   });
   const result = await agent.invoke(
@@ -225,7 +263,7 @@ export async function* runSymptomChatStream(
   await ensureCheckpointerReady();
   const threadId = threadIdFor(context.symptomId);
   const agent = getSymptomAgent({
-    ...context,
+    ...(await withPatientContext(context)),
     hasImages: Boolean(input.images?.length),
   });
 

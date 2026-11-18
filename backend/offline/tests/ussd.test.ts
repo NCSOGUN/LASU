@@ -668,3 +668,48 @@ test('care search uses live leads when no directory area matches', async () => {
   assert.equal(result.result.context.resultKind, 'web');
   assert.match(result.result.response, /Unverified live lead/);
 });
+
+test('care location offers the saved home area as option 1', async () => {
+  const searched: string[] = [];
+  const { engine } = setup({
+    findSavedArea: async () => ({ id: 'home', label: 'Ikeja, Lagos' }),
+    findFacilities: async (_service, areaId) => {
+      searched.push(areaId);
+      return [facility('f1')];
+    },
+  });
+  const prompt = await walk(engine, ['1', '2']);
+  assert.equal(prompt.result.state, 'CARE_LOCATION');
+  assert.match(prompt.result.response, /1\. My area: Ikeja, Lagos\n0\. Back$/);
+  const found = await send(engine, prompt.session, '1');
+  assertResponse(found.result);
+  assert.equal(found.result.state, 'CARE_RESULTS');
+  assert.deepEqual(searched, ['home']);
+});
+
+test('care location without a saved area keeps the plain prompt', async () => {
+  const { engine } = setup();
+  const prompt = await walk(engine, ['1', '2']);
+  assert.equal(prompt.result.response, 'CON Enter area or landmark\n0. Back');
+});
+
+test('emergency help can use the saved area for live search', async () => {
+  const areasSearched: string[] = [];
+  const { engine } = setup(
+    { findSavedArea: async () => ({ id: 'home', label: 'Ikeja, Lagos' }) },
+    false,
+    {},
+    {
+      discoverFacilities: async () => [],
+      discoverEmergency: async ({ area }) => {
+        areasSearched.push(area);
+        return [lead('lead1')];
+      },
+    },
+  );
+  const prompt = await walk(engine, ['4', 'chest pain']);
+  assert.match(prompt.result.response, /1\. My area: Ikeja, Lagos/);
+  const found = await send(engine, prompt.session, '1');
+  assertResponse(found.result);
+  assert.deepEqual(areasSearched, ['Ikeja, Lagos']);
+});

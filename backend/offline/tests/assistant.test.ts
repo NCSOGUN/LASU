@@ -579,3 +579,53 @@ test('createAssistant validates configuration bounds', () => {
     /aiMaxOutputTokens/,
   );
 });
+
+test('answer sends cleaned personal hints to the model but never to web search', async () => {
+  const searchQueries: string[] = [];
+  const search: AssistantSearch = {
+    async searchHealth(query: string): Promise<Source[]> {
+      searchQueries.push(query);
+      return [];
+    },
+  };
+  const generate = mockGenerate(() => ({
+    output: { answer_text: 'Rest and fluids are commonly advised.', citations: ['content-1'] },
+  }));
+  const assistant = createAssistant(assistantConfig({ openrouterModel: MODEL }), {
+    repository: repository([reviewedRow()]),
+    search,
+    model: MODEL,
+    generateImpl: generate,
+  });
+  const result = await assistant.answer('what helps a fever', {
+    personal: {
+      ageBand: 'adult under 40',
+      sex: 'Female',
+      pregnancy: 'Pregnant',
+      conditions: ['Asthma', 'call 08012345678'],
+      allergies: ['Penicillin'],
+      medications: [],
+      language: 'en',
+    },
+  });
+  assert.equal(result.kind, 'reviewed');
+  const prompt = generate.calls[0]!.prompt;
+  assert.match(prompt, /Person context/);
+  assert.match(prompt, /Pregnant/);
+  assert.match(prompt, /Asthma/);
+  assert.doesNotMatch(prompt, /08012345678/);
+  assert.deepEqual(searchQueries, []);
+});
+
+test('answer omits the person context block when no hints are supplied', async () => {
+  const generate = mockGenerate(() => ({
+    output: { answer_text: 'Rest and fluids are commonly advised.', citations: ['content-1'] },
+  }));
+  const assistant = createAssistant(assistantConfig({ openrouterModel: MODEL }), {
+    repository: repository([reviewedRow()]),
+    model: MODEL,
+    generateImpl: generate,
+  });
+  await assistant.answer('what helps a fever', { personal: null });
+  assert.doesNotMatch(generate.calls[0]!.prompt, /Person context/);
+});

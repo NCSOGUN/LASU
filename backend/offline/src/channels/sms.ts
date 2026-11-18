@@ -3,7 +3,9 @@ import type { Crypto } from '../security/crypto.js';
 import type {
   Area,
   Facility,
+  PersonalHints,
   Projection,
+  SavedArea,
   Service,
   SmsContext,
   SmsConversation,
@@ -19,6 +21,10 @@ export interface SmsRepository {
   findProfileConsent(): Promise<{ id: string } | null>;
   readMatchingContext(consentId: string): Promise<{ available: boolean }>;
   setOptOut(optOut: boolean): Promise<void>;
+  /** Linked patient's home area (live consent only). */
+  findSavedArea?(): Promise<SavedArea | null>;
+  /** Consent-scoped, de-identified hints for tailoring answers (live consent only). */
+  readPersonalHints?(): Promise<PersonalHints | null>;
   storeWebLeads(leads: WebLead[]): Promise<string[]>;
   recordEmergencyRequest?(request: {
     channel: 'SMS' | 'USSD';
@@ -46,7 +52,10 @@ interface SmsDependencies {
       location_query: string | null;
       question: string | null;
     }>;
-    answer(question: string): Promise<{ text: string }>;
+    answer(
+      question: string,
+      options?: { personal?: PersonalHints | null },
+    ): Promise<{ text: string }>;
   };
   search?: {
     discoverFacilities(request: { serviceLabel: string; area: string }): Promise<WebLead[]>;
@@ -112,6 +121,28 @@ export function createSmsEngine({
   });
   const idle = (text: string) => result('idle', {}, [textReply(text)]);
 
+  async function savedArea(): Promise<SavedArea | null> {
+    try {
+      return (await repository.findSavedArea?.()) ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  async function personalHints(): Promise<PersonalHints | null> {
+    try {
+      return (await repository.readPersonalHints?.()) ?? null;
+    } catch {
+      // Personalisation is best-effort; a general answer is still safe.
+      return null;
+    }
+  }
+
+  async function answerQuestion(question: string): Promise<SmsResult> {
+    const answer = await assistant.answer(question, { personal: await personalHints() });
+    return idle(answer.text);
+  }
+
   async function showResult(
     context: SmsContext,
     index = 0,
@@ -153,10 +184,22 @@ export function createSmsEngine({
         ),
       ]);
     }
-    if (!query && !context.areaId)
+    if (!query && !context.areaId) {
+      const saved = await savedArea();
+      if (saved)
+        return result(
+          'awaiting_area',
+          { serviceCode, suggestedAreaId: saved.id, suggestedAreaLabel: saved.label },
+          [
+            textReply(
+              `Search near ${saved.label} (your saved area)? Reply YES, or send the area or landmark you are in now.`,
+            ),
+          ],
+        );
       return result('awaiting_area', { serviceCode }, [
         textReply('Which current area or nearby landmark are you in?'),
       ]);
+    }
     const areas = context.areaId
       ? [{ id: context.areaId, name: '' }]
       : await repository.findAreas(query!);
@@ -250,7 +293,7 @@ export function createSmsEngine({
     return area.length > 0 && area.length <= 64 && /[\p{L}]/u.test(area) && !/^\d+$/.test(area);
   }
 
-  async function emergencySearch(area: string): Promise<SmsResult> {
+  async function emergencySearch(area: string, note?: string): Promise<SmsResult> {
     let leads: WebLead[] = [];
     if (config.allowLiveWeb && search?.discoverEmergency) {
       try {
@@ -277,7 +320,8 @@ export function createSmsEngine({
       return idle(EMERGENCY_FALLBACK);
     }
     if (!ids.length) return idle(EMERGENCY_FALLBACK);
-    return showResult({ resultIds: ids, resultKind: 'web' }, 0, 'showing_emergency');
+    const shown = await showResult({ resultIds: ids, resultKind: 'web' }, 0, 'showing_emergency');
+    return note ? { ...shown, replies: [textReply(note), ...shown.replies] } : shown;
   }
 
   async function process(
@@ -324,6 +368,14 @@ export function createSmsEngine({
     const emergency = /^EMERGENCY\b\s*(.*)$/i.exec(text);
     if (emergency) {
       const area = emergency[1].replace(/^near\b\s*/i, '').trim();
+      if (!area) {
+        const saved = await savedArea();
+        if (saved)
+          return emergencySearch(
+            saved.label,
+            `Searching near your saved area, ${saved.label}. Call 112 now if life-threatening. Send EMERGENCY <area> if you are somewhere else.`,
+          );
+      }
       if (!area)
         return result('awaiting_emergency_area', {}, [
           textReply(
@@ -352,8 +404,7 @@ export function createSmsEngine({
         return idle(
           'Send ASK followed by a general health question. Do not include names, codes or private records.',
         );
-      const answer = await assistant.answer(question);
-      return idle(answer.text);
+      return answerQuestion(question);
     }
     if (state === 'awaiting_profile_confirmation') {
       if (!/^(YES|NO)$/i.test(text))
@@ -371,7 +422,14 @@ export function createSmsEngine({
         : resolveService(text, services);
       return findCare(selected, null);
     }
-    if (state === 'awaiting_area') return findCare(context.serviceCode, text);
+    if (state === 'awaiting_area') {
+      if (/^(YES|Y)$/i.test(text) && context.suggestedAreaId)
+        return findCare(context.serviceCode, null, {
+          areaId: context.suggestedAreaId,
+          areaLabel: context.suggestedAreaLabel,
+        } as SmsContext);
+      return findCare(context.serviceCode, text);
+    }
     if (state === 'awaiting_area_choice') {
       const index = Number(text) - 1;
       const selected = /^\d+$/.test(text) ? context.areaIds?.[index] : undefined;
@@ -391,7 +449,7 @@ export function createSmsEngine({
         : null;
       return findCare(service, interpreted.location_query);
     }
-    if (interpreted.intent === 'health_question') return idle((await assistant.answer(text)).text);
+    if (interpreted.intent === 'health_question') return answerQuestion(text);
     return idle(interpreted.question || HELP);
   }
   return { process };
