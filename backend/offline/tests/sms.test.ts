@@ -301,3 +301,98 @@ test('care web fallback uses the chosen area label, not the area id', async () =
   assert.equal(result.context.resultKind, 'web');
   assert.deepEqual(searched, ['Ikeja, Lagos']);
 });
+
+test('FIND without an area offers the saved home area and YES searches it', async () => {
+  const searched: string[] = [];
+  const { engine } = setup({
+    findSavedArea: async () => ({ id: 'home-area', label: 'Ikeja, Lagos' }),
+    findFacilities: async (_service, areaId) => {
+      searched.push(areaId);
+      return [{ id: 'facility1', name: 'Example', address: 'Test', phone: null, distance_km: null }];
+    },
+  });
+  const offer = await engine.process('FIND child health');
+  assert.equal(offer.state, 'awaiting_area');
+  assert.match(textOf(offer), /Ikeja, Lagos \(your saved area\)/);
+  const found = await engine.process('YES', offer);
+  assert.equal(found.state, 'showing_results');
+  assert.deepEqual(searched, ['home-area']);
+});
+
+test('a different area overrides the saved area suggestion', async () => {
+  const { engine } = setup({
+    findSavedArea: async () => ({ id: 'home-area', label: 'Ikeja, Lagos' }),
+    findAreas: async () => [{ id: 'other-area', name: 'Yaba' }],
+  });
+  const offer = await engine.process('FIND general');
+  const found = await engine.process('Yaba', offer);
+  assert.equal(found.state, 'showing_results');
+  assert.equal(found.context.areaId, 'other-area');
+});
+
+test('EMERGENCY without an area searches the saved area immediately', async () => {
+  const areas: string[] = [];
+  const { engine } = setup(
+    { findSavedArea: async () => ({ id: 'home-area', label: 'Ikeja, Lagos' }) },
+    {
+      discoverFacilities: async () => [],
+      discoverEmergency: async ({ area }) => {
+        areas.push(area);
+        return [lead('one')];
+      },
+    },
+  );
+  const result = await engine.process('EMERGENCY');
+  assert.equal(result.state, 'showing_emergency');
+  assert.deepEqual(areas, ['Ikeja, Lagos']);
+  assert.match(textOf(result), /saved area, Ikeja, Lagos.*112/);
+});
+
+test('ASK passes consented personal hints to the assistant and tolerates lookup failure', async () => {
+  const seen: unknown[] = [];
+  const hints = {
+    ageBand: 'adult under 40',
+    sex: 'Female',
+    pregnancy: 'Pregnant',
+    conditions: ['Asthma'],
+    allergies: [],
+    medications: [],
+    language: 'en',
+  };
+  let fail = false;
+  const repository: SmsRepository = {
+    listServices: async () => services,
+    setOptOut: async () => {},
+    findAreas: async () => [],
+    findFacilities: async () => [],
+    readEmergency: async () => ({ available: false }),
+    findProfileConsent: async () => null,
+    readMatchingContext: async () => ({ available: false }),
+    storeWebLeads: async () => [],
+    readPersonalHints: async () => {
+      if (fail) throw new Error('db down');
+      return hints;
+    },
+  };
+  const engine = createSmsEngine({
+    repository,
+    config: { searchRadiusKm: 25, allowLiveWeb: false, profileUseEnabled: false },
+    crypto: { digestCode: () => 'digest' },
+    assistant: {
+      classify: async () => ({
+        intent: 'unsupported',
+        service_code: null,
+        location_query: null,
+        question: null,
+      }),
+      answer: async (_question, options) => {
+        seen.push(options?.personal ?? null);
+        return { text: 'Tailored answer.' };
+      },
+    },
+  });
+  assert.equal(textOf(await engine.process('ASK is paracetamol safe for headache')), 'Tailored answer.');
+  fail = true;
+  assert.equal(textOf(await engine.process('ASK what helps a cough')), 'Tailored answer.');
+  assert.deepEqual(seen, [hints, null]);
+});

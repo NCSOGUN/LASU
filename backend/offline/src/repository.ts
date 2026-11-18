@@ -16,7 +16,9 @@ import type { InboundSms, UssdCallback, UssdEvent } from './app.js';
 import type {
   Area,
   Facility,
+  PersonalHints,
   Projection,
+  SavedArea,
   Service,
   SmsContext,
   SmsReply,
@@ -163,6 +165,51 @@ export function normalizePhoneNumber(value: unknown): string | null {
   return /^\+[1-9][0-9]{7,14}$/.test(compact) ? compact : null;
 }
 
+const HINT_TEXT = /^[\p{L}\p{N} ,.'()/-]{1,80}$/u;
+
+function hintText(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const text = value.replace(/\s+/g, ' ').trim();
+  if (!text || /\d{6,}/.test(text) || !HINT_TEXT.test(text)) return null;
+  return text;
+}
+
+function hintList(value: unknown): string[] {
+  const items = Array.isArray(value) ? value : typeof value === 'string' ? value.split(',') : [];
+  return items
+    .map(hintText)
+    .filter((item): item is string => Boolean(item))
+    .slice(0, 8);
+}
+
+export function ageBandFrom(value: unknown, now = new Date()): string | null {
+  if (typeof value !== 'string') return null;
+  const born = new Date(value);
+  if (Number.isNaN(born.getTime()) || born > now) return null;
+  const age = (now.getTime() - born.getTime()) / (365.25 * 864e5);
+  if (age < 1) return 'infant';
+  if (age < 5) return 'young child';
+  if (age < 13) return 'child';
+  if (age < 18) return 'teenager';
+  if (age < 40) return 'adult under 40';
+  if (age < 65) return 'adult 40-64';
+  return 'older adult 65+';
+}
+
+export function personalHintsFrom(fields: RecordField[], language: string): PersonalHints {
+  const value = (key: string) => fields.find((field) => field.key === key)?.value;
+  const merge = (...keys: string[]) => [...new Set(keys.flatMap((key) => hintList(value(key))))];
+  return {
+    ageBand: ageBandFrom(value('date_of_birth')),
+    sex: hintText(value('gender')),
+    pregnancy: hintText(value('pregnancy_status')),
+    conditions: merge('conditions', 'existing_conditions'),
+    allergies: merge('allergies'),
+    medications: merge('current_medications', 'existing_medications'),
+    language: /^[a-z]{2,3}(-[a-z0-9]{2,8})?$/i.test(language) ? language.toLowerCase() : 'en',
+  };
+}
+
 export class Repository {
   readonly prisma: PrismaClient;
   private readonly ownsPrisma: boolean;
@@ -302,6 +349,8 @@ export class Repository {
       readGrant: (id) => this.readGrantedRecord(id, actor, database),
       closeReadSession: (id) => this.closeGrantedRecord(id, actor, database),
       findProfileConsent: () => this.findProfileConsent(actor, database),
+      findSavedArea: () => this.findSavedArea(actor, database),
+      readPersonalHints: () => this.readPersonalHints(actor, database),
       readMatchingContext: (id) => this.readProfileContext(id, actor, database),
       setOptOut: (optedOut) => this.setOptOut(database, actor.phone_digest, optedOut),
       storeWebLeads: (leads) => this.storeWebLeads(leads, database),
@@ -1167,6 +1216,78 @@ export class Repository {
       channel: consent.channel === 'USSD' ? 'ussd' : 'sms',
       expires_at: consent.expires_at,
     };
+  }
+
+  private async liveConsentForPhone(actor: Actor, database: Db) {
+    if (!validDigest(actor.phone_digest)) return null;
+    const now = new Date();
+    return database.profileUseConsent.findFirst({
+      where: {
+        revoked_at: null,
+        expires_at: { gt: now },
+        phone_link: {
+          phone_digest: actor.phone_digest,
+          revoked_at: null,
+          OR: [{ expires_at: null }, { expires_at: { gt: now } }],
+        },
+      },
+      select: { id: true, patient_id: true, channel: true },
+      orderBy: { expires_at: 'desc' },
+    });
+  }
+
+  /** The linked patient's home area, offered as a default in care and emergency search. */
+  async findSavedArea(actor: Actor, database: Db = this.prisma): Promise<SavedArea | null> {
+    const consent = await this.liveConsentForPhone(actor, database);
+    if (!consent) return null;
+    const profile = await database.patientProfile.findUnique({
+      where: { id: consent.patient_id },
+      select: {
+        home_area: {
+          select: { id: true, name: true, city: true, region: true, active: true, is_demo: true },
+        },
+      },
+    });
+    const area = profile?.home_area;
+    if (!area || !area.active || area.is_demo) return null;
+    const suffix = area.city && area.city !== area.name ? area.city : area.region;
+    await this.audit(database, {
+      requestId: actor.request_id,
+      patientId: consent.patient_id,
+      channel: consent.channel,
+      action: 'profile_area_read',
+      resourceType: 'area',
+      resourceId: area.id,
+      outcome: 'ALLOWED',
+      fieldKeys: [],
+      actorRef: actor.phone_digest,
+    });
+    return { id: area.id, label: suffix ? `${area.name}, ${suffix}` : area.name };
+  }
+
+  /** Consent-scoped, de-identified hints that tailor general health answers. */
+  async readPersonalHints(actor: Actor, database: Db = this.prisma): Promise<PersonalHints | null> {
+    const consent = await this.liveConsentForPhone(actor, database);
+    if (!consent) return null;
+    const [fields, profile] = await Promise.all([
+      this.consentProjection(database, consent.id, consent.patient_id),
+      database.patientProfile.findUnique({
+        where: { id: consent.patient_id },
+        select: { preferred_language: true },
+      }),
+    ]);
+    const hints = personalHintsFrom(fields, profile?.preferred_language ?? 'en');
+    await this.auditRead(database, {
+      channel: consent.channel,
+      action: 'assistant_context_read',
+      patientId: consent.patient_id,
+      outcome: 'ALLOWED',
+      reason: null,
+      fields,
+      requestId: actor.request_id,
+      actorRef: actor.phone_digest,
+    });
+    return hints;
   }
 
   private async readProfileContext(

@@ -53,6 +53,8 @@ export interface UssdContext {
   widenSteps?: number;
   reason?: 'none' | 'exhausted';
   emergencyDescription?: string;
+  savedAreaId?: string;
+  savedAreaLabel?: string;
   terminalKind?:
     | 'goodbye'
     | 'sms_requested'
@@ -100,6 +102,8 @@ export interface UssdRepository {
   closeReadSession(readSessionId: string): Promise<void>;
   findProfileConsent(): Promise<{ id: string } | null>;
   readMatchingContext(consentId: string): Promise<{ available: boolean } | null>;
+  /** Linked patient's home area, available only through a live profile-use consent. */
+  findSavedArea?(): Promise<{ id: string; label: string } | null>;
   queueFacilitySms(facilityId: string): Promise<boolean>;
   storeWebLeads(leads: WebLead[]): Promise<string[]>;
   getWebLead(id: string): Promise<WebLead | null>;
@@ -236,6 +240,20 @@ function validArea(token: string): boolean {
 function validCode(token: string): boolean {
   const value = token.trim();
   return value.length > 0 && value.length <= 32 && /^[A-Za-z0-9]+$/.test(value);
+}
+
+function savedAreaLine(label: string | undefined): string {
+  if (!label) return '';
+  const text = inline(label);
+  return `\n1. My area: ${text.length > 28 ? `${text.slice(0, 25)}...` : text}`;
+}
+
+function withSavedArea(prompt: string, label: string | undefined): string {
+  if (!label) return prompt;
+  const index = prompt.lastIndexOf('\n0. Back');
+  return index < 0
+    ? `${prompt}${savedAreaLine(label)}`
+    : `${prompt.slice(0, index)}${savedAreaLine(label)}${prompt.slice(index)}`;
 }
 
 function areaLabel(area: Area): string {
@@ -911,17 +929,29 @@ export function createUssdEngine({
     session: UssdSession,
     emergencyDescription?: string,
     preserve = false,
+    saved?: { id: string; label: string } | null,
   ): UssdResult {
+    const savedAreaId = saved?.id ?? session.context.savedAreaId;
+    const savedAreaLabel = saved?.label ?? session.context.savedAreaLabel;
     const context: UssdContext = {
       kind: 'emergency_area',
       emergencyDescription: emergencyDescription ?? session.context.emergencyDescription,
+      ...(savedAreaId && savedAreaLabel ? { savedAreaId, savedAreaLabel } : {}),
     };
     return makeResult(
       session,
       'CARE_LOCATION',
       preserve ? { ...session.context, ...context } : acceptedContext(context),
-      EMERGENCY_LOCATION,
+      withSavedArea(EMERGENCY_LOCATION, context.savedAreaLabel),
     );
+  }
+
+  async function savedArea(): Promise<{ id: string; label: string } | null> {
+    try {
+      return (await repository.findSavedArea?.()) ?? null;
+    } catch {
+      return null;
+    }
   }
 
   async function emergencySearch(
@@ -1199,13 +1229,24 @@ export function createUssdEngine({
     );
   }
 
-  function location(session: UssdSession, serviceCode: string, preserve = false): UssdResult {
-    const context: UssdContext = { kind: 'care_location', serviceCode };
+  function location(
+    session: UssdSession,
+    serviceCode: string,
+    preserve = false,
+    saved?: { id: string; label: string } | null,
+  ): UssdResult {
+    const savedAreaId = saved?.id ?? session.context.savedAreaId;
+    const savedAreaLabel = saved?.label ?? session.context.savedAreaLabel;
+    const context: UssdContext = {
+      kind: 'care_location',
+      serviceCode,
+      ...(savedAreaId && savedAreaLabel ? { savedAreaId, savedAreaLabel } : {}),
+    };
     return makeResult(
       session,
       'CARE_LOCATION',
       preserve ? { ...session.context, ...context } : acceptedContext(context),
-      LOCATION,
+      withSavedArea(LOCATION, context.savedAreaLabel),
     );
   }
 
@@ -1361,7 +1402,7 @@ export function createUssdEngine({
         if (!digit(token)) return invalid(session, invalidPrompt(session));
         const serviceCode = context.serviceCodes?.[Number(token) - 1];
         if (!serviceCode) return invalid(session, invalidPrompt(session));
-        return location(session, serviceCode);
+        return location(session, serviceCode, false, await savedArea());
       }
 
       case 'CARE_LOCATION': {
@@ -1374,7 +1415,7 @@ export function createUssdEngine({
               bounded('CON', MAIN),
             );
           if (!validArea(token)) return invalid(session, EMERGENCY_DETAILS.slice(4));
-          return emergencyArea(session, token.trim());
+          return emergencyArea(session, token.trim(), false, await savedArea());
         }
         if (context.kind === 'emergency_area') {
           if (token === '0')
@@ -1384,10 +1425,19 @@ export function createUssdEngine({
               acceptedContext({ kind: 'main' }),
               bounded('CON', MAIN),
             );
+          if (token === '1' && context.savedAreaLabel)
+            return emergencySearch(session, context.savedAreaLabel, context.emergencyDescription);
           if (!validArea(token)) return invalid(session, EMERGENCY_LOCATION.slice(4));
           return emergencySearch(session, token.trim(), context.emergencyDescription);
         }
         if (token === '0') return services(session);
+        if (token === '1' && context.savedAreaId)
+          return maybeSearch(
+            session,
+            context.serviceCode ?? '',
+            context.savedAreaId,
+            context.savedAreaLabel,
+          );
         if (!validArea(token)) return invalid(session, LOCATION.slice(4));
         let found: Area[];
         try {

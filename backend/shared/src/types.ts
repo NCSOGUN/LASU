@@ -67,6 +67,9 @@ export interface SmsContext {
   resultIds?: string[];
   resultIndex?: number;
   resultKind?: 'directory' | 'web';
+  /** Patient's saved home area, offered when no area was given. */
+  suggestedAreaId?: string;
+  suggestedAreaLabel?: string;
 }
 
 export interface SmsConversation {

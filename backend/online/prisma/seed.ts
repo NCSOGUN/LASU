@@ -20,6 +20,13 @@ const fields = [
   ['genotype', 'Genotype', 'STRING', false, 130],
   ['existing_conditions', 'Existing conditions', 'STRING_ARRAY', false, 140],
   ['existing_medications', 'Existing medications', 'STRING_ARRAY', false, 150],
+  ['city', 'City or town', 'STRING', false, 160],
+  ['state', 'State or region', 'STRING', false, 170],
+  ['country', 'Country', 'STRING', false, 180],
+  ['pregnancy_status', 'Pregnancy status', 'STRING', true, 190],
+  ['smoking_status', 'Smoking', 'STRING', false, 200],
+  ['alcohol_use', 'Alcohol use', 'STRING', false, 210],
+  ['activity_level', 'Physical activity', 'STRING', false, 220],
 ] as const;
 
 const services = [
