@@ -333,11 +333,11 @@ test('emergency summary uses a digest only and reauthorizes on replay', async ()
   revoked = true;
   const replay = await engine.replay(summary.session);
   assert.equal(replay.state, 'END');
-  assert.match(replay.response, /Emergency summary unavailable/);
+  assert.match(replay.response, /That code did not work/);
   assert.equal(JSON.stringify(replay.context).includes('Penicillin'), false);
 });
 
-test('grant uses both digests, rechecks every page and closes on exit', async () => {
+test('one temporary code opens shared details, rechecks every page and closes on exit', async () => {
   const opened: string[] = [];
   let reads = 0;
   const medications = Array.from(
@@ -358,8 +358,8 @@ test('grant uses both digests, rechecks every page and closes on exit', async ()
     },
   });
 
-  const reached = await walk(engine, ['3', '123456789012', '12345678']);
-  assert.deepEqual(opened, ['patient-digest:grant-digest']);
+  const reached = await walk(engine, ['2', '1234 5678']);
+  assert.deepEqual(opened, ['null:grant-digest']);
   assert.equal(reached.result.sensitive, true);
   assert.equal(reached.result.readSessionId, 'read1');
   assert.equal(reached.result.state, 'RECORD_PAGE');
@@ -415,7 +415,7 @@ test('long scalar and array fields paginate without omission', async () => {
     readGrant: async () =>
       projection([{ key: 'current_medications', label: 'Medications', value: items }]),
   }).engine;
-  const array = await walk(arrayEngine, ['3', '123456789012', '12345678']);
+  const array = await walk(arrayEngine, ['2', '12345678']);
   current = array.session;
   const arrayPages = [array.result.response];
   for (let page = 0; page < 20 && current.state !== 'END'; page += 1) {
@@ -508,7 +508,7 @@ test('replay of a terminal protected page reauthorizes and does not reuse cached
     },
   });
 
-  const reached = await walk(engine, ['3', '123456789012', '12345678']);
+  const reached = await walk(engine, ['2', '12345678']);
   assert.equal(reached.result.state, 'END');
   assert.equal(reached.result.sensitive, true);
   const firstReads = reads;
@@ -521,7 +521,7 @@ test('replay of a terminal protected page reauthorizes and does not reuse cached
   revoked = true;
   const denied = await engine.replay(reached.session);
   assert.equal(denied.state, 'END');
-  assert.match(denied.response, /Shared details are no longer available/);
+  assert.match(denied.response, /That code did not work/);
   assert.equal(denied.sensitive, false);
   assert.ok(calls.includes('close:read1'));
 });
@@ -549,18 +549,11 @@ test('main menu offers emergency help, pages live leads, records USSD request an
 
   const initial = await engine.transition(session(), null);
   assert.match(initial.response, /4\. Emergency help/);
-  const prompt = await send(engine, apply(session(), initial), '4');
-  assert.equal(prompt.result.state, 'CARE_LOCATION');
-  assert.equal(prompt.result.context.kind, 'emergency_details');
-  assert.match(prompt.result.response, /What is happening/);
-  assert.match(prompt.result.response, /Call 112 if life-threatening/);
-  assertResponse(prompt.result);
-
-  const locationPrompt = await send(engine, prompt.session, 'Road accident');
+  const locationPrompt = await send(engine, apply(session(), initial), '4');
   assert.equal(locationPrompt.result.state, 'CARE_LOCATION');
   assert.equal(locationPrompt.result.context.kind, 'emergency_area');
-  assert.equal(locationPrompt.result.context.emergencyDescription, 'Road accident');
-  assert.match(locationPrompt.result.response, /Enter area or landmark/);
+  assert.match(locationPrompt.result.response, /Call 112 now if life-threatening/);
+  assert.match(locationPrompt.result.response, /Enter your area or landmark/);
   assertResponse(locationPrompt.result);
 
   const first = await send(engine, locationPrompt.session, 'Ikeja');
@@ -575,7 +568,7 @@ test('main menu offers emergency help, pages live leads, records USSD request an
   assert.match(first.result.response, /0\. Exit/);
   assertResponse(first.result);
   assert.deepEqual(areasQueried, ['Ikeja']);
-  assert.deepEqual(descriptions, ['Road accident']);
+  assert.deepEqual(descriptions, ['']);
   assert.ok(calls.includes('emergency:USSD:Ikeja:2'));
 
   const second = await send(engine, first.session, '1');
@@ -588,7 +581,7 @@ test('main menu offers emergency help, pages live leads, records USSD request an
   const again = await send(engine, second.session, '1');
   assert.equal(again.result.state, 'CARE_LOCATION');
   assert.equal(again.result.context.kind, 'emergency_area');
-  assert.equal(again.result.context.emergencyDescription, 'Road accident');
+
 });
 
 test('emergency with no live results gives 112 guidance and records an empty request', async () => {
@@ -598,7 +591,7 @@ test('emergency with no live results gives 112 guidance and records an empty req
     {},
     { discoverFacilities: async () => [], discoverEmergency: async () => [] },
   );
-  const result = await walk(engine, ['4', 'Severe breathing difficulty', 'Ikeja']);
+  const result = await walk(engine, ['4', 'Ikeja']);
   assert.equal(result.result.state, 'END');
   assert.equal(result.result.terminal, true);
   assert.match(result.result.response, /Call 112 now/);
@@ -607,22 +600,21 @@ test('emergency with no live results gives 112 guidance and records an empty req
   assert.ok(calls.includes('emergency:USSD:Ikeja:0'));
 });
 
-test('emergency details support back navigation and reject empty input before asking for location', async () => {
+test('emergency help asks only for the area, supports back and rejects empty input', async () => {
   const { engine } = setup();
   const initial = await engine.transition(session(), null);
   const prompt = await send(engine, apply(session(), initial), '4');
   const invalid = await send(engine, prompt.session, '');
   assert.equal(invalid.result.state, 'CARE_LOCATION');
-  assert.equal(invalid.result.context.kind, 'emergency_details');
-  assert.match(invalid.result.response, /What is happening/);
+  assert.equal(invalid.result.context.kind, 'emergency_area');
+  assert.match(invalid.result.response, /Enter your area or landmark/);
 
   const back = await send(engine, prompt.session, '0');
   assert.equal(back.result.state, 'MAIN');
 
-  const detail = await send(engine, prompt.session, 'Accident');
-  const replay = await engine.render(detail.session);
+  const replay = await engine.render(prompt.session);
   assert.equal(replay.state, 'CARE_LOCATION');
-  assert.match(replay.response, /Enter area or landmark/);
+  assert.match(replay.response, /Enter your area or landmark/);
 });
 
 test('care search falls back to unverified live leads when the directory is empty', async () => {
@@ -707,9 +699,47 @@ test('emergency help can use the saved area for live search', async () => {
       },
     },
   );
-  const prompt = await walk(engine, ['4', 'chest pain']);
+  const prompt = await walk(engine, ['4']);
   assert.match(prompt.result.response, /1\. My area: Ikeja, Lagos/);
   const found = await send(engine, prompt.session, '1');
   assertResponse(found.result);
   assert.deepEqual(areasSearched, ['Ikeja, Lagos']);
+});
+
+test('my access code shows the emergency code to a linked phone and issues a 1-hour code', async () => {
+  let created = 0;
+  const { engine } = setup({
+    readOwnCodes: async () => ({ linked: true, patientCode: '123456789012' }),
+    createQuickGrant: async () => {
+      created += 1;
+      return { status: 'created', code: '87654321', expiresAt: new Date(Date.now() + 3600_000) };
+    },
+  });
+  const menu = await walk(engine, ['3']);
+  assert.equal(menu.result.state, 'MY_CODE');
+  assert.equal(menu.result.sensitive, true);
+  assert.match(menu.result.response, /1234 5678 9012/);
+  assert.equal(JSON.stringify(menu.result.context).includes('123456789012'), false);
+
+  const code = await send(engine, menu.session, '1');
+  assertResponse(code.result);
+  assert.equal(code.result.state, 'END');
+  assert.equal(code.result.sensitive, true);
+  assert.match(code.result.response, /8765 4321/);
+  assert.equal(JSON.stringify(code.result.context).includes('87654321'), false);
+  assert.equal(created, 1);
+});
+
+test('my access code explains how to link an unlinked phone', async () => {
+  const { engine } = setup({ readOwnCodes: async () => ({ linked: false }) });
+  const result = await walk(engine, ['3']);
+  assert.equal(result.result.state, 'END');
+  assert.match(result.result.response, /not linked/);
+});
+
+test('invalid service choice repeats readable labels, not internal codes', async () => {
+  const { engine } = setup();
+  const result = await walk(engine, ['1', '9']);
+  assert.match(result.result.response, /1\. General care/);
+  assert.doesNotMatch(result.result.response, /1\. general\b/);
 });

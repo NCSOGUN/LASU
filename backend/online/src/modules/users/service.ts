@@ -556,6 +556,16 @@ export async function updateMedical(
       }
 
       if (Array.isArray(input.allergies)) {
+        // Keep the shareable "Allergies" record field in step with the allergy history,
+        // so emergency summaries and quick shares include what the patient entered.
+        const names = [...new Set(input.allergies.map((allergy) => allergy.name.trim()).filter(Boolean))];
+        if (names.length) {
+          written.push(...(await writeFieldValues(tx, profile.id, accountId, [['allergies', names]])));
+        } else {
+          await tx.patientFieldValue.deleteMany({
+            where: { patient_id: profile.id, field_key: 'allergies' },
+          });
+        }
         await tx.allergy.deleteMany({ where: { patient_id: profile.id } });
         if (input.allergies.length > 0) {
           await tx.allergy.createMany({

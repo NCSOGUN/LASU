@@ -17,8 +17,7 @@ import {
   Share2,
   ShieldAlert,
   Stethoscope,
-  UserRound,
-} from "lucide-react";
+  UserRound, KeyRound } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
@@ -32,6 +31,7 @@ const navItems = [
   { href: "/app/record", label: "My record", icon: FileText },
   { href: "/app/emergency-summary", label: "Emergency summary", icon: ShieldAlert },
   { href: "/app/access", label: "Sharing and access", icon: Share2 },
+  { href: "/lookup", label: "Open a code", icon: KeyRound },
   { href: "/app/access-log", label: "Access log", icon: History },
   { href: "/app/channels", label: "Channels", icon: ClipboardList },
   { href: "/app/profile", label: "Profile", icon: UserRound },
@@ -126,7 +126,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <p className={styles.sidebarLabel}>Practitioner</p>
             <Link className={styles.navLink} href="/practitioner/lookup">
               <Stethoscope aria-hidden="true" size={18} strokeWidth={1.75} />
-              <span>Practitioner lookup</span>
+              <span>Open a patient code</span>
             </Link>
           </div>
         ) : null}

@@ -195,6 +195,26 @@ The web app consumes these streams token by token; the Next.js BFF passes
 `text/event-stream` responses through unbuffered and aborts upstream work when the
 browser disconnects.
 
+### One-code sharing
+
+- Viewers need exactly one code. `POST /v1/records/open { code }` accepts a
+  12-digit emergency (patient) code, which shows the emergency summary to any
+  signed-in user, or an 8-digit temporary code, which opens the granted fields
+  for verified practitioners. Spaces and dashes are ignored. `grant/open` no
+  longer needs the patient code; live temporary codes are unique across all
+  patients so the code alone identifies the patient.
+- `POST /v1/me/grants/quick` makes a one-tap temporary code (emergency summary,
+  or every filled emergency-eligible field) for web and USSD.
+- USSD menu: 1 Find care, 2 Open shared health info (either code in one box),
+  3 My access code (verified phones: shows the emergency code and can issue a
+  1-hour code), 4 Emergency help (area only, saved area offered).
+- SMS keeps the last 10 turns of conversation, encrypted at rest
+  (`historyEnvelope`, purpose `sms-history`) within the conversation TTL. Free
+  text goes through a conversation-aware AI router (`assistant-converse.txt`)
+  that can trigger emergency search, care search, a safe answer, or the
+  sender's code. Without AI it falls back to a plain-language numbered menu.
+  `CODE` and `NEW CODE` return the sender's own codes on a verified phone.
+
 ### Personalisation
 
 - Patient-entered personal context lives in field definitions added by the
