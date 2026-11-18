@@ -52,6 +52,7 @@ export interface UssdContext {
   seenIds?: string[];
   widenSteps?: number;
   reason?: 'none' | 'exhausted';
+  emergencyDescription?: string;
   terminalKind?:
     | 'goodbye'
     | 'sms_requested'
@@ -112,7 +113,7 @@ export interface UssdRepository {
 
 export interface UssdSearch {
   discoverFacilities(input: { serviceLabel: string; area: string }): Promise<WebLead[]>;
-  discoverEmergency?(input: { area: string }): Promise<WebLead[]>;
+  discoverEmergency?(input: { area: string; description?: string }): Promise<WebLead[]>;
 }
 
 export type UssdConfig = Pick<
@@ -163,7 +164,10 @@ const FOOTER_RESERVE = 28;
 const MAIN =
   'HealthAccess\n1. Find nearby care\n2. Emergency summary\n3. View shared details\n4. Emergency help\n0. Exit';
 const LOCATION = 'CON Enter area or landmark\n0. Back';
-const EMERGENCY_LOCATION = 'CON Emergency help\nEnter area or landmark\n0. Back';
+const EMERGENCY_DETAILS =
+  'CON Emergency help\nWhat is happening? Briefly describe.\nNo names/codes; sent for live search.\nCall 112 if life-threatening.\n0. Back';
+const EMERGENCY_LOCATION =
+  'CON Enter area or landmark\nUsed to find nearby help.\nCall 112 if life-threatening.\n0. Back';
 const EMERGENCY = 'CON Emergency summary\nEnter patient code\n0. Back';
 const GRANT_PATIENT = 'CON View shared details\nEnter patient code\n0. Back';
 const GRANT_ACCESS = 'CON Enter temporary access code\n0. Back';
@@ -504,7 +508,9 @@ export function createUssdEngine({
       case 'CARE_LOCATION':
         return context.kind === 'emergency_area'
           ? EMERGENCY_LOCATION.slice(4)
-          : LOCATION.slice(4);
+          : context.kind === 'emergency_details'
+            ? EMERGENCY_DETAILS.slice(4)
+            : LOCATION.slice(4);
       case 'CARE_AREA_CHOICE':
         return (
           menu('Choose area', [
@@ -901,8 +907,15 @@ export function createUssdEngine({
     );
   }
 
-  function emergencyArea(session: UssdSession, preserve = false): UssdResult {
-    const context: UssdContext = { kind: 'emergency_area' };
+  function emergencyArea(
+    session: UssdSession,
+    emergencyDescription?: string,
+    preserve = false,
+  ): UssdResult {
+    const context: UssdContext = {
+      kind: 'emergency_area',
+      emergencyDescription: emergencyDescription ?? session.context.emergencyDescription,
+    };
     return makeResult(
       session,
       'CARE_LOCATION',
@@ -911,11 +924,16 @@ export function createUssdEngine({
     );
   }
 
-  async function emergencySearch(session: UssdSession, area: string): Promise<UssdResult> {
+  async function emergencySearch(
+    session: UssdSession,
+    area: string,
+    emergencyDescription?: string,
+  ): Promise<UssdResult> {
     let leads: WebLead[] = [];
     if (config.allowLiveWeb && webSearch?.discoverEmergency) {
       try {
-        leads = (await webSearch.discoverEmergency({ area })).slice(0, 8);
+        leads = (await webSearch.discoverEmergency({ area, description: emergencyDescription }))
+          .slice(0, 8);
       } catch {
         leads = [];
       }
@@ -953,6 +971,7 @@ export function createUssdEngine({
     return emergencyResults(session, {
       kind: 'emergency_results',
       areaLabel: area,
+      emergencyDescription,
       resultIds: ids,
       resultIndex: 0,
     });
@@ -1199,9 +1218,10 @@ export function createUssdEngine({
       case 'CARE_SERVICE':
         return services(session, true);
       case 'CARE_LOCATION':
-        return context.kind === 'emergency_area'
-          ? emergencyArea(session, true)
-          : location(session, context.serviceCode ?? '', true);
+        if (context.kind === 'emergency_area') return emergencyArea(session, undefined, true);
+        if (context.kind === 'emergency_details')
+          return makeResult(session, 'CARE_LOCATION', context, EMERGENCY_DETAILS);
+        return location(session, context.serviceCode ?? '', true);
       case 'CARE_AREA_CHOICE': {
         const response =
           menu(context.truncated ? 'Choose area\nMore matches exist' : 'Choose area', [
@@ -1321,7 +1341,13 @@ export function createUssdEngine({
             GRANT_PATIENT,
           );
         }
-        if (token === '4') return emergencyArea(session);
+        if (token === '4')
+          return makeResult(
+            session,
+            'CARE_LOCATION',
+            acceptedContext({ kind: 'emergency_details' }),
+            EMERGENCY_DETAILS,
+          );
         return invalid(session, MAIN);
 
       case 'CARE_SERVICE': {
@@ -1339,6 +1365,17 @@ export function createUssdEngine({
       }
 
       case 'CARE_LOCATION': {
+        if (context.kind === 'emergency_details') {
+          if (token === '0')
+            return makeResult(
+              session,
+              'MAIN',
+              acceptedContext({ kind: 'main' }),
+              bounded('CON', MAIN),
+            );
+          if (!validArea(token)) return invalid(session, EMERGENCY_DETAILS.slice(4));
+          return emergencyArea(session, token.trim());
+        }
         if (context.kind === 'emergency_area') {
           if (token === '0')
             return makeResult(
@@ -1348,7 +1385,7 @@ export function createUssdEngine({
               bounded('CON', MAIN),
             );
           if (!validArea(token)) return invalid(session, EMERGENCY_LOCATION.slice(4));
-          return emergencySearch(session, token.trim());
+          return emergencySearch(session, token.trim(), context.emergencyDescription);
         }
         if (token === '0') return services(session);
         if (!validArea(token)) return invalid(session, LOCATION.slice(4));

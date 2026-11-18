@@ -41,6 +41,7 @@ export interface FacilitySearch {
 
 export interface EmergencySearch {
   area: string;
+  description?: string;
 }
 
 export interface WebSearch {
@@ -467,12 +468,22 @@ export function createWebSearch(
     return leads;
   }
 
-  async function discoverEmergency({ area }: EmergencySearch): Promise<FacilityLead[]> {
+  async function discoverEmergency({
+    area,
+    description,
+  }: EmergencySearch): Promise<FacilityLead[]> {
     const place = cleanText(area, 80);
     if (!place || !hasLetter(place)) return [];
+    const emergency = cleanText(description, 80);
     const queries: Array<{ query: string; label: string }> = [
-      { query: 'emergency hospital', label: 'Emergency hospital' },
-      { query: 'ambulance service', label: 'Ambulance service' },
+      {
+        query: `${emergency ? `${emergency} ` : ''}emergency hospital`,
+        label: 'Emergency hospital',
+      },
+      {
+        query: `${emergency ? `${emergency} ` : ''}ambulance service`,
+        label: 'Ambulance service',
+      },
     ];
     const leads: FacilityLead[] = [];
     const seen = new Set<string>();

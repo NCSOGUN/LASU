@@ -529,6 +529,7 @@ test('replay of a terminal protected page reauthorizes and does not reuse cached
 test('main menu offers emergency help, pages live leads, records USSD request and never fabricates', async () => {
   const leads = [lead('lead1'), lead('lead2')];
   const areasQueried: string[] = [];
+  const descriptions: string[] = [];
   const { engine, calls } = setup(
     {
       storeWebLeads: async () => ['lead1', 'lead2'],
@@ -538,8 +539,9 @@ test('main menu offers emergency help, pages live leads, records USSD request an
     {},
     {
       discoverFacilities: async () => [],
-      discoverEmergency: async ({ area }) => {
+      discoverEmergency: async ({ area, description }) => {
         areasQueried.push(area);
+        descriptions.push(description ?? '');
         return leads;
       },
     },
@@ -549,11 +551,19 @@ test('main menu offers emergency help, pages live leads, records USSD request an
   assert.match(initial.response, /4\. Emergency help/);
   const prompt = await send(engine, apply(session(), initial), '4');
   assert.equal(prompt.result.state, 'CARE_LOCATION');
-  assert.equal(prompt.result.context.kind, 'emergency_area');
-  assert.match(prompt.result.response, /Emergency help/);
+  assert.equal(prompt.result.context.kind, 'emergency_details');
+  assert.match(prompt.result.response, /What is happening/);
+  assert.match(prompt.result.response, /Call 112 if life-threatening/);
   assertResponse(prompt.result);
 
-  const first = await send(engine, prompt.session, 'Ikeja');
+  const locationPrompt = await send(engine, prompt.session, 'Road accident');
+  assert.equal(locationPrompt.result.state, 'CARE_LOCATION');
+  assert.equal(locationPrompt.result.context.kind, 'emergency_area');
+  assert.equal(locationPrompt.result.context.emergencyDescription, 'Road accident');
+  assert.match(locationPrompt.result.response, /Enter area or landmark/);
+  assertResponse(locationPrompt.result);
+
+  const first = await send(engine, locationPrompt.session, 'Ikeja');
   assert.equal(first.result.state, 'CARE_RESULTS');
   assert.equal(first.result.context.kind, 'emergency_results');
   assert.match(first.result.response, /Call 112 now if life-threatening/);
@@ -565,6 +575,7 @@ test('main menu offers emergency help, pages live leads, records USSD request an
   assert.match(first.result.response, /0\. Exit/);
   assertResponse(first.result);
   assert.deepEqual(areasQueried, ['Ikeja']);
+  assert.deepEqual(descriptions, ['Road accident']);
   assert.ok(calls.includes('emergency:USSD:Ikeja:2'));
 
   const second = await send(engine, first.session, '1');
@@ -577,6 +588,7 @@ test('main menu offers emergency help, pages live leads, records USSD request an
   const again = await send(engine, second.session, '1');
   assert.equal(again.result.state, 'CARE_LOCATION');
   assert.equal(again.result.context.kind, 'emergency_area');
+  assert.equal(again.result.context.emergencyDescription, 'Road accident');
 });
 
 test('emergency with no live results gives 112 guidance and records an empty request', async () => {
@@ -586,13 +598,31 @@ test('emergency with no live results gives 112 guidance and records an empty req
     {},
     { discoverFacilities: async () => [], discoverEmergency: async () => [] },
   );
-  const result = await walk(engine, ['4', 'Ikeja']);
+  const result = await walk(engine, ['4', 'Severe breathing difficulty', 'Ikeja']);
   assert.equal(result.result.state, 'END');
   assert.equal(result.result.terminal, true);
   assert.match(result.result.response, /Call 112 now/);
   assert.match(result.result.response, /nearest emergency department/);
   assert.doesNotMatch(result.result.response, /CON /);
   assert.ok(calls.includes('emergency:USSD:Ikeja:0'));
+});
+
+test('emergency details support back navigation and reject empty input before asking for location', async () => {
+  const { engine } = setup();
+  const initial = await engine.transition(session(), null);
+  const prompt = await send(engine, apply(session(), initial), '4');
+  const invalid = await send(engine, prompt.session, '');
+  assert.equal(invalid.result.state, 'CARE_LOCATION');
+  assert.equal(invalid.result.context.kind, 'emergency_details');
+  assert.match(invalid.result.response, /What is happening/);
+
+  const back = await send(engine, prompt.session, '0');
+  assert.equal(back.result.state, 'MAIN');
+
+  const detail = await send(engine, prompt.session, 'Accident');
+  const replay = await engine.render(detail.session);
+  assert.equal(replay.state, 'CARE_LOCATION');
+  assert.match(replay.response, /Enter area or landmark/);
 });
 
 test('care search falls back to unverified live leads when the directory is empty', async () => {

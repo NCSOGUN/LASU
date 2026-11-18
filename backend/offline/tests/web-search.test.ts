@@ -378,7 +378,7 @@ test('discoverEmergency runs hospital and ambulance Maps queries in parallel and
     peak = Math.max(peak, inFlight);
     await new Promise((resolve) => setTimeout(resolve, 10));
     inFlight -= 1;
-    if (body.q === 'emergency hospital in Ikeja') {
+    if (body.q === 'Road accident emergency hospital in Ikeja') {
       return responseJson({
         places: [
           { title: 'Ikeja Emergency Hospital', address: '1 Allen Road', placeId: 'h1' },
@@ -394,13 +394,13 @@ test('discoverEmergency runs hospital and ambulance Maps queries in parallel and
     });
   });
   const search = createWebSearch(baseConfig({ healthSourceDomains: [] }), { fetchImpl });
-  const leads = await search.discoverEmergency({ area: 'Ikeja' });
+  const leads = await search.discoverEmergency({ area: 'Ikeja', description: 'Road accident' });
 
   assert.equal(peak, 2);
   assert.equal(fetchImpl.calls.length, 2);
   assert.deepEqual(
     fetchImpl.calls.map((call) => requestBody(call.init).q),
-    ['emergency hospital in Ikeja', 'ambulance service in Ikeja'],
+    ['Road accident emergency hospital in Ikeja', 'Road accident ambulance service in Ikeja'],
   );
   assert.deepEqual(
     leads.map((item) => item.source_reference),

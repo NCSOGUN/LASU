@@ -122,8 +122,11 @@ ngrok http 3001
 
 Suggested USSD path: dial, choose `1`, choose `2` for child health, enter `Ikeja`.
 Emergency summary: dial, choose `2`, enter `123456789012`.
-Live emergency help: dial, choose `4`, enter `Ikeja`; results are live, unverified
-leads with 112 guidance and `1. Next` paging.
+Live emergency help: dial, choose `4`, briefly describe what is happening, then
+enter `Ikeja`. The description and area are used in live search; do not enter
+names or codes. Results are unverified leads with 112 guidance and `1. Next`
+paging. Call 112 immediately for a life-threatening emergency; do not wait for
+search results.
 Suggested SMS: `HELP`, `FIND child health near Ikeja`, `LOOKUP 123456789012`,
 `EMERGENCY Ikeja`, `EMERGENCY near Ikeja`, `MORE`, `CANCEL`, `STOP`. The worker must be
 running to process SMS and send replies.
