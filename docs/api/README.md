@@ -53,7 +53,7 @@ screenshots.
 
 | Group | Endpoints |
 | --- | --- |
-| Authentication and profile | register, login, refresh, logout, phone begin/confirm, me, medical, avatar, allergy/event edits |
+| Authentication and profile | register, login, forgot/reset password, refresh, logout, phone begin/confirm, me, medical, avatar, allergy/event edits |
 | Patient portal and protected records | fields, emergency summary, patient code, grants, consents, access events, emergency/grant reads |
 | Directory | services, areas, approved/non-demo facilities plus live Serper leads, facility/web-lead detail |
 | Emergency | request live emergency search, list history, get one request |

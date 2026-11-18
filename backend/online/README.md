@@ -98,6 +98,11 @@ inside another workspace without the root workspace context.
 | `GOOGLE_CLIENT_SECRET`       | no          | Google OAuth.                                                     |
 | `BASE_URL`                   | no          | Public API origin, default `http://localhost:3000`.               |
 | `FRONTEND_URL`               | no          | CORS origin, default `http://localhost:5173`.                     |
+| `SMTP_HOST`                  | for email   | SMTP server hostname; enables password-reset email.               |
+| `SMTP_PORT`                  | no          | SMTP port, default `587`; port `465` uses TLS.                     |
+| `SMTP_USER`                  | no          | SMTP username; set together with `SMTP_PASSWORD`.                 |
+| `SMTP_PASSWORD`              | no          | SMTP password; set together with `SMTP_USER`.                     |
+| `EMAIL_FROM`                 | for email   | Sender address configured for the SMTP account.                   |
 | `AWS_REGION`                 | for uploads | S3 region.                                                        |
 | `AWS_ACCESS_KEY_ID`          | for uploads | S3 access key.                                                    |
 | `AWS_SECRET_ACCESS_KEY`      | for uploads | S3 secret.                                                        |
@@ -126,6 +131,11 @@ inside another workspace without the root workspace context.
 
 Never commit `.env`. Do not log request bodies, clinical values, codes, phone
 numbers or tokens; the app logs method, path, status, duration and request id.
+
+Password recovery uses `POST /v1/auth/forgot-password` and
+`POST /v1/auth/reset-password`. Configure SMTP to enable delivery. Reset links
+expire after 30 minutes, are single-use, and revoke the account's existing
+sessions when used. Unknown account emails receive the same accepted response.
 
 ## Endpoint groups
 
