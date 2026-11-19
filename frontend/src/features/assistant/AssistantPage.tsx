@@ -8,16 +8,12 @@ import { Alert } from "@/components/arc/alert/alert";
 import { Button } from "@/components/arc/button/button";
 import { Switch } from "@/components/arc/switch/switch";
 import { useSession } from "@/api/hooks/session";
+import { useMe, useUpdateMe } from "@/api/hooks/record";
+import { Select } from "@/components/arc/select/select";
+import { ASSISTANT_LANGUAGES, assistantCopy, assistantLocale } from "./i18n";
 import { ChatInput, ChatMessages, ContextCard, ConversationSidebar, StreamError } from "./ChatParts";
 import { useAssistantStream } from "./useAssistantStream";
 import styles from "./chat.module.css";
-
-const SUGGESTIONS = [
-  "I've had a fever and headache since yesterday",
-  "My child has a cough and runny nose",
-  "I feel dizzy when I stand up",
-  "Is it safe to take paracetamol with my medicines?",
-];
 
 const RECORDS_KEY = "ha.assistant.includeRecords";
 
@@ -57,6 +53,10 @@ export function AssistantPage() {
   const [modifyHistory, setModifyHistory] = useState(true);
 
   const name = firstName(session.data?.account?.display_name);
+  const me = useMe();
+  const updateMe = useUpdateMe();
+  const language = assistantLocale(me.data?.profile.preferred_language);
+  const text = assistantCopy(language);
   const streaming = stream.phase === "streaming";
   const active = stream.phase !== "idle" || Boolean(stream.pending);
 
@@ -98,6 +98,14 @@ export function AssistantPage() {
 
         {optionsOpen ? (
           <div className={styles.details}>
+            <Select
+              label={text.languageLabel}
+              description={text.languageHint}
+              options={[...ASSISTANT_LANGUAGES]}
+              value={language}
+              disabled={!me.data || updateMe.isPending}
+              onValueChange={(value) => updateMe.mutate({ preferredLanguage: value })}
+            />
             <div className={styles.option}>
               <div className={styles.optionCopy}>
                 <p className={styles.optionTitle} id="opt-records">
@@ -147,14 +155,11 @@ export function AssistantPage() {
               <span className={styles.welcomeIcon} aria-hidden="true">
                 <Sparkles size={24} />
               </span>
-              <h2 className={styles.greeting}>{name ? `Hi ${name}, how are you feeling?` : "How are you feeling today?"}</h2>
-              <p className={styles.lead}>
-                Tell me what&apos;s going on in your own words. I&apos;ll ask a few questions if I need to and suggest what to do
-                next. You can attach a photo or a PDF.
-              </p>
+              <h2 className={styles.greeting}>{text.greeting(name)}</h2>
+              <p className={styles.lead}>{text.lead}</p>
               <ContextCard enabled={includeRecords} />
               <div className={styles.suggestions}>
-                {SUGGESTIONS.map((suggestion) => (
+                {text.suggestions.map((suggestion) => (
                   <button key={suggestion} type="button" className={styles.suggestion} onClick={() => void send(suggestion, [])}>
                     {suggestion}
                   </button>
@@ -199,7 +204,7 @@ export function AssistantPage() {
           onSend={(message, files) => void send(message, files)}
           streaming={streaming}
           onStop={stream.cancel}
-          placeholder="Describe how you feel…"
+          placeholder={text.placeholder}
           footer={
             <label className={styles.toggleInline}>
               <Switch checked={includeRecords} onCheckedChange={toggleRecords} aria-label="Use my health record" />

@@ -743,3 +743,34 @@ test('invalid service choice repeats readable labels, not internal codes', async
   assert.match(result.result.response, /1\. General care/);
   assert.doesNotMatch(result.result.response, /1\. general\b/);
 });
+
+test('USSD menus in every language are plain ASCII and fit the screen', async () => {
+  const { u, USSD_LANGUAGE_ORDER } = await import('../src/channels/i18n.js');
+  for (const locale of USSD_LANGUAGE_ORDER) {
+    for (const key of ['main', 'location', 'emergencyLocation', 'code', 'back', 'myArea', 'invalid', 'language', 'chooseService']) {
+      const text = `CON ${u(locale, key)}`;
+      assert.ok(text.length <= 182, `${locale}.${key} is ${text.length} chars`);
+      assert.match(text, /^[\x20-\x7e\n]+$/, `${locale}.${key} must be ASCII`);
+    }
+  }
+});
+
+test('USSD language option switches menus and remembers the choice', async () => {
+  const saved: string[] = [];
+  const { engine } = setup({ setLocale: async (locale) => void saved.push(locale) });
+  const menu = await walk(engine, ['5']);
+  assert.match(menu.result.response, /3\. Yoruba/);
+  const chosen = await send(engine, menu.session, '3');
+  assertResponse(chosen.result);
+  assert.match(chosen.result.response, /Wa ile iwosan nitosi/);
+  assert.deepEqual(saved, ['yo']);
+  const location = await send(engine, chosen.session, '1');
+  assert.match(location.result.response, /Yan itoju/);
+});
+
+test('USSD opens in the phone or profile language', async () => {
+  const { engine } = setup({ getLocale: async () => 'ha' });
+  const start = await engine.transition(session(), null);
+  assert.match(start.response, /Nemi asibiti kusa/);
+  assert.equal(start.context.locale, 'ha');
+});

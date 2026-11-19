@@ -1,4 +1,13 @@
 import type { Config } from '../config.js';
+import {
+  LANGUAGE_NAMES,
+  USSD_LANGUAGE_ORDER,
+  detectLocale,
+  languageChoice,
+  t,
+  toLocale,
+  type Locale,
+} from './i18n.js';
 import type { Crypto } from '../security/crypto.js';
 import type {
   Area,
@@ -23,6 +32,9 @@ export interface SmsRepository {
   findProfileConsent(): Promise<{ id: string } | null>;
   readMatchingContext(consentId: string): Promise<{ available: boolean }>;
   setOptOut(optOut: boolean): Promise<void>;
+  /** The sender's language: their SMS choice, else their profile language, else English. */
+  getLocale?(): Promise<Locale>;
+  setLocale?(locale: Locale): Promise<void>;
   /** Linked patient's home area (live consent only). */
   findSavedArea?(): Promise<SavedArea | null>;
   /** Consent-scoped, de-identified hints for tailoring answers (live consent only). */
@@ -60,14 +72,17 @@ interface SmsDependencies {
     }>;
     answer(
       question: string,
-      options?: { personal?: PersonalHints | null },
+      options?: { personal?: PersonalHints | null; language?: string },
     ): Promise<{ text: string; kind?: string }>;
+    /** False when no AI model is configured (deterministic menus only). */
+    available?(): boolean;
     converse?(
       message: string,
       options: {
         services: Service[];
         history: Array<{ role: 'user' | 'assistant'; text: string }>;
         savedAreaLabel: string | null;
+        language?: string;
       },
     ): Promise<{
       intent: string;
@@ -75,6 +90,7 @@ interface SmsDependencies {
       location_query: string | null;
       question: string | null;
       reply: string | null;
+      language?: string | null;
     } | null>;
   };
   search?: {
@@ -89,15 +105,11 @@ export interface SmsResult extends SmsConversation {
   replies: SmsReply[];
 }
 
-export const HELP =
-  'HealthAccess can help. Reply with a number: 1 Find a clinic or hospital, 2 Emergency help, 3 Ask a health question, 4 Get my access code. Or just tell me what is wrong. In danger? Call 112.';
-export const GREETING =
-  'Hi, I am HealthAccess. Tell me what is wrong or what you need, for example "fever since yesterday" or "clinic in Ikeja". Or reply 1 Find care, 2 Emergency, 3 Ask a question, 4 My access code.';
-export const NOT_LINKED =
-  'This phone is not linked to a HealthAccess account yet. Sign in on the HealthAccess website, open Channels and verify this number, then reply CODE again.';
+export const HELP = t('en', 'help');
+export const GREETING = t('en', 'greeting');
+export const NOT_LINKED = t('en', 'notLinked');
 export const UNAVAILABLE = 'No shared summary is available for that code. Check the code.';
-export const URGENT =
-  'This may be an emergency. Get immediate in-person help: call 112 now or go to the nearest emergency department. Reply with your area (e.g. Ikeja) and I will send the nearest emergency hospital, or send EMERGENCY <area>.';
+export const URGENT = t('en', 'urgent');
 export const EMERGENCY_FALLBACK =
   'No live emergency listing found. Call 112 now or go to the nearest emergency department. HealthAccess does not dispatch ambulances.';
 
@@ -155,6 +167,9 @@ export function createSmsEngine({
     replies,
   });
   const idle = (text: string) => result('idle', {}, [textReply(text)]);
+  // Set at the start of each message from the conversation, the phone's choice or profile.
+  let locale: Locale = 'en';
+  const say = (key: string, params: Record<string, string | number> = {}) => t(locale, key, params);
 
   async function savedArea(): Promise<SavedArea | null> {
     try {
@@ -174,7 +189,10 @@ export function createSmsEngine({
   }
 
   async function answerQuestion(question: string): Promise<SmsResult> {
-    const answer = await assistant.answer(question, { personal: await personalHints() });
+    const answer = await assistant.answer(question, {
+      personal: await personalHints(),
+      language: LANGUAGE_NAMES[locale],
+    });
     // Stay in the chat so a follow-up ("what if it gets worse?") keeps the thread.
     return result(assistant.converse ? 'chat' : 'idle', {}, [textReply(answer.text)]);
   }
@@ -186,14 +204,10 @@ export function createSmsEngine({
   ): Promise<SmsResult> {
     if (index >= (context.resultIds || []).length) {
       if (stateName === 'showing_emergency') {
-        return idle(
-          'That was the last emergency option I found. Life-threatening? Call 112 now or go to the nearest emergency department. To search somewhere else, reply EMERGENCY and the area.',
-        );
+        return idle(say('lastEmergency'));
       }
       return result('awaiting_area', { serviceCode: context.serviceCode }, [
-        textReply(
-          'That was the last option I found nearby. Reply with another area or landmark and I will search there.',
-        ),
+        textReply(say('lastCare')),
       ]);
     }
     return result(stateName, { ...context, resultIndex: index }, [
@@ -204,6 +218,7 @@ export function createSmsEngine({
         areaId: context.areaId || null,
         index,
         total: context.resultIds!.length,
+        locale,
         emergency: stateName === 'showing_emergency',
       },
     ]);
@@ -219,7 +234,7 @@ export function createSmsEngine({
     if (!serviceCode) {
       return result('awaiting_service', {}, [
         textReply(
-          `Which care? ${services.map((s, i) => `${i + 1}. ${s.label}`).join(' ')} Reply with a number. I will then ask for your area.`,
+          say('whichCare', { options: services.map((s, i) => `${i + 1}. ${s.label}`).join(' ') }),
         ),
       ]);
     }
@@ -230,13 +245,11 @@ export function createSmsEngine({
           'awaiting_area',
           { serviceCode, suggestedAreaId: saved.id, suggestedAreaLabel: saved.label },
           [
-            textReply(
-              `Search near ${saved.label} (your saved area)? Reply YES, or send the area or landmark you are in now.`,
-            ),
+            textReply(say('savedAreaCare', { area: saved.label })),
           ],
         );
       return result('awaiting_area', { serviceCode }, [
-        textReply('Which current area or nearby landmark are you in?'),
+        textReply(say('askArea')),
       ]);
     }
     const areas = context.areaId
@@ -387,12 +400,10 @@ export function createSmsEngine({
     } catch {
       return idle('Your code is unavailable right now. Please try again shortly.');
     }
-    if (!codes.linked) return idle(NOT_LINKED);
+    if (!codes.linked) return idle(say('notLinked'));
     return result('idle', {}, [
       textReply(
-        codes.summaryFields === 0
-          ? `Your HealthAccess emergency code is ${grouped(codes.patientCode)}. It shows nothing yet: choose your emergency summary on the HealthAccess website. Reply NEW CODE for a 1-hour code with your emergency details.`
-          : `Your HealthAccess emergency code is ${grouped(codes.patientCode)}. Anyone you give it to can see your emergency information. Reply NEW CODE for a code that expires in 1 hour.`,
+        say(codes.summaryFields === 0 ? 'myCodeEmpty' : 'myCode', { code: grouped(codes.patientCode) }),
       ),
     ]);
   }
@@ -404,20 +415,17 @@ export function createSmsEngine({
     } catch {
       return idle('A new code could not be created right now. Please try again shortly.');
     }
-    if (created.status === 'not_linked') return idle(NOT_LINKED);
-    if (created.status === 'nothing_to_share')
-      return idle('Add your health information on the HealthAccess website first, then reply NEW CODE.');
-    return idle(
-      `Your 1-hour HealthAccess code is ${grouped(created.code)}. Give it to your doctor or nurse. It opens your emergency information by USSD or on the website.`,
-    );
+    if (created.status === 'not_linked') return idle(say('notLinked'));
+    if (created.status === 'nothing_to_share') return idle(say('nothingToShare'));
+    return idle(say('newCode', { code: grouped(created.code) }));
   }
 
-  async function urgent(note = URGENT): Promise<SmsResult> {
+  async function urgent(note = say('urgent')): Promise<SmsResult> {
     const saved = await savedArea();
     if (saved)
       return emergencySearch(
         saved.label,
-        `This may be an emergency: call 112 now or go to the nearest emergency department. Searching near your saved area, ${saved.label}. Send EMERGENCY <area> if you are elsewhere.`,
+        say('savedAreaUrgent', { area: saved.label }),
       );
     return result('awaiting_emergency_area', {}, [textReply(note)]);
   }
@@ -427,18 +435,50 @@ export function createSmsEngine({
     if (saved)
       return emergencySearch(
         saved.label,
-        `Searching near your saved area, ${saved.label}. Call 112 now if life-threatening. Send EMERGENCY <area> if you are somewhere else.`,
+        say('savedAreaEmergency', { area: saved.label }),
       );
     return result('awaiting_emergency_area', {}, [
-      textReply('Which area or nearby landmark are you in? Call 112 now if the situation is life-threatening.'),
+      textReply(say('askEmergencyArea')),
     ]);
   }
 
   const MENU_PATTERN =
     /^(?:help|menu|options?|start|\?+|what\??|huh\??|i don['’]?t understand|i do not understand|don['’]?t understand|confused|what can you do\??)$/i;
   const GREETING_PATTERN =
-    /^(?:hi+|hello+|hey+|hallo|good (?:morning|afternoon|evening|day)|howdy|how far|bawo|sannu|ndewo)[!. ]*$/i;
-  const THANKS_PATTERN = /^(?:thanks?|thank you|ok(?:ay)?|alright|cool|great)[!. ]*$/i;
+    /^(?:hi+|hello+|hey+|hallo|good (?:morning|afternoon|evening|day)|howdy|how far|how you dey|bawo|bawo ni|e kaa?ro|e kaasan|e kaale|e nle o?|sannu|ina kwana|ina wuni|barka da (?:safiya|rana|yamma)|ndewo|kedu|ututu oma)[!. ]*$/i;
+  const THANKS_PATTERN = /^(?:thanks?|thank you|ok(?:ay)?|alright|cool|great|e se|ese|o se|na gode|nagode|daalu|dalu|tank you|tenk you)[!. ]*$/i;
+
+  async function rememberLocale(next: Locale) {
+    try {
+      await repository.setLocale?.(next);
+    } catch {
+      // The conversation still carries the choice for this thread.
+    }
+  }
+
+  async function resolveLocale(context: SmsContext): Promise<Locale> {
+    const fromThread = toLocale(context.locale);
+    if (fromThread) return fromThread;
+    try {
+      return (await repository.getLocale?.()) ?? 'en';
+    } catch {
+      return 'en';
+    }
+  }
+
+  /** LANG / a language name / a menu number while choosing: set and confirm the language. */
+  async function languageCommand(text: string, state: string): Promise<SmsResult | null> {
+    if (/^(?:lang(?:uage)?|ede|harshe|asusu)$/i.test(text.trim()))
+      return result('choosing_language', {}, [textReply(say('languageMenu'))]);
+    const picked =
+      state === 'choosing_language' && /^[1-5]$/.test(text.trim())
+        ? USSD_LANGUAGE_ORDER[Number(text.trim()) - 1]!
+        : languageChoice(text);
+    if (!picked) return null;
+    locale = picked;
+    await rememberLocale(picked);
+    return result('idle', {}, [textReply(say('languageSet'))]);
+  }
 
   async function process(
     message: string,
@@ -447,14 +487,23 @@ export function createSmsEngine({
     const history: Turn[] = Array.isArray(conversation.context?.history)
       ? (conversation.context.history as Turn[]).slice(-HISTORY_TURNS)
       : [];
-    const out = await route(message, conversation, history);
+    locale = await resolveLocale(conversation.context ?? {});
+    // Greeting someone in Yoruba, Hausa, Igbo or Pidgin switches to that language.
+    const greeted = detectLocale(message);
+    if (greeted && greeted !== locale) {
+      locale = greeted;
+      await rememberLocale(greeted);
+    }
+    const out =
+      (await languageCommand(message, conversation.state)) ??
+      (await route(message, conversation, history));
     if (out.state === 'closed') return out;
     const turns: Turn[] = [
       ...history,
       { role: 'user' as const, text: historyText(message) },
       { role: 'assistant' as const, text: historyText(out.replies.map(replyText).join(' ')) },
     ].filter((turn) => turn.text);
-    return { ...out, context: { ...out.context, history: turns.slice(-HISTORY_TURNS) } };
+    return { ...out, context: { ...out.context, locale, history: turns.slice(-HISTORY_TURNS) } };
   }
 
   async function route(
@@ -480,7 +529,7 @@ export function createSmsEngine({
     // assistant's last question, so they go to the conversation, not to menu shortcuts.
     const inChat = state === 'chat' && assistant.converse !== undefined;
     if (MENU_PATTERN.test(text) && !(inChat && !/^(help|menu)$/i.test(text)))
-      return result('menu', {}, [textReply(HELP)]);
+      return result('menu', {}, [textReply(say('help'))]);
     if (isPotentiallyUrgent(text)) return urgent();
     if (/^LOOKUP(?:\s|$)/i.test(text)) {
       const code = text.replace(/^LOOKUP\s*/i, '').replace(/[\s-]/g, '');
@@ -506,7 +555,7 @@ export function createSmsEngine({
     if (/^MORE$/i.test(text)) {
       return state === 'showing_results' || state === 'showing_emergency'
         ? showResult(context, (context.resultIndex || 0) + 1, state)
-        : idle('There is no active result list. Tell me what care you need and where, for example "clinic in Ikeja".');
+        : idle(say('noList'));
     }
     const emergency = /^EMERGENCY\b\s*(.*)$/i.exec(text);
     if (emergency) {
@@ -533,7 +582,7 @@ export function createSmsEngine({
       const question = text.replace(/^ASK\s*/i, '');
       if (!question)
         return result('awaiting_question', {}, [
-          textReply('What would you like to ask? Describe the symptom or question in one message.'),
+          textReply(say('askQuestion')),
         ]);
       return answerQuestion(question);
     }
@@ -542,7 +591,7 @@ export function createSmsEngine({
       if (text === '2') return startEmergency();
       if (text === '3')
         return result('awaiting_question', {}, [
-          textReply('What would you like to ask? Describe the symptom or question in one message.'),
+          textReply(say('askQuestion')),
         ]);
       return myCode();
     }
@@ -583,9 +632,9 @@ export function createSmsEngine({
         areaLabel: areaContext(context).areaLabels?.[index],
       } as SmsContext);
     }
-    if (!inChat && GREETING_PATTERN.test(text)) return result('menu', {}, [textReply(GREETING)]);
+    if (!inChat && GREETING_PATTERN.test(text)) return result('menu', {}, [textReply(say('greeting'))]);
     if (!inChat && THANKS_PATTERN.test(text))
-      return idle('You are welcome. Message me any time you need care or have a health question. In danger? Call 112.');
+      return idle(say('thanks'));
 
     if (assistant.converse) {
       const saved = await savedArea();
@@ -593,35 +642,48 @@ export function createSmsEngine({
         services,
         history,
         savedAreaLabel: saved?.label ?? null,
+        language: LANGUAGE_NAMES[locale],
       });
       if (reply) {
+        // The person wrote in another supported language: answer in it from now on.
+        const detected = toLocale(reply.language);
+        if (detected && detected !== locale && text.split(/\s+/).length >= 3) {
+          locale = detected;
+          await rememberLocale(detected);
+        }
         if (reply.intent === 'emergency') {
           if (reply.location_query && validEmergencyArea(reply.location_query))
             return emergencySearch(reply.location_query, reply.reply ?? undefined);
-          return urgent(reply.reply ?? URGENT);
+          return urgent(reply.reply ?? say('urgent'));
         }
         if (reply.intent === 'find_care') {
+          // Most people just want "a clinic": default to general care instead of asking.
           const service =
             reply.service_code ??
-            (reply.location_query && services.some((item) => item.service_code === 'general')
-              ? 'general'
-              : null);
+            (services.some((item) => item.service_code === 'general') ? 'general' : null);
           if (!service || reply.location_query) return findCare(service, reply.location_query);
           if (reply.reply) return result('awaiting_area', { serviceCode: service }, [textReply(reply.reply)]);
           return findCare(service, null);
         }
         if (reply.intent === 'health_question') {
-          const answer = await assistant.answer(reply.question ?? text, { personal: await personalHints() });
-          if ((answer as { kind?: string }).kind === 'fallback' && reply.reply)
+          const answer = await assistant.answer(reply.question ?? text, {
+            personal: await personalHints(),
+            language: LANGUAGE_NAMES[locale],
+          });
+          if ((answer as { kind?: string }).kind === 'fallback')
             return result('chat', {}, [
-              textReply(`${reply.reply} This is general information, not a diagnosis.`),
+              textReply(reply.reply ? `${reply.reply} ${say('generalInfo')}` : say('fallback')),
             ]);
           return result('chat', {}, [textReply(answer.text)]);
         }
         if (reply.intent === 'my_code') return myCode();
         if (reply.reply) return result('chat', {}, [textReply(reply.reply)]);
+      } else if (assistant.available?.() !== false && (inChat || text.split(/\s+/).length >= 2)) {
+        // The AI is configured but slow or failing. Do not show the numbered menu here:
+        // the person's next reply ("4", "2 days") would be read as a menu choice.
+        return result('chat', {}, [textReply(say('tryAgain'))]);
       }
-      return result('menu', {}, [textReply(HELP)]);
+      return result('menu', {}, [textReply(say('help'))]);
     }
 
     const interpreted = await assistant.classify(text, { services });
@@ -632,7 +694,7 @@ export function createSmsEngine({
       return findCare(service, interpreted.location_query);
     }
     if (interpreted.intent === 'health_question') return answerQuestion(text);
-    return interpreted.question ? idle(interpreted.question) : result('menu', {}, [textReply(HELP)]);
+    return interpreted.question ? idle(interpreted.question) : result('menu', {}, [textReply(say('help'))]);
   }
   return { process };
 }

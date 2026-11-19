@@ -202,6 +202,7 @@ test('EMERGENCY prompts for an area, returns live leads, records the request and
       index: 0,
       total: 2,
       emergency: true,
+      locale: 'en',
     },
   ]);
   assert.deepEqual(searched, ['Ikeja']);
@@ -418,6 +419,7 @@ function engineWith(
     reply: string | null;
   } | null>,
   answerKind = 'fallback',
+  aiAvailable = true,
 ) {
   const areas: string[] = [];
   const repository: SmsRepository = {
@@ -440,6 +442,7 @@ function engineWith(
     assistant: {
       classify: async () => ({ intent: 'unsupported', service_code: null, location_query: null, question: null }),
       answer: async () => ({ text: 'Reviewed answer.', kind: answerKind }),
+      available: () => aiAvailable,
       ...(converse ? { converse } : {}),
     },
     search: {
@@ -566,7 +569,7 @@ test('converse gives safe general guidance when no reviewed answer exists', asyn
 });
 
 test('without AI, unknown messages get the plain-language menu, not a command list', async () => {
-  const { engine } = engineWith({}, async () => null);
+  const { engine } = engineWith({}, async () => null, 'fallback', false);
   const [result] = await chat(engine, ['something odd']);
   assert.equal(textOf(result), HELP);
   assert.equal(result.state, 'menu');
@@ -631,7 +634,8 @@ test('listings are short, numbered and say what to do next', () => {
     source_url: 'https://www.google.com/maps/place/?q=place_id:ChIJAQAAwAKROxARrWHUg_DsyRw',
   };
   const first = renderWebLead(lead, { index: 0, total: 3 });
-  assert.match(first, /^Option 1 of 3: Avon Healthcare Veta Hospital Lagos\n/);
+  assert.match(first, /^Option 1\/3: Avon Healthcare Veta Hospital Lagos\n/);
+  assert.doesNotMatch(first, /https?:|www\.|Map:|google/);
   assert.match(first, /\n1 Veta Close, Araromi Bus Stop, Iyana Ipaja, Lagos\n/);
   assert.doesNotMatch(first, /100211|Nigeria|Ltd/);
   assert.match(first, /Call: \+23418241839/);
@@ -642,7 +646,7 @@ test('listings are short, numbered and say what to do next', () => {
   assert.match(last, /Reply with another area to search again\.$/);
 
   const emergency = renderWebLead(lead, { index: 0, total: 2, emergency: true });
-  assert.match(emergency, /^Emergency 1 of 2:/);
+  assert.match(emergency, /^Emergency 1\/2:/);
   assert.match(emergency, /Call 112 now/);
   assert.ok(smsSegments(emergency).segments <= 2);
 });
@@ -658,4 +662,77 @@ test('address tidying keeps plot numbers and legacy listings still offer MORE', 
   assert.match(text, /\nPlot 123456 Admiralty Way, Lekki, Lagos\n/);
   assert.match(text, /Reply MORE for another option\./);
   assert.match(renderWebLead(lead, { emergency: true }), /Reply MORE for another\./);
+});
+
+test('SMS language: choose by name or menu, remember it, and greet in the detected language', async () => {
+  const saved: string[] = [];
+  const { engine } = engineWith({ setLocale: async (locale) => void saved.push(locale) });
+  const [picked, help] = await chat(engine, ['Yoruba', 'help']);
+  assert.match(textOf(picked), /ede Yoruba/);
+  assert.match(textOf(help), /Fesi pelu nomba/);
+  assert.equal(help.context.locale, 'yo');
+
+  const [menu, hausa] = await chat(engine, ['LANG', '4']);
+  assert.match(textOf(menu), /1 English, 2 Pidgin, 3 Yoruba, 4 Hausa, 5 Igbo/);
+  assert.match(textOf(hausa), /Hausa/);
+  assert.equal(hausa.context.locale, 'ha');
+
+  const [igbo] = await chat(engine, ['Ndewo']);
+  assert.match(textOf(igbo), /^Ndewo!/);
+  assert.deepEqual(saved, ['yo', 'ha', 'ig']);
+});
+
+test('SMS language comes from the phone choice or profile and reaches the AI and listings', async () => {
+  const languages: string[] = [];
+  const { engine } = engineWith(
+    { getLocale: async () => 'pcm' },
+    async (_message, options) => {
+      languages.push((options as { language?: string }).language ?? '');
+      return { intent: 'find_care', service_code: 'general', location_query: 'Ikeja', question: null, reply: null };
+    },
+  );
+  const [result] = await chat(engine, ['abeg I need doctor for Ikeja']);
+  assert.deepEqual(languages, ['Nigerian Pidgin']);
+  const listing = result.replies.find((reply) => reply.kind === 'facility');
+  assert.equal(listing && 'locale' in listing ? listing.locale : null, 'pcm');
+  assert.match(textOf((await chat(engine, ['HELP']))[0]!), /wetin dey do you/);
+});
+
+test('SMS switches language when the AI detects the person writing in another one', async () => {
+  const saved: string[] = [];
+  const { engine } = engineWith({ setLocale: async (locale) => void saved.push(locale) }, async () => ({
+    intent: 'clarification', service_code: null, location_query: null, question: null,
+    reply: 'Ina jin tausayinka. Tun yaushe ka fara jin zazzabi?', language: 'ha',
+  }));
+  const [result] = await chat(engine, ['ina da zazzabi da ciwon kai sosai']);
+  assert.equal(result.context.locale, 'ha');
+  assert.ok(saved.includes('ha'));
+});
+
+test('listings and the final SMS filter never carry links', async () => {
+  const { channelText } = await import('../src/channels/render.js');
+  const lead = {
+    name: 'Clinic',
+    address: '2 Allen Avenue, Ikeja, Lagos',
+    phone: '+2348000000001',
+    source_url: 'https://www.google.com/maps/place/?q=place_id:abc',
+  };
+  const yoruba = renderWebLead(lead, { index: 0, total: 2, locale: 'yo' });
+  assert.match(yoruba, /^Aayan 1\/2: Clinic/);
+  assert.match(yoruba, /Pe: \+2348000000001/);
+  assert.doesNotMatch(yoruba, /https?:|www\.|google/);
+  const cleaned = channelText(
+    '**Rest** and fluids. See [advice](https://www.nhs.uk/fever) or www.who.int, email a@b.ng. Ẹ kú àárọ̀ 😊',
+  );
+  assert.equal(cleaned, 'Rest and fluids. See advice or email. E ku aaro');
+  assert.doesNotMatch(cleaned, /https?:|www\.|@/);
+});
+
+test('a slow or failing AI keeps the chat going instead of showing the numbered menu', async () => {
+  const { engine } = engineWith({}, async () => null);
+  const [first, age] = await chat(engine, ['my child has a fever', '4']);
+  assert.match(textOf(first), /could not answer that just now/);
+  assert.equal(first.state, 'chat');
+  // "4" is not taken as menu option 4 (my access code).
+  assert.doesNotMatch(textOf(age), /not linked|access code/);
 });

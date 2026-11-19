@@ -230,3 +230,20 @@ Tuning (optional env): `AI_TIMEOUT_MS` (default 25000, capped so two AI calls fi
 90 s worker lease), `SMS_CONVERSATION_TTL_SECONDS` (default 1800),
 `CALLBACK_RATE_PER_MINUTE` (provider-IP flood ceiling, default 6000; each sender phone
 is limited to 60 callbacks a minute).
+
+## Languages and output control
+
+SMS and USSD speak English, Nigerian Pidgin, Yoruba, Hausa and Igbo
+(`src/channels/i18n.ts`). A phone's language comes from its SMS/USSD choice (`LANG`,
+a language name, or USSD option 5), else the verified patient's profile language,
+else English; greetings such as "Bawo", "Sannu", "Ndewo" or "How far" switch it.
+The AI is told the reply language. Translations are plain ASCII (no tone marks) and
+should be reviewed by native speakers.
+
+Every SMS passes through `channelText` before sending: links, web addresses, emails,
+markdown and emoji are removed and letters are folded to GSM-7. Listings carry no
+map links; web answers name their source in words ("Source: NHS").
+
+For a real-model run of the simulator: `SIM_REAL_AI=1 OPENROUTER_API_KEY=...
+OPENROUTER_MODEL=... npm run simulate` (behind an HTTP proxy, also set
+`NODE_USE_ENV_PROXY=1`).
