@@ -90,10 +90,18 @@ export async function runWorker() {
                     : UNAVAILABLE;
                 break;
               case 'facility':
-                text = renderFacility(rendered.facility || null);
+                text = renderFacility(rendered.facility || null, undefined, {
+                  index: rendered.reply.index,
+                  total: rendered.reply.total,
+                  emergency: rendered.reply.emergency,
+                });
                 break;
               case 'web_lead':
-                text = renderWebLead(rendered.lead || null);
+                text = renderWebLead(rendered.lead || null, {
+                  index: rendered.reply.index,
+                  total: rendered.reply.total,
+                  emergency: rendered.reply.emergency,
+                });
                 break;
             }
             if (smsSegments(text).segments > config.smsMaxSegments) {

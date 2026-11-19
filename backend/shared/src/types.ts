@@ -56,6 +56,11 @@ export type SmsReply =
       serviceCode?: string;
       areaId?: string | null;
       radiusKm?: number;
+      /** Position in the result list, for "Option 1 of 3". */
+      index?: number;
+      total?: number;
+      /** Emergency search results get emergency wording. */
+      emergency?: boolean;
     };
 
 export interface SmsContext {
