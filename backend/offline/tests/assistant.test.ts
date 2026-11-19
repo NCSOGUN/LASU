@@ -629,3 +629,32 @@ test('answer omits the person context block when no hints are supplied', async (
   await assistant.answer('what helps a fever', { personal: null });
   assert.doesNotMatch(generate.calls[0]!.prompt, /Person context/);
 });
+
+test('converse sends short number-only replies and prior turns to the model', async () => {
+  const generate = mockGenerate(() => ({
+    output: { intent: 'clarification', service_code: null, location_query: null, question: null, reply: 'Has it lasted more than 2 days?' },
+  }));
+  const assistant = createAssistant(assistantConfig({ openrouterModel: MODEL }), { model: MODEL, generateImpl: generate });
+  const result = await assistant.converse!('2', {
+    history: [
+      { role: 'user', text: 'my child has a fever' },
+      { role: 'assistant', text: 'How old is your child?' },
+    ],
+  });
+  assert.equal(result?.reply, 'Has it lasted more than 2 days?');
+  assert.equal(generate.calls.length, 1);
+  assert.match(generate.calls[0]!.prompt, /my child has a fever/);
+  assert.match(generate.calls[0]!.prompt, /How old is your child\?/);
+  assert.match(generate.calls[0]!.prompt, /<<<\n2\n>>>/);
+  // Long numbers are still kept away from the model.
+  await assistant.converse!('call me on 08031234567', {});
+  assert.doesNotMatch(generate.calls[1]!.prompt, /08031234567/);
+});
+
+test('converse tolerates a model that omits optional fields', async () => {
+  const generate = mockGenerate(() => ({ output: { intent: 'smalltalk', reply: 'Hello! How can I help?' } }));
+  const assistant = createAssistant(assistantConfig({ openrouterModel: MODEL }), { model: MODEL, generateImpl: generate });
+  const result = await assistant.converse!('hi there', {});
+  assert.equal(result?.reply, 'Hello! How can I help?');
+  assert.equal(result?.location_query, null);
+});
