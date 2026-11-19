@@ -187,12 +187,12 @@ export function createSmsEngine({
     if (index >= (context.resultIds || []).length) {
       if (stateName === 'showing_emergency') {
         return idle(
-          'No more emergency results. Call 112 now if life-threatening, or go to the nearest emergency department. Reply EMERGENCY <area> to search again.',
+          'That was the last emergency option I found. Life-threatening? Call 112 now or go to the nearest emergency department. To search somewhere else, reply EMERGENCY and the area.',
         );
       }
       return result('awaiting_area', { serviceCode: context.serviceCode }, [
         textReply(
-          'No more suitable results. Enter another area, or start again with FIND <care> near <area>.',
+          'That was the last option I found nearby. Reply with another area or landmark and I will search there.',
         ),
       ]);
     }
@@ -202,6 +202,9 @@ export function createSmsEngine({
         id: context.resultIds![index],
         serviceCode: context.serviceCode,
         areaId: context.areaId || null,
+        index,
+        total: context.resultIds!.length,
+        emergency: stateName === 'showing_emergency',
       },
     ]);
   }

@@ -145,7 +145,7 @@ test('ambiguous locations require one offered choice; unlisted facilities are ne
 test('rendering distinguishes verified directory from unverified leads and encoding budgets', () => {
   assert.match(
     renderFacility({ id: 'f', name: 'Example', address: 'Test', phone: null, distance_km: null }),
-    /Distance unavailable/,
+    /From the HealthAccess directory/,
   );
   assert.match(
     renderWebLead({
@@ -154,7 +154,7 @@ test('rendering distinguishes verified directory from unverified leads and encod
       phone: null,
       source_url: 'https://example.org',
     }),
-    /Unverified/,
+    /Found online, not checked by us/,
   );
   assert.deepEqual(smsSegments('a'.repeat(160)), { encoding: 'GSM-7', segments: 1 });
   assert.equal(smsSegments('a'.repeat(161)).segments, 2);
@@ -194,7 +194,15 @@ test('EMERGENCY prompts for an area, returns live leads, records the request and
   const first = await engine.process('Ikeja', prompt);
   assert.equal(first.state, 'showing_emergency');
   assert.deepEqual(first.replies, [
-    { kind: 'web_lead', id: 'lead1', serviceCode: undefined, areaId: null },
+    {
+      kind: 'web_lead',
+      id: 'lead1',
+      serviceCode: undefined,
+      areaId: null,
+      index: 0,
+      total: 2,
+      emergency: true,
+    },
   ]);
   assert.deepEqual(searched, ['Ikeja']);
   assert.deepEqual(emergencyRequests, [{ area: 'Ikeja', count: 2 }]);
@@ -207,7 +215,7 @@ test('EMERGENCY prompts for an area, returns live leads, records the request and
 
   const exhausted = await engine.process('MORE', second);
   assert.equal(exhausted.state, 'idle');
-  assert.match(textOf(exhausted), /No more emergency results/);
+  assert.match(textOf(exhausted), /last emergency option I found/);
   assert.match(textOf(exhausted), /Call 112 now/);
 });
 
@@ -613,4 +621,28 @@ test('HELP and urgent messages still work in the middle of a chat', async () => 
   const [, help, urgent] = await chat(engine, ['I feel sick', 'help', 'now I cannot breathe']);
   assert.equal(textOf(help), HELP);
   assert.equal(urgent.state, 'awaiting_emergency_area');
+});
+
+test('listings are short, numbered and say what to do next', () => {
+  const lead = {
+    name: 'Avon Healthcare Veta Hospital Ltd Lagos',
+    address: '1, Veta Close, Araromi Bus Stop, Iyana Ipaja, Lagos 100211, Lagos, Nigeria',
+    phone: '+23418241839',
+    source_url: 'https://www.google.com/maps/place/?q=place_id:ChIJAQAAwAKROxARrWHUg_DsyRw',
+  };
+  const first = renderWebLead(lead, { index: 0, total: 3 });
+  assert.match(first, /^Option 1 of 3: Avon Healthcare Veta Hospital Lagos\n/);
+  assert.match(first, /\n1 Veta Close, Araromi Bus Stop, Iyana Ipaja, Lagos\n/);
+  assert.doesNotMatch(first, /100211|Nigeria|Ltd/);
+  assert.match(first, /Call: \+23418241839/);
+  assert.match(first, /Reply MORE for another option\.$/);
+  assert.ok(smsSegments(first).segments <= 2);
+
+  const last = renderWebLead(lead, { index: 2, total: 3 });
+  assert.match(last, /Reply with another area to search again\.$/);
+
+  const emergency = renderWebLead(lead, { index: 0, total: 2, emergency: true });
+  assert.match(emergency, /^Emergency 1 of 2:/);
+  assert.match(emergency, /Call 112 now/);
+  assert.ok(smsSegments(emergency).segments <= 2);
 });
