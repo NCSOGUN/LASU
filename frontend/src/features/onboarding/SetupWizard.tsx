@@ -161,8 +161,13 @@ export function SetupWizard({ nextPath }: { nextPath?: string }) {
         if (!same(draft.allergies, initial.allergies)) {
           const existing = new Map((me.data?.allergies ?? []).map((allergy) => [allergy.name, allergy]));
           body.allergies = draft.allergies.map((name) => {
+            // The list is replaced as a whole, so keep each existing allergy's details.
             const kept = existing.get(name);
-            return kept?.severity ? { name, severity: kept.severity } : { name };
+            return {
+              name,
+              ...(kept?.severity ? { severity: kept.severity } : {}),
+              ...(kept?.diagnosis_date ? { diagnosisDate: kept.diagnosis_date.slice(0, 10) } : {}),
+            };
           });
         }
         if (!same(draft.medications, initial.medications)) body.existingMedications = draft.medications;

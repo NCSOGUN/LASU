@@ -20,6 +20,7 @@ async function serve(
     callbackAuthMode: 'development_open' as const,
     callbackPathKey: 'test-path',
     callbackRatePerMinute: 120,
+    callbackPhoneRatePerMinute: 60,
     callbackBodyLimitBytes: 8192,
     atSmsInboundNumbers: ['1234'],
     atUssdServiceCode: '*test#',
@@ -213,4 +214,19 @@ test('cumulative USSD path parser bounds tokens without retaining raw transcript
   assert.throws(() => parseUssdPath('1**3'));
   assert.throws(() => parseUssdPath('1*\n'));
   assert.throws(() => parseUssdPath(Array(52).fill('1').join('*')));
+});
+
+test('callbacks are rate limited per sender phone, not only per provider IP', async (t) => {
+  const scopes: string[] = [];
+  const { post } = await serve(t, {
+    takeRateLimit: async (scope: string) => {
+      scopes.push(scope);
+      return !scope.startsWith('callback-phone:2348011111111');
+    },
+  });
+  const sms = (from: string) => post('/sms/inbound', { id: `m-${from}`, from, to: '1234', text: 'hi' });
+  assert.equal((await sms('+2348011111111')).status, 429);
+  assert.equal((await sms('+2348022222222')).status, 200);
+  assert.ok(scopes.some((scope) => scope.startsWith('callback-ip:')));
+  assert.ok(scopes.includes('callback-phone:2348022222222'));
 });

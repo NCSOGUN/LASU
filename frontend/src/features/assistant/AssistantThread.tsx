@@ -44,6 +44,11 @@ export function AssistantThread({ id }: { id: string }) {
   const severity = severityDraft ?? normaliseSeverity(symptom?.severity) ?? "";
   const initial = (session.data?.account?.display_name ?? "").trim().charAt(0).toUpperCase();
   const streaming = stream.phase === "streaming";
+  const lastHuman = [...messages].reverse().find((message) => message.type === "Human");
+  const savedLastAttempt =
+    stream.lastRequest?.mode === "followup" &&
+    Boolean(lastHuman) &&
+    lastHuman?.content.trim() === stream.lastRequest.message.trim();
 
   async function saveTitle(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -237,7 +242,18 @@ export function AssistantThread({ id }: { id: string }) {
 
         {stream.phase === "error" && stream.error ? (
           <div className={styles.urgent}>
-            <StreamError error={stream.error} onRetry={() => void stream.retry()} />
+            <StreamError
+              error={stream.error}
+              onRetry={
+                // If the server already saved this message, retrying would post it twice.
+                savedLastAttempt ? undefined : () => void stream.retry()
+              }
+              extra={
+                savedLastAttempt ? (
+                  <span>Your message was saved above. Send a new message to continue.</span>
+                ) : undefined
+              }
+            />
           </div>
         ) : null}
         {stream.phase === "cancelled" ? (

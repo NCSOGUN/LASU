@@ -14,7 +14,8 @@ const MAX_EXCERPT_LENGTH = 1500;
 const MAX_REVIEWED_EXCERPTS = 5;
 const MAX_WEB_SOURCES = 6;
 const MAX_CITATIONS = 10;
-const WEB_LABEL = 'AI-assisted web information, not clinically reviewed';
+/** Shown after web-sourced answers: honest about the source, without alarming the reader. */
+const WEB_NOTE = 'General information from the web, not a diagnosis or a doctor\'s advice.';
 const FALLBACK_TEXT =
   'I cannot give a safe answer right now. Please speak to a qualified health professional or visit the nearest health facility. If this is an emergency, seek urgent care immediately.';
 
@@ -49,7 +50,8 @@ const ConverseSchema = z.object({
 
 const AnswerSchema = z
   .object({
-    answer_text: z.string().max(MAX_ANSWER_LENGTH),
+    // Accept long model output and trim it for SMS later, rather than discarding it.
+    answer_text: z.string().max(MAX_ANSWER_LENGTH * 4),
     citations: z.array(z.string().max(2048)).max(MAX_CITATIONS),
   })
   .strict();
@@ -448,6 +450,17 @@ function isSafeConversationText(text: string): boolean {
   ].some((pattern) => pattern.test(text));
 }
 
+/** Longest answer body that, with its source note, stays within a few SMS parts. */
+const MAX_SMS_ANSWER = 420;
+
+/** Trim at a sentence end so a long answer is never replaced by a "too long" notice. */
+export function fitForSms(text: string, max = MAX_SMS_ANSWER): string {
+  if (text.length <= max) return text;
+  const slice = text.slice(0, max);
+  const end = Math.max(slice.lastIndexOf('. '), slice.lastIndexOf('! '), slice.lastIndexOf('? '));
+  return end > max * 0.5 ? slice.slice(0, end + 1) : `${slice.slice(0, slice.lastIndexOf(' '))}...`;
+}
+
 function fallbackResult(): AssistantAnswer {
   return {
     text: FALLBACK_TEXT,
@@ -681,7 +694,7 @@ export function createAssistant(
         buildReviewedPrompt(text, reviewed, hints),
       );
       if (!output) return fallbackResult();
-      const answerText = cleanText(output.answer_text, MAX_ANSWER_LENGTH);
+      const answerText = fitForSms(cleanText(output.answer_text, MAX_ANSWER_LENGTH));
       if (!answerText || !isSafeClinicalText(answerText)) return fallbackResult();
       const cited = normalizeCitations(output.citations, new Set(reviewed.map((row) => row.id)));
       if (cited.length === 0) return fallbackResult();
@@ -711,7 +724,7 @@ export function createAssistant(
       buildWebPrompt(text, sources, hints),
     );
     if (!output) return fallbackResult();
-    const answerText = cleanText(output.answer_text, MAX_ANSWER_LENGTH);
+    const answerText = fitForSms(cleanText(output.answer_text, MAX_ANSWER_LENGTH));
     if (!answerText || !isSafeWebText(answerText)) return fallbackResult();
     const cited = normalizeCitations(
       output.citations,
@@ -719,9 +732,11 @@ export function createAssistant(
     );
     if (cited.length === 0) return fallbackResult();
 
-    const sourceLines = cited.map((url) => `${new URL(url).hostname}: ${url}`).join('; ');
+    // Name the source site plainly and give one link; SMS space is precious.
+    const primary = new URL(cited[0]!);
+    const site = primary.hostname.replace(/^www\./, '');
     return {
-      text: `${WEB_LABEL}.\n\n${answerText}\n\nSources: ${sourceLines}`,
+      text: `${answerText}\n\nSource: ${site} (${primary.href})\n${WEB_NOTE}`,
       sources,
       reviewedContentIds: [],
       kind: 'web_unreviewed',

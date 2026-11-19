@@ -118,3 +118,41 @@ describe("PersonalSection", () => {
     expect(body).toEqual({ city: "Ikeja", state: "Lagos" });
   });
 });
+
+describe("SetupWizard health step", () => {
+  it("keeps existing allergy severity and diagnosis dates when adding one", async () => {
+    let put: { allergies?: Array<Record<string, unknown>> } | undefined;
+    const withDated = {
+      ...meMedicalResponse,
+      allergies: [
+        {
+          id: "40000000-0000-4000-8000-000000000001",
+          name: "Peanuts",
+          severity: "SEVERE",
+          diagnosis_date: "2019-04-01T00:00:00.000Z",
+        },
+      ],
+    };
+    server.use(
+      http.get("/api/v1/me", () => HttpResponse.json(withDated)),
+      http.patch("/api/v1/me", () => HttpResponse.json(withDated)),
+      http.put("/api/v1/me/medical", async ({ request }) => {
+        put = (await request.json()) as typeof put;
+        return HttpResponse.json(withDated);
+      }),
+    );
+    const user = userEvent.setup();
+    renderWithProviders(<SetupWizard nextPath="/app" />);
+    await user.click(await screen.findByRole("button", { name: "Get started" }));
+    await user.click(screen.getByRole("button", { name: "Skip this step" }));
+    await user.click(await screen.findByRole("button", { name: "Skip this step" }));
+    const input = await screen.findByLabelText("Allergies");
+    await user.type(input, "Latex{Enter}");
+    await user.click(screen.getByRole("button", { name: "Save and continue" }));
+    await waitFor(() => expect(put).toBeDefined());
+    expect(put!.allergies).toEqual([
+      { name: "Peanuts", severity: "SEVERE", diagnosisDate: "2019-04-01" },
+      { name: "Latex" },
+    ]);
+  });
+});

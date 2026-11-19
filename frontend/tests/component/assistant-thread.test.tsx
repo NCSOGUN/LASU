@@ -169,3 +169,26 @@ describe("AssistantThread", () => {
     await waitFor(() => expect(navigation.push).toHaveBeenCalledWith("/app/assistant"));
   });
 });
+
+describe("AssistantThread retry after a partly saved follow-up", () => {
+  it("does not offer Try again when the server already saved the message", async () => {
+    const question = "Is it getting worse?";
+    server.use(
+      http.post(`/api/v1/symptom/${ID}/follow-up/stream`, () =>
+        sseResponse([["token", { content: "Partial" }], ["error", { error: "stream_error" }]]),
+      ),
+      http.get(`/api/v1/symptom/${ID}`, () =>
+        HttpResponse.json({
+          ...symptomDetail,
+          messages: [...symptomDetail.messages, { type: "Human", content: question }],
+        }),
+      ),
+    );
+    renderWithProviders(<AssistantThread id={ID} />);
+    await screen.findByRole("heading", { name: "Mild headache and runny nose", level: 1 });
+    fireEvent.change(screen.getByLabelText("Reply or ask a follow-up…"), { target: { value: question } });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    expect(await screen.findByText(/Your message was saved above/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Try again" })).toBeNull();
+  });
+});

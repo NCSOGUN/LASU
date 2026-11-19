@@ -413,8 +413,8 @@ test('answer returns a clearly labelled web-only result when reviewed evidence i
   assert.equal(result.kind, 'web_unreviewed');
   assert.deepEqual(result.reviewedContentIds, []);
   assert.equal(result.sources.length, 2);
-  assert.match(result.text, /^AI-assisted web information, not clinically reviewed\./);
-  assert.match(result.text, /www\.who\.int/);
+  assert.match(result.text, /General information from the web, not a diagnosis/);
+  assert.match(result.text, /Source: who\.int \(/);
   assert.match(result.text, /https:\/\/www\.who\.int\/news-room\/fact-sheets\/detail\/fever/);
   assert.doesNotMatch(result.text, /verified/i);
   assert.equal(sourceCalls.length, 1);
@@ -657,4 +657,13 @@ test('converse tolerates a model that omits optional fields', async () => {
   const result = await assistant.converse!('hi there', {});
   assert.equal(result?.reply, 'Hello! How can I help?');
   assert.equal(result?.location_query, null);
+});
+
+test('long answers are trimmed at a sentence so they fit in an SMS', async () => {
+  const { fitForSms } = await import('../src/services/assistant.js');
+  const long = Array.from({ length: 30 }, (_, i) => `Sentence number ${i} gives general advice.`).join(' ');
+  const fitted = fitForSms(long);
+  assert.ok(fitted.length <= 420);
+  assert.match(fitted, /advice\.$/);
+  assert.equal(fitForSms('Short answer.'), 'Short answer.');
 });
