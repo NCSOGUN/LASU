@@ -414,8 +414,9 @@ test('answer returns a clearly labelled web-only result when reviewed evidence i
   assert.deepEqual(result.reviewedContentIds, []);
   assert.equal(result.sources.length, 2);
   assert.match(result.text, /General information from the web, not a diagnosis/);
-  assert.match(result.text, /Source: who\.int \(/);
-  assert.match(result.text, /https:\/\/www\.who\.int\/news-room\/fact-sheets\/detail\/fever/);
+  assert.match(result.text, /Source: World Health Organization\./);
+  // SMS answers never carry links.
+  assert.doesNotMatch(result.text, /https?:|www\.|who\.int/);
   assert.doesNotMatch(result.text, /verified/i);
   assert.equal(sourceCalls.length, 1);
   assert.equal(sourceCalls[0], 'what is fever?');

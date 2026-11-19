@@ -45,6 +45,7 @@ const ConverseSchema = z.object({
   service_code: z.string().max(64).nullable().optional().catch(null),
   location_query: z.string().max(200).nullable().optional().catch(null),
   question: z.string().max(800).nullable().optional().catch(null),
+  language: z.string().max(40).nullable().optional().catch(null),
   reply: z.string().max(2000).nullable().optional().catch(null),
 });
 
@@ -94,6 +95,8 @@ export interface ConverseOptions {
   services?: Service[];
   history?: ConverseTurn[];
   savedAreaLabel?: string | null;
+  /** Language to reply in, e.g. "Yoruba". */
+  language?: string;
 }
 
 export interface ConverseResult {
@@ -103,6 +106,8 @@ export interface ConverseResult {
   question: string | null;
   /** Safe reply text, or null when the model's reply failed the safety checks. */
   reply: string | null;
+  /** Language the latest message was written in, as a locale code (en, pcm, yo, ha, ig). */
+  language: string | null;
 }
 
 export type AnswerKind = 'reviewed' | 'web_unreviewed' | 'fallback';
@@ -148,10 +153,14 @@ export interface ClassifyOptions {
 export interface AnswerOptions {
   /** Consent-scoped hints. Sent to the model only, never to web search or channel state. */
   personal?: PersonalHints | null;
+  /** Language to answer in, e.g. "Hausa". */
+  language?: string;
 }
 
 export interface Assistant {
   classify(message: string, options?: ClassifyOptions): Promise<Classification>;
+  /** Whether an AI model is configured and enabled. */
+  available?(): boolean;
   /** Conversation-aware routing with a short natural reply; null when AI is unavailable. */
   converse?(message: string, options?: ConverseOptions): Promise<ConverseResult | null>;
   answer(question: string, options?: AnswerOptions): Promise<AssistantAnswer>;
@@ -507,20 +516,51 @@ function personalBlock(hints: ReturnType<typeof normalizePersonalHints>): string
     : '';
 }
 
+const LANGUAGE_CODES: Record<string, string> = {
+  english: 'en',
+  'nigerian pidgin': 'pcm',
+  pidgin: 'pcm',
+  yoruba: 'yo',
+  hausa: 'ha',
+  igbo: 'ig',
+};
+
+function answerLanguage(language: string | undefined): string {
+  const name = cleanText(language, 40);
+  return name && LANGUAGE_CODES[name.toLowerCase()] ? name : 'English';
+}
+
 function buildReviewedPrompt(
   question: string,
   excerpts: ReviewedExcerpt[],
   hints: ReturnType<typeof normalizePersonalHints> = null,
+  language = 'English',
 ): string {
-  return `Question:\n<<<\n${question}\n>>>${personalBlock(hints)}\n\nReviewed excerpts:\n${JSON.stringify(excerpts)}`;
+  return `Question:\n<<<\n${question}\n>>>${personalBlock(hints)}\n\nAnswer language: ${language}\n\nReviewed excerpts:\n${JSON.stringify(excerpts)}`;
 }
 
 function buildWebPrompt(
   question: string,
   sources: Source[],
   hints: ReturnType<typeof normalizePersonalHints> = null,
+  language = 'English',
 ): string {
-  return `Question:\n<<<\n${question}\n>>>${personalBlock(hints)}\n\nWeb sources:\n${JSON.stringify(sources)}`;
+  return `Question:\n<<<\n${question}\n>>>${personalBlock(hints)}\n\nAnswer language: ${language}\n\nWeb sources:\n${JSON.stringify(sources)}`;
+}
+
+/** Plain names for trusted sources, so SMS answers cite them without a link. */
+const SOURCE_NAMES: Record<string, string> = {
+  'who.int': 'World Health Organization',
+  'nhs.uk': 'NHS',
+  'cdc.gov': 'CDC',
+  'medlineplus.gov': 'MedlinePlus',
+  'ncdc.gov.ng': 'NCDC',
+};
+
+function sourceName(hostname: string): string {
+  const host = hostname.toLowerCase().replace(/^www\./, '');
+  const match = Object.keys(SOURCE_NAMES).find((domain) => host === domain || host.endsWith(`.${domain}`));
+  return match ? SOURCE_NAMES[match]! : 'a public health website';
 }
 
 export function createAssistant(
@@ -638,7 +678,7 @@ export function createAssistant(
 
   async function converse(
     message: string,
-    { services = [], history = [], savedAreaLabel = null }: ConverseOptions = {},
+    { services = [], history = [], savedAreaLabel = null, language }: ConverseOptions = {},
   ): Promise<ConverseResult | null> {
     // In a conversation, short number-only replies ("2", "38.5") answer the last
     // question, so they are allowed here; long numbers are still redacted.
@@ -656,7 +696,7 @@ export function createAssistant(
       }))
       .filter((turn) => turn.text);
     const area = cleanText(savedAreaLabel, 80) || null;
-    const prompt = `Recent conversation (oldest first):\n${JSON.stringify(turns)}\n\nLatest message:\n<<<\n${text}\n>>>\n\nSaved home area: ${JSON.stringify(area)}\n\nService codes and labels:\n${JSON.stringify(serviceList)}`;
+    const prompt = `Recent conversation (oldest first):\n${JSON.stringify(turns)}\n\nLatest message:\n<<<\n${text}\n>>>\n\nSaved home area: ${JSON.stringify(area)}\n\nService codes and labels:\n${JSON.stringify(serviceList)}\n\nReply language: ${answerLanguage(language)}`;
     const output = await generate(ConverseSchema, 'SmsConversation', PROMPTS.converse, prompt);
     if (!output) return null;
     const codes = new Set(serviceList.map((service) => service.service_code));
@@ -668,12 +708,14 @@ export function createAssistant(
       location_query: cleanText(output.location_query, 120) || null,
       question: cleanText(output.question, 500) || null,
       reply: reply && isSafeConversationText(reply) ? reply : null,
+      language: LANGUAGE_CODES[cleanText(output.language, 40).toLowerCase()] ?? null,
     };
   }
 
   async function answer(question: string, options: AnswerOptions = {}): Promise<AssistantAnswer> {
     const text = cleanUserText(question, MAX_INPUT_LENGTH);
     const hints = normalizePersonalHints(options.personal);
+    const language = answerLanguage(options.language);
     if (!text || !canGenerate()) return fallbackResult();
 
     let reviewedRows: unknown[];
@@ -691,7 +733,7 @@ export function createAssistant(
         AnswerSchema,
         'ReviewedHealthAnswer',
         PROMPTS.answerReviewed,
-        buildReviewedPrompt(text, reviewed, hints),
+        buildReviewedPrompt(text, reviewed, hints, language),
       );
       if (!output) return fallbackResult();
       const answerText = fitForSms(cleanText(output.answer_text, MAX_ANSWER_LENGTH));
@@ -721,7 +763,7 @@ export function createAssistant(
       AnswerSchema,
       'WebHealthAnswer',
       PROMPTS.answerWeb,
-      buildWebPrompt(text, sources, hints),
+      buildWebPrompt(text, sources, hints, language),
     );
     if (!output) return fallbackResult();
     const answerText = fitForSms(cleanText(output.answer_text, MAX_ANSWER_LENGTH));
@@ -733,15 +775,14 @@ export function createAssistant(
     if (cited.length === 0) return fallbackResult();
 
     // Name the source site plainly and give one link; SMS space is precious.
-    const primary = new URL(cited[0]!);
-    const site = primary.hostname.replace(/^www\./, '');
+    // Name the source in words: SMS answers never carry links.
     return {
-      text: `${answerText}\n\nSource: ${site} (${primary.href})\n${WEB_NOTE}`,
+      text: `${answerText}\n\nSource: ${sourceName(new URL(cited[0]!).hostname)}. ${WEB_NOTE}`,
       sources,
       reviewedContentIds: [],
       kind: 'web_unreviewed',
     };
   }
 
-  return { classify, converse, answer };
+  return { classify, converse, answer, available: canGenerate };
 }

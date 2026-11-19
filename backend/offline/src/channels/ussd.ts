@@ -11,6 +11,7 @@ import type {
   WebLead,
 } from '../types.js';
 import { fieldText } from './render.js';
+import { USSD_LANGUAGE_ORDER, toLocale, u, type Locale } from './i18n.js';
 
 export type UssdState =
   | 'MAIN'
@@ -59,6 +60,8 @@ export interface UssdContext {
   emergencyDescription?: string;
   savedAreaId?: string;
   savedAreaLabel?: string;
+  /** Session language (en, pcm, yo, ha, ig), cached after the first lookup. */
+  locale?: string;
   terminalKind?:
     | 'goodbye'
     | 'sms_requested'
@@ -109,6 +112,8 @@ export interface UssdRepository {
   readMatchingContext(consentId: string): Promise<{ available: boolean } | null>;
   /** Linked patient's home area, available only through a live profile-use consent. */
   findSavedArea?(): Promise<{ id: string; label: string } | null>;
+  getLocale?(): Promise<Locale>;
+  setLocale?(locale: Locale): Promise<void>;
   readOwnCodes?(): Promise<OwnCodes>;
   createQuickGrant?(minutes?: number): Promise<QuickGrantResult>;
   queueFacilitySms(facilityId: string): Promise<boolean>;
@@ -172,14 +177,8 @@ const MAX_RESULTS = 3;
 const MAX_RECORD_PAGES = 10;
 const FOOTER_RESERVE = 28;
 
-const MAIN =
-  'HealthAccess\n1. Find care near me\n2. Open shared health info\n3. My access code\n4. Emergency help\n0. Exit';
-const LOCATION = 'CON Enter area or landmark\n0. Back';
 const EMERGENCY_DETAILS =
   'CON Emergency help\nWhat is happening? Briefly describe.\nNo names/codes; sent for live search.\nCall 112 if life-threatening.\n0. Back';
-const EMERGENCY_LOCATION =
-  'CON Emergency help\nCall 112 now if life-threatening.\nEnter your area or landmark:\n0. Back';
-const EMERGENCY = 'CON Enter the access code you were given\n0. Back';
 const NOT_LINKED =
   'This phone is not linked to HealthAccess. On the website open Channels and verify this number.';
 const GRANT_PATIENT = 'CON View shared details\nEnter patient code\n0. Back';
@@ -251,18 +250,19 @@ function validCode(token: string): boolean {
   return value.length > 0 && value.length <= 32 && /^[A-Za-z0-9]+$/.test(value);
 }
 
-function savedAreaLine(label: string | undefined): string {
+function savedAreaLine(label: string | undefined, myArea = 'My area'): string {
   if (!label) return '';
   const text = inline(label);
-  return `\n1. My area: ${text.length > 28 ? `${text.slice(0, 25)}...` : text}`;
+  return `\n1. ${myArea}: ${text.length > 28 ? `${text.slice(0, 25)}...` : text}`;
 }
 
-function withSavedArea(prompt: string, label: string | undefined): string {
+function withSavedArea(prompt: string, label: string | undefined, myArea = 'My area'): string {
   if (!label) return prompt;
-  const index = prompt.lastIndexOf('\n0. Back');
+  // The back option is the last "0." line in every language.
+  const index = prompt.lastIndexOf('\n0.');
   return index < 0
-    ? `${prompt}${savedAreaLine(label)}`
-    : `${prompt.slice(0, index)}${savedAreaLine(label)}${prompt.slice(index)}`;
+    ? `${prompt}${savedAreaLine(label, myArea)}`
+    : `${prompt.slice(0, index)}${savedAreaLine(label, myArea)}${prompt.slice(index)}`;
 }
 
 function areaLabel(area: Area): string {
@@ -407,6 +407,13 @@ export function createUssdEngine({
   crypto: UssdCrypto;
   search?: UssdSearch;
 }): UssdEngine {
+  // Language for this request; the engine is created per callback, so this is not shared.
+  let L: Locale = 'en';
+  const MAIN_TEXT = () => u(L, 'main');
+  const LOCATION_TEXT = () => `CON ${u(L, 'location')}\n${u(L, 'back')}`;
+  const EMERGENCY_LOCATION_TEXT = () => `CON ${u(L, 'emergencyLocation')}\n${u(L, 'back')}`;
+  const CODE_TEXT = () => `CON ${u(L, 'code')}\n${u(L, 'back')}`;
+  const LANGUAGE_TEXT = () => u(L, 'language');
   const maxChars = config.ussdMaxChars;
   const maxInvalid = Math.max(1, config.ussdMaxInvalidAttempts);
   const budget = Math.max(40, maxChars - 4 - FOOTER_RESERVE - 1);
@@ -438,7 +445,8 @@ export function createUssdEngine({
     } = {},
   ): UssdResult {
     let nextState = state;
-    let nextContext = context;
+    // Cache the language in the session so later keypresses skip the lookup.
+    let nextContext = repository.getLocale || L !== 'en' ? { ...context, locale: L } : context;
     let nextResponse = response;
     let nextTerminal = options.terminal ?? response.startsWith('END ');
     let nextSensitive = options.sensitive ?? false;
@@ -524,7 +532,7 @@ export function createUssdEngine({
     const context = session.context ?? {};
     switch (session.state) {
       case 'MAIN':
-        return MAIN;
+        return context.kind === 'language' ? LANGUAGE_TEXT() : MAIN_TEXT();
       case 'CARE_SERVICE':
         return (
           menu('Choose service', [
@@ -536,10 +544,10 @@ export function createUssdEngine({
         );
       case 'CARE_LOCATION':
         return context.kind === 'emergency_area'
-          ? EMERGENCY_LOCATION.slice(4)
+          ? EMERGENCY_LOCATION_TEXT().slice(4)
           : context.kind === 'emergency_details'
             ? EMERGENCY_DETAILS.slice(4)
-            : LOCATION.slice(4);
+            : LOCATION_TEXT().slice(4);
       case 'CARE_AREA_CHOICE':
         return (
           menu('Choose area', [
@@ -556,7 +564,7 @@ export function createUssdEngine({
       case 'CARE_NO_MATCH':
         return noMatchOptions(context).join('\n');
       case 'EMERGENCY_CODE':
-        return EMERGENCY.slice(4);
+        return CODE_TEXT().slice(4);
       case 'MY_CODE':
         return '1. Get a 1-hour code\n0. Back';
       case 'GRANT_PATIENT_CODE':
@@ -584,7 +592,7 @@ export function createUssdEngine({
       session,
       session.state,
       context,
-      bounded('CON', `Invalid choice.\n${prompt}`),
+      bounded('CON', `${u(L, 'invalid')}\n${prompt}`),
       {
         terminal: false,
         readSessionId: sessionReadId(session),
@@ -955,7 +963,7 @@ export function createUssdEngine({
       session,
       'CARE_LOCATION',
       preserve ? { ...session.context, ...context } : acceptedContext(context),
-      withSavedArea(EMERGENCY_LOCATION, context.savedAreaLabel),
+      withSavedArea(EMERGENCY_LOCATION_TEXT(), context.savedAreaLabel, u(L, 'myArea')),
     );
   }
 
@@ -1201,7 +1209,7 @@ export function createUssdEngine({
       ...found.map((service, index) => `${index + 1}. ${inline(service.label)}`),
       '0. Back',
     ];
-    const response = menu('Choose service', options) ?? bounded('END', UNAVAILABLE);
+    const response = menu(u(L, 'chooseService'), options) ?? bounded('END', UNAVAILABLE);
     const context: UssdContext = {
       kind: 'care_service',
       serviceCodes: found.map((service) => service.service_code),
@@ -1273,7 +1281,7 @@ export function createUssdEngine({
 
   async function openTemporaryCode(session: UssdSession, code: string): Promise<UssdResult> {
     const grantDigest = await crypto.digestCode(code, 'grant');
-    if (!grantDigest) return invalid(session, EMERGENCY.slice(4));
+    if (!grantDigest) return invalid(session, CODE_TEXT().slice(4));
     let opened: Projection;
     try {
       opened = await repository.openGrant(null, grantDigest);
@@ -1339,7 +1347,7 @@ export function createUssdEngine({
       session,
       'CARE_LOCATION',
       preserve ? { ...session.context, ...context } : acceptedContext(context),
-      withSavedArea(LOCATION, context.savedAreaLabel),
+      withSavedArea(LOCATION_TEXT(), context.savedAreaLabel, u(L, 'myArea')),
     );
   }
 
@@ -1348,7 +1356,9 @@ export function createUssdEngine({
     const context = session.context ?? {};
     switch (session.state) {
       case 'MAIN':
-        return makeResult(session, 'MAIN', { ...context, kind: 'main' }, bounded('CON', MAIN));
+        if (context.kind === 'language')
+          return makeResult(session, 'MAIN', context, bounded('CON', LANGUAGE_TEXT()));
+        return makeResult(session, 'MAIN', { ...context, kind: 'main' }, bounded('CON', MAIN_TEXT()));
       case 'CARE_SERVICE':
         return services(session, true);
       case 'CARE_LOCATION':
@@ -1377,7 +1387,7 @@ export function createUssdEngine({
           session,
           'EMERGENCY_CODE',
           { ...context, kind: 'emergency_code' },
-          EMERGENCY,
+          CODE_TEXT(),
         );
       case 'MY_CODE':
         return myCode(session);
@@ -1458,7 +1468,27 @@ export function createUssdEngine({
 
     switch (session.state) {
       case 'MAIN':
-        if (!digit(token)) return invalid(session, MAIN);
+        if (context.kind === 'language') {
+          if (token === '0')
+            return makeResult(session, 'MAIN', acceptedContext({ kind: 'main' }), bounded('CON', MAIN_TEXT()));
+          const picked = digit(token) ? USSD_LANGUAGE_ORDER[Number(token) - 1] : undefined;
+          if (!picked) return invalid(session, LANGUAGE_TEXT());
+          L = picked;
+          try {
+            await repository.setLocale?.(picked);
+          } catch {
+            // The session still carries the choice.
+          }
+          return makeResult(session, 'MAIN', acceptedContext({ kind: 'main' }), bounded('CON', MAIN_TEXT()));
+        }
+        if (token === '5')
+          return makeResult(
+            session,
+            'MAIN',
+            acceptedContext({ kind: 'language' }),
+            bounded('CON', LANGUAGE_TEXT()),
+          );
+        if (!digit(token)) return invalid(session, MAIN_TEXT());
         if (token === '0') return terminal(session, 'Thank you for using HealthAccess.', 'goodbye');
         if (token === '1') return services(session);
         if (token === '2') {
@@ -1466,13 +1496,13 @@ export function createUssdEngine({
             session,
             'EMERGENCY_CODE',
             acceptedContext({ kind: 'emergency_code' }),
-            EMERGENCY,
+            CODE_TEXT(),
           );
         }
         if (token === '3') return myCode(session);
         // Emergency: ask only for the area so help is one step away.
         if (token === '4') return emergencyArea(session, undefined, false, await savedArea());
-        return invalid(session, MAIN);
+        return invalid(session, MAIN_TEXT());
 
       case 'CARE_SERVICE': {
         if (token === '0')
@@ -1480,7 +1510,7 @@ export function createUssdEngine({
             session,
             'MAIN',
             acceptedContext({ kind: 'main' }),
-            bounded('CON', MAIN),
+            bounded('CON', MAIN_TEXT()),
           );
         if (!digit(token)) return invalid(session, invalidPrompt(session));
         const serviceCode = context.serviceCodes?.[Number(token) - 1];
@@ -1495,7 +1525,7 @@ export function createUssdEngine({
               session,
               'MAIN',
               acceptedContext({ kind: 'main' }),
-              bounded('CON', MAIN),
+              bounded('CON', MAIN_TEXT()),
             );
           if (!validArea(token)) return invalid(session, EMERGENCY_DETAILS.slice(4));
           return emergencyArea(session, token.trim(), false, await savedArea());
@@ -1506,11 +1536,11 @@ export function createUssdEngine({
               session,
               'MAIN',
               acceptedContext({ kind: 'main' }),
-              bounded('CON', MAIN),
+              bounded('CON', MAIN_TEXT()),
             );
           if (token === '1' && context.savedAreaLabel)
             return emergencySearch(session, context.savedAreaLabel, context.emergencyDescription);
-          if (!validArea(token)) return invalid(session, EMERGENCY_LOCATION.slice(4));
+          if (!validArea(token)) return invalid(session, EMERGENCY_LOCATION_TEXT().slice(4));
           return emergencySearch(session, token.trim(), context.emergencyDescription);
         }
         if (token === '0') return services(session);
@@ -1521,7 +1551,7 @@ export function createUssdEngine({
             context.savedAreaId,
             context.savedAreaLabel,
           );
-        if (!validArea(token)) return invalid(session, LOCATION.slice(4));
+        if (!validArea(token)) return invalid(session, LOCATION_TEXT().slice(4));
         let found: Area[];
         try {
           found = await repository.findAreas(token.trim());
@@ -1646,7 +1676,7 @@ export function createUssdEngine({
             session,
             'MAIN',
             acceptedContext({ kind: 'main' }),
-            bounded('CON', MAIN),
+            bounded('CON', MAIN_TEXT()),
           );
         if (token === '1') return quickCode(session);
         return invalid(session);
@@ -1658,14 +1688,14 @@ export function createUssdEngine({
             session,
             'MAIN',
             acceptedContext({ kind: 'main' }),
-            bounded('CON', MAIN),
+            bounded('CON', MAIN_TEXT()),
           );
         // One box for every code: 12 digits is an emergency code, 8 digits a temporary code.
         const code = token.replace(/[\s-]/g, '');
         if (/^\d{8}$/.test(code)) return openTemporaryCode(session, code);
-        if (!validCode(code)) return invalid(session, EMERGENCY.slice(4));
+        if (!validCode(code)) return invalid(session, CODE_TEXT().slice(4));
         const digest = await crypto.digestCode(code, 'patient');
-        if (!digest) return invalid(session, EMERGENCY.slice(4));
+        if (!digest) return invalid(session, CODE_TEXT().slice(4));
         let projection: Projection;
         try {
           projection = await repository.readEmergency(digest);
@@ -1693,7 +1723,7 @@ export function createUssdEngine({
             session,
             'MAIN',
             acceptedContext({ kind: 'main' }),
-            bounded('CON', MAIN),
+            bounded('CON', MAIN_TEXT()),
           );
         if (!validCode(token)) return invalid(session, GRANT_PATIENT.slice(4));
         const digest = await crypto.digestCode(token.trim(), 'patient');
@@ -1715,7 +1745,7 @@ export function createUssdEngine({
             session,
             'MAIN',
             acceptedContext({ kind: 'main' }),
-            bounded('CON', MAIN),
+            bounded('CON', MAIN_TEXT()),
           );
         if (!validCode(token) || !context.patientCodeDigest)
           return invalid(session, GRANT_ACCESS.slice(4));
@@ -1804,5 +1834,30 @@ export function createUssdEngine({
     return current(session);
   }
 
-  return { transition, render, replay };
+  async function loadLocale(session: UssdSession) {
+    const cached = toLocale(session.context?.locale);
+    if (cached) L = cached;
+    else {
+      try {
+        L = (await repository.getLocale?.()) ?? 'en';
+      } catch {
+        L = 'en';
+      }
+    }
+  }
+
+  return {
+    transition: async (session, input) => {
+      await loadLocale(session);
+      return transition(session, input);
+    },
+    render: async (session) => {
+      await loadLocale(session);
+      return render(session);
+    },
+    replay: async (session) => {
+      await loadLocale(session);
+      return replay(session);
+    },
+  };
 }

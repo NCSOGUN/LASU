@@ -10,6 +10,7 @@ import {
   type RecordField,
 } from '@healthaccess/shared';
 import type { Config } from './config.js';
+import { EXPLICIT_ENGLISH, toLocale, type Locale } from './channels/i18n.js';
 import type { Crypto } from './security/crypto.js';
 import { prisma as sharedPrisma, prismaFor } from './db.js';
 import type { InboundSms, UssdCallback, UssdEvent } from './app.js';
@@ -353,6 +354,8 @@ export class Repository {
       findSavedArea: () => this.findSavedArea(actor, database),
       readPersonalHints: () => this.readPersonalHints(actor, database),
       readOwnCodes: () => this.readOwnCodes(actor, database),
+      getLocale: () => this.getLocale(actor, database),
+      setLocale: (locale) => this.setLocale(actor, locale, database),
       createQuickGrant: (minutes) => this.createQuickGrant(actor, minutes, database),
       readMatchingContext: (id) => this.readProfileContext(id, actor, database),
       setOptOut: (optedOut) => this.setOptOut(database, actor.phone_digest, optedOut),
@@ -1281,6 +1284,37 @@ export class Repository {
     // A number verified on two accounts is ambiguous, so it identifies nobody.
     if (accounts.length !== 1 || !accounts[0]!.patient_profile) return null;
     return { patientId: accounts[0]!.patient_profile.id, accountId: accounts[0]!.id };
+  }
+
+  /**
+   * The phone's language: an explicit SMS/USSD choice, else the linked patient's
+   * profile language, else English. "en" is the column default, so an explicit English
+   * choice is stored as EXPLICIT_ENGLISH.
+   */
+  async getLocale(actor: Actor, database: Db = this.prisma): Promise<Locale> {
+    if (!validDigest(actor.phone_digest)) return 'en';
+    const preference = await database.channelPreference.findUnique({
+      where: { phone_digest: actor.phone_digest },
+      select: { locale: true },
+    });
+    if (preference?.locale && preference.locale !== 'en') return toLocale(preference.locale) ?? 'en';
+    const owner = await this.linkedPatient(actor, database);
+    if (!owner) return 'en';
+    const profile = await database.patientProfile.findUnique({
+      where: { id: owner.patientId },
+      select: { preferred_language: true },
+    });
+    return toLocale(profile?.preferred_language) ?? 'en';
+  }
+
+  async setLocale(actor: Actor, locale: Locale, database: Db = this.prisma): Promise<void> {
+    if (!validDigest(actor.phone_digest)) return;
+    const stored = locale === 'en' ? EXPLICIT_ENGLISH : locale;
+    await database.channelPreference.upsert({
+      where: { phone_digest: actor.phone_digest },
+      create: { phone_digest: actor.phone_digest, locale: stored },
+      update: { locale: stored },
+    });
   }
 
   /** The caller's own emergency code (created if missing). Only for a verified, linked phone. */

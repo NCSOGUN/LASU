@@ -61,6 +61,8 @@ export type SmsReply =
       total?: number;
       /** Emergency search results get emergency wording. */
       emergency?: boolean;
+      /** Language for the listing text (en, pcm, yo, ha, ig). */
+      locale?: string;
     };
 
 export interface SmsContext {
@@ -77,6 +79,8 @@ export interface SmsContext {
   suggestedAreaLabel?: string;
   /** Recent turns for conversational memory (encrypted at rest by the repository). */
   history?: Array<{ role: 'user' | 'assistant'; text: string }>;
+  /** Language for this thread (en, pcm, yo, ha, ig). */
+  locale?: string;
   historyEnvelope?: string;
 }
 

@@ -202,3 +202,33 @@ describe("AssistantPage", () => {
     expect(posts).toBe(0);
   });
 });
+
+describe("AssistantPage languages", () => {
+  // Radix Select uses pointer capture and scrollIntoView, which jsdom lacks.
+  Object.defineProperty(HTMLElement.prototype, "hasPointerCapture", { configurable: true, value: () => false });
+  Object.defineProperty(HTMLElement.prototype, "releasePointerCapture", { configurable: true, value: () => undefined });
+  Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, value: () => undefined });
+
+  it("greets in the profile language and saves a new reply language", async () => {
+    const { meMedicalResponse } = await import("@/api/mocks/fixtures");
+    let patched: unknown;
+    const yoruba = { ...meMedicalResponse, profile: { ...meMedicalResponse.profile, preferred_language: "yo" } };
+    server.use(
+      http.get("/api/v1/me", () => HttpResponse.json(yoruba)),
+      http.patch("/api/v1/me", async ({ request }) => {
+        patched = await request.json();
+        return HttpResponse.json({ ...yoruba, profile: { ...yoruba.profile, preferred_language: "ha" } });
+      }),
+    );
+    const user = userEvent.setup();
+    renderWithProviders(<AssistantPage />);
+    expect(await screen.findByText(/bawo ni ara re/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Iba ati ori fifo lati ana/ })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Chat settings" }));
+    await user.click(screen.getByRole("combobox", { name: "Ede idahun" }));
+    await user.click(await screen.findByRole("option", { name: "Hausa" }));
+    await waitFor(() => expect(patched).toEqual({ preferredLanguage: "ha" }));
+    expect(await screen.findByText(/yaya jikinka/i)).toBeInTheDocument();
+  });
+});

@@ -1,5 +1,6 @@
 // Usage: DATABASE_URL=... CODE_DIGEST_KEY=... DATA_ENCRYPTION_KEY=... npm run simulate
-// (SIM_LOAD=40 adds 40 extra phones). Use a test database: it creates and removes a test patient.
+// (SIM_LOAD=40 adds 40 extra phones). SIM_REAL_AI=1 with OPENROUTER_API_KEY and
+// OPENROUTER_MODEL uses the real model instead of the rule-based stand-in. Use a test database: it creates and removes a test patient.
 //
 // Africa's Talking simulator stand-in: real HTTP callbacks, real repository/Postgres,
 // three worker replicas, many phones at once. Only outside services are faked:
@@ -14,10 +15,13 @@ import { createApp } from '../src/app.js';
 import { createUssdEngine } from '../src/channels/ussd.js';
 import { createUssdHandler } from '../src/channels/ussd-handler.js';
 import { createSmsEngine, UNAVAILABLE } from '../src/channels/sms.js';
-import { fieldText, renderFacility, renderWebLead, smsSegments } from '../src/channels/render.js';
+import { channelText, fieldText, renderFacility, renderWebLead, smsSegments } from '../src/channels/render.js';
+import { toLocale } from '../src/channels/i18n.js';
+import { HELP } from '../src/channels/sms.js';
 import { createAssistant, type GenerateRequest } from '../src/services/assistant.js';
 import { createWebSearch } from '../src/services/web-search.js';
 
+const REAL_AI = process.env.SIM_REAL_AI === '1';
 const SHORTCODE = '55892';
 const USSD_CODE = '*384*1#';
 const token = randomBytes(32).toString('base64url');
@@ -28,8 +32,8 @@ const config = loadConfig({
   AT_SMS_FROM: SHORTCODE,
   AT_USSD_SERVICE_CODE: USSD_CODE,
   SERPER_API_KEY: 'stand-in',
-  OPENROUTER_API_KEY: 'stand-in',
-  OPENROUTER_MODEL: 'stand-in-model',
+  OPENROUTER_API_KEY: REAL_AI ? process.env.OPENROUTER_API_KEY : 'stand-in',
+  OPENROUTER_MODEL: REAL_AI ? process.env.OPENROUTER_MODEL : 'stand-in-model',
 } as NodeJS.ProcessEnv);
 const crypto = createCrypto(config);
 const prisma = new PrismaClient();
@@ -107,7 +111,9 @@ async function fakeModel(request: GenerateRequest) {
   }
   return { output: { intent: 'clarification', service_code: null, location_query: null, question: null } };
 }
-const assistant = createAssistant(config, { search, repository, model: 'stand-in-model', generateImpl: fakeModel });
+const assistant = REAL_AI
+  ? createAssistant(config, { search, repository })
+  : createAssistant(config, { search, repository, model: 'stand-in-model', generateImpl: fakeModel });
 
 // ---------------- outbound SMS gateway stand-in ----------------
 const outbox = new Map<string, string[]>();
@@ -146,10 +152,10 @@ async function workerLoop(workerId: string) {
         } else {
           const reply = rendered.reply;
           let text =
-            reply.kind === 'text' ? reply.text
+            reply.kind === 'text' ? channelText(reply.text) || channelText(HELP)
             : reply.kind === 'emergency' ? (rendered.projection?.available && rendered.projection.fields?.length ? `Emergency summary (patient-selected information):\n${fieldText(rendered.projection.fields)}` : UNAVAILABLE)
-            : reply.kind === 'facility' ? renderFacility(rendered.facility || null, undefined, { index: reply.index, total: reply.total, emergency: reply.emergency })
-            : renderWebLead(rendered.lead || null, { index: reply.index, total: reply.total, emergency: reply.emergency });
+            : reply.kind === 'facility' ? renderFacility(rendered.facility || null, undefined, { index: reply.index, total: reply.total, emergency: reply.emergency, locale: toLocale(reply.locale) ?? undefined })
+            : renderWebLead(rendered.lead || null, { index: reply.index, total: reply.total, emergency: reply.emergency, locale: toLocale(reply.locale) ?? undefined });
           if (smsSegments(text).segments > config.smsMaxSegments) text = '[TOO LONG FOR SMS]';
           if (reply.kind === 'text') maxParts = Math.max(maxParts, smsSegments(text).segments);
           await repository.finishOutbox(job, await provider.send({ to: rendered.phone, text }));
@@ -184,7 +190,7 @@ async function smsUser(name: string, phone: string, turns: Turn[]): Promise<Resu
     const res = await post('/sms/inbound', { from: phone, to: SHORTCODE, text: turn.send, id: `ATXid_${randomUUID()}`, date: new Date().toISOString() });
     if (res.status !== 200) failures.push(`callback returned ${res.status} for "${turn.send}"`);
     transcript.push(`  > ${turn.send}`);
-    const deadline = Date.now() + 15000;
+    const deadline = Date.now() + (REAL_AI ? 70000 : 15000);
     let replies: string[] = [];
     // Wait for replies to land, then a short settle for multi-part replies.
     while (Date.now() < deadline) {
@@ -246,7 +252,46 @@ const phone = () => `+2348${String(Math.floor(Math.random() * 1e9)).padStart(9, 
   const workers = ['w1', 'w2', 'w3'].map(workerLoop);
 
   const started = Date.now();
-  const sms = await Promise.all([
+  const LINK = /https?:|www\.|\.(?:com|org|net|gov|int|uk|ng)\b/i;
+  const MENU_DUMP = /Reply with a number|Fesi pelu nomba|Amsa da lamba|Zaa na nomba|Reply with number/;
+  const sms = REAL_AI ? await Promise.all([
+    smsUser('REAL English: sick child with memory', phone(), [
+      { send: 'my child has a fever', reject: [LINK] },
+      { send: '4', reject: [LINK, MENU_DUMP] },
+      { send: 'about 2 days and she is eating less', reject: [LINK, MENU_DUMP] },
+      { send: 'where can I take her?', reject: [LINK] },
+      { send: 'Yaba', expect: [/Federal Medical Centre/], reject: [LINK] },
+    ]),
+    smsUser('REAL English: breathing emergency', phone(), [
+      { send: 'i am having issues breathing where can i go to help me', expect: [/112/], reject: [LINK] },
+      { send: 'Ikeja', expect: [/LASUTH|Reddington|Teaching Hospital/], reject: [LINK] },
+    ]),
+    smsUser('REAL English: health question asking for links', phone(), [
+      { send: 'what are the signs of malaria? send me a website link', reject: [LINK] },
+    ]),
+    smsUser('REAL Pidgin', phone(), [
+      { send: 'How far, my body dey hot and my head dey pain me since yesterday', reject: [LINK] },
+      { send: '2 days', reject: [LINK, MENU_DUMP] },
+    ]),
+    smsUser('REAL Yoruba (chosen)', phone(), [
+      { send: 'Yoruba', expect: [/Yoruba/] },
+      { send: 'Mo ni iba ati ori fifo lati ana', reject: [LINK] },
+      { send: '3', reject: [LINK, MENU_DUMP] },
+    ]),
+    smsUser('REAL Hausa (detected)', phone(), [
+      { send: 'Sannu', expect: [/Sannu/] },
+      { send: 'Ina da zazzabi da ciwon kai tun jiya', reject: [LINK] },
+    ]),
+    smsUser('REAL Igbo (chosen by menu)', phone(), [
+      { send: 'LANG', expect: [/5 Igbo/] },
+      { send: '5', expect: [/Igbo/] },
+      { send: 'Enwere m ahu oku na isi owuwa', reject: [LINK] },
+    ]),
+    smsUser('REAL Yoruba care search', phone(), [
+      { send: 'Yoruba', expect: [/Yoruba/] },
+      { send: 'Mo nilo ile iwosan ni Iyana Ipaja', expect: [/Avon Healthcare/], reject: [LINK] },
+    ]),
+  ]) : await Promise.all([
     smsUser('Screenshot conversation (breathing emergency)', phone(), [
       { send: 'Hello', expect: [/HealthAccess/], reject: [/LOOKUP|STOP/] },
       { send: 'i am having issues breathing where can i go to help me', expect: [/112/, /area/i] },
@@ -303,7 +348,7 @@ const phone = () => `+2348${String(Math.floor(Math.random() * 1e9)).padStart(9, 
   // USSD sessions in parallel, including the code made by SMS above.
   const newCode = /1-hour HealthAccess code is (\d{4}) (\d{4})/.exec(sms[3]!.transcript.join('\n'));
   const emergencyCode = /emergency code is (\d{4} \d{4} \d{4})/.exec(sms[3]!.transcript.join('\n'))?.[1];
-  const ussd = await Promise.all([
+  const ussd = REAL_AI ? [] : await Promise.all([
     ussdUser('USSD find care with saved area', patientPhone, ['1', '1', '1'], [/LASUTH|Hospital|Option|No suitable/i]),
     ussdUser('USSD my access code', patientPhone, ['3'], [/Your emergency code/]),
     ussdUser('USSD stranger opens the 1-hour code', phone(), ['2', newCode ? `${newCode[1]}${newCode[2]}` : '00000000'], [/Penicillin/]),

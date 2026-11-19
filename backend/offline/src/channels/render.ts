@@ -1,4 +1,49 @@
 import type { Facility, RecordField, WebLead } from '../types.js';
+import { t, type Locale } from './i18n.js';
+
+const URL_PATTERN = /\b(?:https?:\/\/|www\.)[^\s)\]]+/gi;
+const BARE_LINK_PATTERN = /\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:com|org|net|gov|ng|uk|int|io|info|health)(?:\/[^\s)\]]*)?/gi;
+const EMAIL_PATTERN = /\b[\w.+-]+@[\w-]+(?:\.[\w-]+)+\b/g;
+
+const LETTER_MAP: Record<string, string> = {
+  '\u0253': 'b', '\u0181': 'B', '\u0257': 'd', '\u018a': 'D', '\u0199': 'k', '\u0198': 'K',
+  '\u01b4': 'y', '\u01b3': 'Y', '\u2018': "'", '\u2019': "'", '\u201c': '"', '\u201d': '"',
+  '\u2013': '-', '\u2014': '-', '\u2026': '...', '\u00a0': ' ', '\u2022': '-', '\u20a6': 'N',
+};
+
+/**
+ * Final control on every AI or system message sent by SMS: no links, web addresses
+ * or emails; no markdown; plain characters only. Yoruba, Hausa and Igbo letters are
+ * written without diacritics (as most people text) so the SMS stays GSM-7.
+ */
+export function channelText(text: string, options: { keepSiteNames?: string[] } = {}): string {
+  let value = text.replace(URL_PATTERN, '').replace(EMAIL_PATTERN, '');
+  value = value.replace(BARE_LINK_PATTERN, (match) =>
+    options.keepSiteNames?.includes(match.toLowerCase()) ? match : '',
+  );
+  value = value
+    .replace(/\*\*|__|`+/g, '')
+    .replace(/^\s{0,3}#{1,6}\s*/gm, '')
+    .replace(/^\s*[*\u2022]\s+/gm, '- ')
+    .replace(/\[([^\]]*)\]\(\s*\)/g, '$1')
+    .replace(/[\u0253\u0181\u0257\u018a\u0199\u0198\u01b4\u01b3\u2018\u2019\u201c\u201d\u2013\u2014\u2026\u00a0\u2022\u20a6]/g, (c) => LETTER_MAP[c] ?? '')
+    .normalize('NFKD')
+    .replace(/\p{M}/gu, '')
+    // Anything left outside printable ASCII (emoji, symbols) is dropped.
+    .replace(/[^\x20-\x7e\n]/g, '')
+    .replace(/\(\s*\)|\[\s*\]/g, '')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/ +([.,;:!?])/g, '$1')
+    .replace(/:\s*(?=\n|$)/g, (match, offset: number, whole: string) =>
+      // Drop a label left dangling by a removed link ("Source: ").
+      /(?:Source|Map|Link|Website)$/i.test(whole.slice(Math.max(0, offset - 8), offset)) ? '' : match,
+    )
+    .replace(/^\s*(?:Source|Map|Link|Website)\s*$/gim, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/[ \t]+\n/g, '\n')
+    .trim();
+  return value;
+}
 
 const labels: Record<string, string> = {
   full_name: 'Name',
@@ -24,6 +69,7 @@ export interface ListingContext {
   index?: number;
   total?: number;
   emergency?: boolean;
+  locale?: Locale;
 }
 
 /** Tidy a web address for SMS: drop postcodes, the country and repeated parts. */
@@ -52,13 +98,14 @@ function tidyName(name: string): string {
 }
 
 function heading(context: ListingContext, name: string): string {
+  const locale = context.locale;
   const position =
     context.total && context.total > 1 && context.index !== undefined
-      ? ` ${context.index + 1} of ${context.total}`
+      ? ` ${context.index + 1}/${context.total}`
       : '';
   if (!position && context.total === 1)
-    return `${context.emergency ? 'Nearest emergency option' : 'Nearest option'}: ${name}`;
-  return `${context.emergency ? 'Emergency' : 'Option'}${position}: ${name}`;
+    return `${t(locale, context.emergency ? 'nearestEmergency' : 'nearestOption')}: ${name}`;
+  return `${t(locale, context.emergency ? 'emergencyOption' : 'option')}${position}: ${name}`;
 }
 
 function nextStep(context: ListingContext): string {
@@ -66,9 +113,8 @@ function nextStep(context: ListingContext): string {
   // wrongly telling the person the list is finished.
   const more =
     context.total === undefined || context.index === undefined || context.index + 1 < context.total;
-  if (context.emergency)
-    return more ? 'Life-threatening? Call 112 now. Reply MORE for another.' : 'Life-threatening? Call 112 now.';
-  return more ? 'Reply MORE for another option.' : 'Reply with another area to search again.';
+  if (context.emergency) return t(context.locale, more ? 'replyMoreEmergency' : 'emergencyOnly');
+  return t(context.locale, more ? 'replyMore' : 'searchAgain');
 }
 
 export function renderFacility(
@@ -83,11 +129,11 @@ export function renderFacility(
     tidyAddress(facility.address),
   ];
   if (Number.isFinite(Number(facility.distance_km)) && facility.distance_km !== null)
-    lines.push(`About ${Number(facility.distance_km).toFixed(1)} km away`);
-  lines.push(facility.phone ? `Call: ${facility.phone}` : 'No phone number listed.');
-  lines.push('From the HealthAccess directory. Call ahead to check they are open.');
+    lines.push(t(context.locale, 'aboutKm', { km: Number(facility.distance_km).toFixed(1) }));
+  lines.push(facility.phone ? `${t(context.locale, 'call')}: ${facility.phone}` : t(context.locale, 'noPhone'));
+  lines.push(t(context.locale, 'fromDirectory'));
   lines.push(nextStep(context));
-  return lines.join('\n');
+  return channelText(lines.join('\n'));
 }
 
 export function renderWebLead(
@@ -95,24 +141,22 @@ export function renderWebLead(
   context: ListingContext = {},
 ) {
   if (!lead) return 'That listing is no longer available. Tell me your area and I will search again.';
-  let source;
   try {
     const url = new URL(lead.source_url);
     if (url.protocol !== 'https:') throw new Error('Invalid source');
-    source = url.href;
   } catch {
     return 'That listing has no valid source. Please contact a local health facility.';
   }
-  return [
-    heading(context, tidyName(lead.name)),
-    tidyAddress(lead.address),
-    lead.phone ? `Call: ${lead.phone}` : 'No phone number listed.',
-    `Map: ${source}`,
-    context.emergency
-      ? 'Found online, not checked by us.'
-      : 'Found online, not checked by us. Call first to confirm they can help.',
-    nextStep(context),
-  ].join('\n');
+  // No map or website links by SMS: name, address and phone are what people can act on.
+  return channelText(
+    [
+      heading(context, tidyName(lead.name)),
+      tidyAddress(lead.address),
+      lead.phone ? `${t(context.locale, 'call')}: ${lead.phone}` : t(context.locale, 'noPhone'),
+      t(context.locale, context.emergency ? 'foundOnlineShort' : 'foundOnline'),
+      nextStep(context),
+    ].join('\n'),
+  );
 }
 
 // Segments are submitted as one message, leaving concatenation to the provider.

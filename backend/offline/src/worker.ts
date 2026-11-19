@@ -4,8 +4,15 @@ import { pathToFileURL } from 'node:url';
 import { loadConfig } from './config.js';
 import { createCrypto } from './security/crypto.js';
 import { Repository } from './repository.js';
-import { createSmsEngine, UNAVAILABLE } from './channels/sms.js';
-import { fieldText, renderFacility, renderWebLead, smsSegments } from './channels/render.js';
+import { createSmsEngine, HELP, UNAVAILABLE } from './channels/sms.js';
+import {
+  channelText,
+  fieldText,
+  renderFacility,
+  renderWebLead,
+  smsSegments,
+} from './channels/render.js';
+import { toLocale } from './channels/i18n.js';
 import { createAssistant } from './services/assistant.js';
 import { createWebSearch } from './services/web-search.js';
 import { createSmsProvider } from './providers/africastalking.js';
@@ -81,7 +88,8 @@ export async function runWorker() {
             let text: string;
             switch (rendered.reply.kind) {
               case 'text':
-                text = rendered.reply.text;
+                // Final control: no links, markdown or symbols reach a basic phone.
+                text = channelText(rendered.reply.text) || channelText(HELP);
                 break;
               case 'emergency':
                 text =
@@ -94,6 +102,7 @@ export async function runWorker() {
                   index: rendered.reply.index,
                   total: rendered.reply.total,
                   emergency: rendered.reply.emergency,
+                  locale: toLocale(rendered.reply.locale) ?? undefined,
                 });
                 break;
               case 'web_lead':
@@ -101,6 +110,7 @@ export async function runWorker() {
                   index: rendered.reply.index,
                   total: rendered.reply.total,
                   emergency: rendered.reply.emergency,
+                  locale: toLocale(rendered.reply.locale) ?? undefined,
                 });
                 break;
             }
