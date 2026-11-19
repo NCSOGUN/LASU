@@ -20,29 +20,99 @@ export function fieldText(fields: RecordField[]) {
     .join('\n');
 }
 
-export function renderFacility(facility: Facility | null, serviceLabel?: string) {
+export interface ListingContext {
+  index?: number;
+  total?: number;
+  emergency?: boolean;
+}
+
+/** Tidy a web address for SMS: drop postcodes, the country and repeated parts. */
+export function tidyAddress(address: string): string {
+  const parts: string[] = [];
+  for (const [position, raw] of address.split(',').entries()) {
+    // Only a number trailing a later place segment ("Lagos 100211") is a postcode;
+    // house and plot numbers ("Plot 123456 Admiralty Way") are kept.
+    const part = (position === 0 ? raw : raw.replace(/\s+\d{5,6}\s*$/, ''))
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (/^\d{5,6}$/.test(part) && position > 0) continue;
+    if (!part || /^nigeria$/i.test(part)) continue;
+    if (parts.some((existing) => existing.toLowerCase() === part.toLowerCase())) continue;
+    parts.push(part);
+  }
+  // "1, Veta Close" reads better as "1 Veta Close".
+  return parts.join(', ').replace(/^(\d+[A-Za-z]?), /, '$1 ');
+}
+
+function tidyName(name: string): string {
+  return name
+    .replace(/\s+/g, ' ')
+    .replace(/\s+(?:Ltd\.?|Limited|LLC|Plc)\b/gi, '')
+    .trim();
+}
+
+function heading(context: ListingContext, name: string): string {
+  const position =
+    context.total && context.total > 1 && context.index !== undefined
+      ? ` ${context.index + 1} of ${context.total}`
+      : '';
+  if (!position && context.total === 1)
+    return `${context.emergency ? 'Nearest emergency option' : 'Nearest option'}: ${name}`;
+  return `${context.emergency ? 'Emergency' : 'Option'}${position}: ${name}`;
+}
+
+function nextStep(context: ListingContext): string {
+  // Older queued replies carry no position; assume more may follow rather than
+  // wrongly telling the person the list is finished.
+  const more =
+    context.total === undefined || context.index === undefined || context.index + 1 < context.total;
+  if (context.emergency)
+    return more ? 'Life-threatening? Call 112 now. Reply MORE for another.' : 'Life-threatening? Call 112 now.';
+  return more ? 'Reply MORE for another option.' : 'Reply with another area to search again.';
+}
+
+export function renderFacility(
+  facility: Facility | null,
+  serviceLabel?: string,
+  context: ListingContext = {},
+) {
   if (!facility)
-    return 'This facility is no longer listed. Send FIND <care> near <area> for current results.';
-  const distance =
-    Number.isFinite(Number(facility.distance_km)) && facility.distance_km !== null
-      ? `Approx. ${Number(facility.distance_km).toFixed(1)} km from area centre.`
-      : 'Distance unavailable.';
-  return `${facility.is_demo ? 'Demo facility (fictional): ' : ''}${facility.name}${serviceLabel ? ` - ${serviceLabel}` : ''}.\n${facility.address}.\n${distance}\n${facility.phone ? `Contact: ${facility.phone}.` : 'Contact not listed.'}\nCall to confirm service availability. Reply MORE for another option.`;
+    return 'That clinic is no longer listed. Tell me the care you need and your area, and I will search again.';
+  const lines = [
+    heading(context, `${facility.is_demo ? '(Demo) ' : ''}${facility.name}${serviceLabel ? ` (${serviceLabel})` : ''}`),
+    tidyAddress(facility.address),
+  ];
+  if (Number.isFinite(Number(facility.distance_km)) && facility.distance_km !== null)
+    lines.push(`About ${Number(facility.distance_km).toFixed(1)} km away`);
+  lines.push(facility.phone ? `Call: ${facility.phone}` : 'No phone number listed.');
+  lines.push('From the HealthAccess directory. Call ahead to check they are open.');
+  lines.push(nextStep(context));
+  return lines.join('\n');
 }
 
 export function renderWebLead(
   lead: Pick<WebLead, 'name' | 'address' | 'phone' | 'source_url'> | null,
+  context: ListingContext = {},
 ) {
-  if (!lead) return 'That web listing is unavailable. Send a new FIND request.';
+  if (!lead) return 'That listing is no longer available. Tell me your area and I will search again.';
   let source;
   try {
     const url = new URL(lead.source_url);
     if (url.protocol !== 'https:') throw new Error('Invalid source');
     source = url.href;
   } catch {
-    return 'Web source unavailable. Please contact a local health facility.';
+    return 'That listing has no valid source. Please contact a local health facility.';
   }
-  return `Unverified web listing, NOT a confirmed suitable-care match:\n${lead.name}\n${lead.address}\n${lead.phone ? `Listed phone: ${lead.phone}.` : 'Contact not listed.'}\nSource: ${source}. Call to verify services before travel. Reply MORE for another listing.`;
+  return [
+    heading(context, tidyName(lead.name)),
+    tidyAddress(lead.address),
+    lead.phone ? `Call: ${lead.phone}` : 'No phone number listed.',
+    `Map: ${source}`,
+    context.emergency
+      ? 'Found online, not checked by us.'
+      : 'Found online, not checked by us. Call first to confirm they can help.',
+    nextStep(context),
+  ].join('\n');
 }
 
 // Segments are submitted as one message, leaving concatenation to the provider.

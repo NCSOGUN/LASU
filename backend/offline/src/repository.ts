@@ -1698,7 +1698,7 @@ export class Repository {
     values: {
       channel: 'SMS' | 'USSD';
       action: string;
-      targetDigest: string;
+      targetDigest: string | null;
       phoneDigest: string;
       limit: number;
       windowSeconds: number;
@@ -1975,14 +1975,24 @@ export class Repository {
       return deniedProjection();
     }
     if (
-      await this.tooManyAttempts(database, {
+      (await this.tooManyAttempts(database, {
         channel: 'USSD',
         action: 'grant_open',
         targetDigest: grantDigest,
         phoneDigest: phone,
         limit: 5,
         windowSeconds: 900,
-      })
+      })) ||
+      // A temporary code now opens a record on its own, so also cap failures per
+      // phone across every code; otherwise guessing a new code each time is unlimited.
+      (await this.tooManyAttempts(database, {
+        channel: 'USSD',
+        action: 'grant_open',
+        targetDigest: null,
+        phoneDigest: phone,
+        limit: 8,
+        windowSeconds: 900,
+      }))
     ) {
       await this.attempt(database, {
         channel: 'USSD',

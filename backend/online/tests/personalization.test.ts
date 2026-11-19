@@ -175,3 +175,42 @@ test('saving the allergy list keeps the shareable allergies field in sync', asyn
   const cleared = await request(app).put('/v1/me/medical').set(auth).send({ allergies: [] }).expect(200);
   assert.equal(cleared.body.field_values.allergies, undefined);
 });
+
+test('deleting one allergy also removes it from the shareable field', async () => {
+  const auth = await register('allergy-delete');
+  const saved = await request(app)
+    .put('/v1/me/medical')
+    .set(auth)
+    .send({ allergies: [{ name: 'Penicillin' }, { name: 'Peanuts' }] })
+    .expect(200);
+  const penicillin = saved.body.allergies.find((item: { name: string }) => item.name === 'Penicillin');
+  await request(app).delete(`/v1/me/allergies/${penicillin.id}`).set(auth).expect(204);
+  const me = await request(app).get('/v1/me').set(auth).expect(200);
+  assert.deepEqual(me.body.field_values.allergies, ['Peanuts']);
+
+  const peanuts = me.body.allergies[0];
+  await request(app).delete(`/v1/me/allergies/${peanuts.id}`).set(auth).expect(204);
+  const empty = await request(app).get('/v1/me').set(auth).expect(200);
+  assert.equal(empty.body.field_values.allergies, undefined);
+});
+
+test('an ambiguous city does not pick an arbitrary home area', async () => {
+  const ids = [randomUUID(), randomUUID()];
+  const town = `Testtown${runId}`;
+  await prisma.area.createMany({
+    data: [
+      { id: ids[0]!, name: town, city: town, region: 'Lagos', country_code: 'NG' },
+      { id: ids[1]!, name: town, city: town, region: 'Ogun', country_code: 'NG' },
+    ],
+  });
+  try {
+    const auth = await register('ambiguous-area');
+    const ambiguous = await request(app).patch('/v1/me').set(auth).send({ city: town }).expect(200);
+    assert.equal(ambiguous.body.profile.home_area_id, null);
+    const chosen = await request(app).patch('/v1/me').set(auth).send({ state: 'Ogun' }).expect(200);
+    assert.equal(chosen.body.profile.home_area_id, ids[1]);
+  } finally {
+    await prisma.patientProfile.updateMany({ where: { home_area_id: { in: ids } }, data: { home_area_id: null } });
+    await prisma.area.deleteMany({ where: { id: { in: ids } } });
+  }
+});

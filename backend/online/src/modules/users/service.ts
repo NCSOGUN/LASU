@@ -275,16 +275,25 @@ export async function resolveHomeArea(
         { aliases: { some: { alias_normalized: normalized } } },
       ],
     },
-    select: { id: true, region: true },
+    select: { id: true, region: true, name: true },
+    orderBy: { id: 'asc' },
     take: 10,
   });
   if (!candidates.length) return null;
   if (state?.trim()) {
     const wanted = state.trim().toLowerCase();
-    const inRegion = candidates.find((area) => area.region.toLowerCase() === wanted);
-    if (inRegion) return inRegion.id;
+    const inRegion = candidates.filter((area) => area.region.toLowerCase() === wanted);
+    if (inRegion.length === 1) return inRegion[0]!.id;
+    if (inRegion.length > 1) {
+      const exact = inRegion.filter((area) => area.name.toLowerCase() === cityText.toLowerCase());
+      return exact.length === 1 ? exact[0]!.id : null;
+    }
   }
-  return candidates[0]!.id;
+  // Without a matching state, only an unambiguous match is used; a wrong saved area
+  // is worse than none.
+  if (new Set(candidates.map((area) => area.region.toLowerCase())).size > 1) return null;
+  const exact = candidates.filter((area) => area.name.toLowerCase() === cityText.toLowerCase());
+  return (exact[0] ?? candidates[0])!.id;
 }
 
 async function applyPersonalFields(
@@ -633,10 +642,28 @@ export async function removeAllergy(accountId: string, allergyId: string) {
     select: { id: true },
   });
   if (!profile) return false;
-  const deleted = await prisma.allergy.deleteMany({
-    where: { id: allergyId, patient_id: profile.id },
+  return prisma.$transaction(async (tx) => {
+    const deleted = await tx.allergy.deleteMany({
+      where: { id: allergyId, patient_id: profile.id },
+    });
+    if (deleted.count === 0) return false;
+    // The shareable "Allergies" field mirrors the allergy list, so a removed allergy
+    // must not keep appearing in emergency summaries or quick shares.
+    const remaining = await tx.allergy.findMany({
+      where: { patient_id: profile.id },
+      orderBy: { created_at: 'asc' },
+      select: { name: true },
+    });
+    const names = [...new Set(remaining.map((allergy) => allergy.name.trim()).filter(Boolean))];
+    if (names.length) {
+      await writeFieldValues(tx, profile.id, accountId, [['allergies', names]]);
+    } else {
+      await tx.patientFieldValue.deleteMany({
+        where: { patient_id: profile.id, field_key: 'allergies' },
+      });
+    }
+    return true;
   });
-  return deleted.count > 0;
 }
 
 export async function removeMedicalEvent(accountId: string, eventId: string) {

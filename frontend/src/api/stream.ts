@@ -1,7 +1,8 @@
 "use client";
 
 import { ApiError } from "./errors";
-import { refreshSession } from "./client";
+import { queryClient } from "@/lib/query-client";
+import { redirectToLogin, refreshSession } from "./client";
 import { symptomDetailResponseSchema, symptomRecordSchema, type SymptomDetailResponse, type SymptomRecord } from "./schemas";
 
 export type SymptomStreamEvent =
@@ -126,13 +127,25 @@ export async function* streamSymptom(
   let response: Response;
   try {
     response = await send();
-    if (response.status === 401) {
-      await refreshSession();
-      response = await send();
-    }
   } catch (error) {
     if (signal.aborted) throw error;
     throw new ApiError({ status: 0, code: "network" });
+  }
+  if (response.status === 401) {
+    try {
+      await refreshSession();
+    } catch {
+      // The session is gone: sign in again, like every other API call.
+      queryClient.clear();
+      redirectToLogin();
+      throw new ApiError({ status: 401, code: "token_expired" });
+    }
+    try {
+      response = await send();
+    } catch (error) {
+      if (signal.aborted) throw error;
+      throw new ApiError({ status: 0, code: "network" });
+    }
   }
 
   if (!response.ok || !response.body) throw await errorFrom(response);
