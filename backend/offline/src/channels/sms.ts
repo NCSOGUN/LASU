@@ -175,7 +175,8 @@ export function createSmsEngine({
 
   async function answerQuestion(question: string): Promise<SmsResult> {
     const answer = await assistant.answer(question, { personal: await personalHints() });
-    return idle(answer.text);
+    // Stay in the chat so a follow-up ("what if it gets worse?") keeps the thread.
+    return result(assistant.converse ? 'chat' : 'idle', {}, [textReply(answer.text)]);
   }
 
   async function showResult(
@@ -472,7 +473,11 @@ export function createSmsEngine({
       ]);
     }
     await repository.setOptOut(false);
-    if (MENU_PATTERN.test(text)) return result('menu', {}, [textReply(HELP)]);
+    // In a live chat ("chat" state) short replies such as "2", "ok" or "what?" answer the
+    // assistant's last question, so they go to the conversation, not to menu shortcuts.
+    const inChat = state === 'chat' && assistant.converse !== undefined;
+    if (MENU_PATTERN.test(text) && !(inChat && !/^(help|menu)$/i.test(text)))
+      return result('menu', {}, [textReply(HELP)]);
     if (isPotentiallyUrgent(text)) return urgent();
     if (/^LOOKUP(?:\s|$)/i.test(text)) {
       const code = text.replace(/^LOOKUP\s*/i, '').replace(/[\s-]/g, '');
@@ -575,8 +580,8 @@ export function createSmsEngine({
         areaLabel: areaContext(context).areaLabels?.[index],
       } as SmsContext);
     }
-    if (GREETING_PATTERN.test(text)) return result('menu', {}, [textReply(GREETING)]);
-    if (THANKS_PATTERN.test(text))
+    if (!inChat && GREETING_PATTERN.test(text)) return result('menu', {}, [textReply(GREETING)]);
+    if (!inChat && THANKS_PATTERN.test(text))
       return idle('You are welcome. Message me any time you need care or have a health question. In danger? Call 112.');
 
     if (assistant.converse) {
@@ -605,11 +610,13 @@ export function createSmsEngine({
         if (reply.intent === 'health_question') {
           const answer = await assistant.answer(reply.question ?? text, { personal: await personalHints() });
           if ((answer as { kind?: string }).kind === 'fallback' && reply.reply)
-            return idle(`${reply.reply} This is general information, not a diagnosis.`);
-          return idle(answer.text);
+            return result('chat', {}, [
+              textReply(`${reply.reply} This is general information, not a diagnosis.`),
+            ]);
+          return result('chat', {}, [textReply(answer.text)]);
         }
         if (reply.intent === 'my_code') return myCode();
-        if (reply.reply) return result('menu', {}, [textReply(reply.reply)]);
+        if (reply.reply) return result('chat', {}, [textReply(reply.reply)]);
       }
       return result('menu', {}, [textReply(HELP)]);
     }

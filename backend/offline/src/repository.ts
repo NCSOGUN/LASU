@@ -533,8 +533,9 @@ export class Repository {
     const result = allowed
       ? await handle(body, scoped, conversation)
       : {
-          state: 'idle',
-          context: {},
+          // Keep the thread (and its memory) so the next message continues it.
+          state: conversation.state,
+          context: conversation.context,
           replies: [
             {
               kind: 'text' as const,

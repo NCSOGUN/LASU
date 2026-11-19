@@ -49,6 +49,11 @@ function httpLogBodies(env: Environment, mode: string): 'off' | 'redacted' | 'fu
 }
 
 // The pilot has a small environment surface. Operational defaults live here.
+function boundedInt(value: string | undefined, fallback: number, min: number, max: number) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= min && parsed <= max ? parsed : fallback;
+}
+
 export function loadConfig(env: Environment = process.env) {
   const mode = env.NODE_ENV || 'development';
   if (!['development', 'test', 'production'].includes(mode)) throw new Error('Invalid NODE_ENV');
@@ -115,7 +120,8 @@ export function loadConfig(env: Environment = process.env) {
     ussdSessionTtlSeconds: 120,
     ussdMaxChars: 182,
     ussdMaxInvalidAttempts: 3,
-    smsConversationTtlSeconds: 900,
+    // How long an SMS thread (and its encrypted memory) lives after the last message.
+    smsConversationTtlSeconds: boundedInt(env.SMS_CONVERSATION_TTL_SECONDS, 1800, 300, 86400),
     smsReplyTtlSeconds: 900,
     smsMaxSegments: 6,
     searchRadiusKm: 25,
@@ -124,7 +130,9 @@ export function loadConfig(env: Environment = process.env) {
     aiEnabled: !!env.OPENROUTER_API_KEY,
     openrouterApiKey: env.OPENROUTER_API_KEY || '',
     openrouterModel: env.OPENROUTER_MODEL || '',
-    aiTimeoutMs: 10000,
+    // Structured answers from hosted models often take 10-20 s; a short limit made
+    // the SMS assistant silently fall back to the menu.
+    aiTimeoutMs: boundedInt(env.AI_TIMEOUT_MS, 25000, 1000, 60000),
     aiMaxOutputTokens: 600,
     serperApiKey: env.SERPER_API_KEY || '',
     serperTimeoutMs: 5000,

@@ -27,23 +27,25 @@ const ClassificationSchema = z
   })
   .strict();
 
-const ConverseSchema = z
-  .object({
-    intent: z.enum([
-      'emergency',
-      'find_care',
-      'health_question',
-      'my_code',
-      'clarification',
-      'smalltalk',
-      'unsupported',
-    ]),
-    service_code: z.string().max(64).nullable(),
-    location_query: z.string().max(120).nullable(),
-    question: z.string().max(500).nullable(),
-    reply: z.string().max(600),
-  })
-  .strict();
+const CONVERSE_INTENTS = [
+  'emergency',
+  'find_care',
+  'health_question',
+  'my_code',
+  'clarification',
+  'smalltalk',
+  'unsupported',
+] as const;
+
+// Models sometimes omit nullable fields or run long; accept that rather than
+// dropping a good reply and falling back to the menu.
+const ConverseSchema = z.object({
+  intent: z.enum(CONVERSE_INTENTS).catch('clarification'),
+  service_code: z.string().max(64).nullable().optional().catch(null),
+  location_query: z.string().max(200).nullable().optional().catch(null),
+  question: z.string().max(800).nullable().optional().catch(null),
+  reply: z.string().max(2000).nullable().optional().catch(null),
+});
 
 const AnswerSchema = z
   .object({
@@ -238,6 +240,12 @@ function redactLongNumbers(value: string): string {
 function cleanUserText(value: unknown, maxLength: number): string {
   const text = cleanText(value, maxLength * 2);
   if (!text || !hasLetter(text)) return '';
+  return redactLongNumbers(text).replace(/\s+/g, ' ').trim().slice(0, maxLength).trim();
+}
+
+function cleanConversationText(value: unknown, maxLength: number): string {
+  const text = cleanText(value, maxLength * 2);
+  if (!text || !/[\p{L}\p{N}]/u.test(text)) return '';
   return redactLongNumbers(text).replace(/\s+/g, ' ').trim().slice(0, maxLength).trim();
 }
 
@@ -577,13 +585,26 @@ export function createAssistant(
         reject(new Error('ai request timed out'));
       }, settings.aiTimeoutMs);
     });
+    const started = Date.now();
     try {
       const result = await Promise.race([work, deadline]);
       const candidate = result.output ?? result.object;
       const parsed = schema.safeParse(candidate);
-      return parsed.success ? parsed.data : null;
-    } catch {
+      if (!parsed.success) {
+        // Log the failure class only; never the message, prompt or model output.
+        console.warn({ event: 'ai_request_failed', task: name, reason: 'invalid_output', ms: Date.now() - started });
+        return null;
+      }
+      return parsed.data;
+    } catch (error) {
       work.catch(() => undefined);
+      console.warn({
+        event: 'ai_request_failed',
+        task: name,
+        reason: controller.signal.aborted ? 'timeout' : 'provider_error',
+        error: error instanceof Error ? error.name : 'unknown',
+        ms: Date.now() - started,
+      });
       return null;
     } finally {
       if (timer) clearTimeout(timer);
@@ -606,7 +627,9 @@ export function createAssistant(
     message: string,
     { services = [], history = [], savedAreaLabel = null }: ConverseOptions = {},
   ): Promise<ConverseResult | null> {
-    const text = cleanUserText(message, MAX_INPUT_LENGTH);
+    // In a conversation, short number-only replies ("2", "38.5") answer the last
+    // question, so they are allowed here; long numbers are still redacted.
+    const text = cleanConversationText(message, MAX_INPUT_LENGTH);
     if (!text || !canGenerate() || !PROMPTS.converse) return null;
     const serviceList = normalizeServices(services);
     const turns = history
@@ -616,7 +639,7 @@ export function createAssistant(
         text:
           turn.role === 'assistant'
             ? redactLongNumbers(cleanText(turn.text, 320))
-            : cleanUserText(turn.text, 320),
+            : cleanConversationText(turn.text, 320),
       }))
       .filter((turn) => turn.text);
     const area = cleanText(savedAreaLabel, 80) || null;
@@ -624,7 +647,7 @@ export function createAssistant(
     const output = await generate(ConverseSchema, 'SmsConversation', PROMPTS.converse, prompt);
     if (!output) return null;
     const codes = new Set(serviceList.map((service) => service.service_code));
-    const reply = redactLongNumbers(cleanText(output.reply, 320));
+    const reply = redactLongNumbers(cleanText(output.reply ?? '', 320));
     return {
       intent: output.intent,
       service_code:

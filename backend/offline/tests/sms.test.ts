@@ -580,3 +580,37 @@ test('LOOKUP accepts spaced codes and explains 8-digit codes', async () => {
   assert.deepEqual(spaced.replies, [{ kind: 'emergency', codeDigest: 'digest' }]);
   assert.match(textOf(await engine.process('LOOKUP 1234 5678')), /USSD/);
 });
+
+test('short answers to the assistant stay in the conversation instead of hitting menu shortcuts', async () => {
+  const seen: string[] = [];
+  const { engine } = engineWith({}, async (message, options) => {
+    seen.push(`${message}|${options.history.length}`);
+    if (message.includes('fever'))
+      return { intent: 'clarification', service_code: null, location_query: null, question: null, reply: 'How old is your child?' };
+    if (message === '2')
+      return { intent: 'clarification', service_code: null, location_query: null, question: null, reply: 'How long has the fever lasted?' };
+    return { intent: 'smalltalk', service_code: null, location_query: null, question: null, reply: 'Okay. Anything else?' };
+  });
+  const [first, age, ok, confused] = await chat(engine, [
+    'my child has a fever',
+    '2',
+    'ok',
+    'what?',
+  ]);
+  assert.equal(first.state, 'chat');
+  assert.equal(textOf(age), 'How long has the fever lasted?');
+  assert.equal(age.state, 'chat');
+  assert.equal(textOf(ok), 'Okay. Anything else?');
+  assert.notEqual(textOf(confused), HELP);
+  // Each turn reached the assistant with the growing thread.
+  assert.deepEqual(seen, ['my child has a fever|0', '2|2', 'ok|4', 'what?|6']);
+});
+
+test('HELP and urgent messages still work in the middle of a chat', async () => {
+  const { engine } = engineWith({}, async () => ({
+    intent: 'clarification', service_code: null, location_query: null, question: null, reply: 'Tell me more?',
+  }));
+  const [, help, urgent] = await chat(engine, ['I feel sick', 'help', 'now I cannot breathe']);
+  assert.equal(textOf(help), HELP);
+  assert.equal(urgent.state, 'awaiting_emergency_area');
+});
