@@ -29,11 +29,13 @@ export interface ListingContext {
 /** Tidy a web address for SMS: drop postcodes, the country and repeated parts. */
 export function tidyAddress(address: string): string {
   const parts: string[] = [];
-  for (const raw of address.split(',')) {
-    const part = raw
-      .replace(/\b\d{5,6}\b/g, '')
+  for (const [position, raw] of address.split(',').entries()) {
+    // Only a number trailing a later place segment ("Lagos 100211") is a postcode;
+    // house and plot numbers ("Plot 123456 Admiralty Way") are kept.
+    const part = (position === 0 ? raw : raw.replace(/\s+\d{5,6}\s*$/, ''))
       .replace(/\s+/g, ' ')
       .trim();
+    if (/^\d{5,6}$/.test(part) && position > 0) continue;
     if (!part || /^nigeria$/i.test(part)) continue;
     if (parts.some((existing) => existing.toLowerCase() === part.toLowerCase())) continue;
     parts.push(part);
@@ -54,11 +56,16 @@ function heading(context: ListingContext, name: string): string {
     context.total && context.total > 1 && context.index !== undefined
       ? ` ${context.index + 1} of ${context.total}`
       : '';
+  if (!position && context.total === 1)
+    return `${context.emergency ? 'Nearest emergency option' : 'Nearest option'}: ${name}`;
   return `${context.emergency ? 'Emergency' : 'Option'}${position}: ${name}`;
 }
 
 function nextStep(context: ListingContext): string {
-  const more = context.total !== undefined && context.index !== undefined && context.index + 1 < context.total;
+  // Older queued replies carry no position; assume more may follow rather than
+  // wrongly telling the person the list is finished.
+  const more =
+    context.total === undefined || context.index === undefined || context.index + 1 < context.total;
   if (context.emergency)
     return more ? 'Life-threatening? Call 112 now. Reply MORE for another.' : 'Life-threatening? Call 112 now.';
   return more ? 'Reply MORE for another option.' : 'Reply with another area to search again.';

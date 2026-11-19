@@ -215,3 +215,18 @@ Provider contracts were checked against the official [SMS notifications](https:/
 [SMS sending](<https://developers.africastalking.com/docs/sms/sending/bulk_(legacy)>),
 [USSD sessions](https://developers.africastalking.com/docs/ussd/handle_sessions), and
 [USSD events](https://developers.africastalking.com/docs/ussd/notifications) documentation.
+
+## Simulating Africa's Talking locally
+
+`npm run simulate` (from `backend/offline`) runs the real callback server, the real
+repository and three SMS worker replicas against `DATABASE_URL`, then posts the same
+webhooks Africa's Talking sends (shortcode 55892, USSD `*384*1#`) from many phones at
+once. Only external services are stand-ins: the AI model, Serper search and the SMS
+gateway (which records every outgoing message). It prints each conversation and a
+PASS/FAIL per scenario. Set `SIM_LOAD=40` to add 40 extra concurrent phones. Use a
+test database: it creates and removes a test patient.
+
+Tuning (optional env): `AI_TIMEOUT_MS` (default 25000, capped so two AI calls fit the
+90 s worker lease), `SMS_CONVERSATION_TTL_SECONDS` (default 1800),
+`CALLBACK_RATE_PER_MINUTE` (provider-IP flood ceiling, default 6000; each sender phone
+is limited to 60 callbacks a minute).

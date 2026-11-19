@@ -56,6 +56,7 @@ type AppConfig = Pick<
   | 'callbackAuthMode'
   | 'callbackPathKey'
   | 'callbackRatePerMinute'
+  | 'callbackPhoneRatePerMinute'
   | 'callbackBodyLimitBytes'
   | 'atSmsInboundNumbers'
   | 'atUssdServiceCode'
@@ -177,6 +178,22 @@ export function createApp({
   callbacks.use(
     express.json({ limit: config.callbackBodyLimitBytes, strict: true, inflate: false }),
   );
+  // One noisy phone must not use up everyone else's share of the provider IPs.
+  callbacks.use(async (req, res, next) => {
+    try {
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const sender = typeof body.from === 'string' ? body.from : body.phoneNumber;
+      if (typeof sender === 'string' && sender) {
+        const scope = crypto.fingerprint(`callback-phone:${sender.replace(/\D/g, '')}`);
+        if (!(await repository.takeRateLimit(scope, config.callbackPhoneRatePerMinute, 60))) {
+          return res.status(429).set('Retry-After', '60').type('text').send('Retry later');
+        }
+      }
+      next();
+    } catch (error) {
+      next(error);
+    }
+  });
   callbacks.post('/sms/inbound', async (req, res) => {
     const body = smsSchema.parse(req.body);
     if (!config.atSmsInboundNumbers.some((number) => sameNumber(number, body.to)))

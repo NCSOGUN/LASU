@@ -646,3 +646,16 @@ test('listings are short, numbered and say what to do next', () => {
   assert.match(emergency, /Call 112 now/);
   assert.ok(smsSegments(emergency).segments <= 2);
 });
+
+test('address tidying keeps plot numbers and legacy listings still offer MORE', () => {
+  const lead = {
+    name: 'Clinic',
+    address: 'Plot 123456 Admiralty Way, Lekki, Lagos 100211, Lagos, Nigeria',
+    phone: null,
+    source_url: 'https://example.org/clinic',
+  };
+  const text = renderWebLead(lead);
+  assert.match(text, /\nPlot 123456 Admiralty Way, Lekki, Lagos\n/);
+  assert.match(text, /Reply MORE for another option\./);
+  assert.match(renderWebLead(lead, { emergency: true }), /Reply MORE for another\./);
+});
